@@ -79,7 +79,7 @@ async function waitForLocalHost(logPath) {
       try { detail = fs.readFileSync(logPath, "utf8").slice(-2500); } catch {}
       throw new Error("The VICORA Host closed before it was ready. " +
         (hostExit.code === null ? hostExit.signal : "Exit code " + hostExit.code) +
-        (detail ? "\\n\\nHost log:\\n" + detail : ""));
+        (detail ? "\n\nHost log:\n" + detail : ""));
     }
     try {
       await verifyServer(address);
