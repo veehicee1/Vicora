@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CBT Admin Console</title>
+<style>
+:root{--bg:#f3f5f9;--pn:#fff;--tx:#1b2430;--mu:#6b7686;--bd:#e1e6ee;--pr:#1f4e79;--pr2:#2f6db0;--ok:#1e8e4e;--wa:#d98a00;--er:#c62f2f;--sb:#14283d}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1620;--pn:#17212d;--tx:#e6ebf2;--mu:#93a1b3;--bd:#2a3748;--pr:#4f8fd6;--pr2:#6aa5e6;--sb:#0a1119}}
+*{box-sizing:border-box}body{margin:0;font:14px/1.45 "Segoe UI",system-ui,Arial,sans-serif;background:var(--bg);color:var(--tx);display:flex;min-height:100vh}
+aside{width:215px;background:var(--sb);color:#cfd9e6;padding:14px 0;flex:none;position:sticky;top:0;height:100vh;overflow:auto}
+aside h1{font-size:15px;margin:0 16px 12px;color:#fff}aside small{display:block;font-weight:400;color:#8fa3ba;margin-top:2px}
+nav a{display:block;padding:9px 18px;color:#cfd9e6;text-decoration:none;cursor:pointer;border-left:3px solid transparent}
+nav a:hover{background:#ffffff14}nav a.on{background:#ffffff1f;border-color:#6aa5e6;color:#fff}
+main{flex:1;padding:22px 26px;min-width:0}h2{margin:0 0 16px;font-size:20px}h3{margin:0 0 10px;font-size:15px}
+.panel{background:var(--pn);border:1px solid var(--bd);border-radius:10px;padding:16px;margin-bottom:16px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:12px;margin-bottom:16px}
+.card{background:var(--pn);border:1px solid var(--bd);border-radius:10px;padding:14px}.card b{font-size:26px;display:block;color:var(--pr)}.card span{color:var(--mu);font-size:12px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}@media(max-width:1000px){.grid2{grid-template-columns:1fr}}
+table{width:100%;border-collapse:collapse}th,td{padding:8px 10px;border-bottom:1px solid var(--bd);text-align:left;vertical-align:middle}
+th{font-size:12px;text-transform:uppercase;color:var(--mu);letter-spacing:.03em;position:sticky;top:0;background:var(--pn)}
+.scroll{max-height:62vh;overflow:auto;border:1px solid var(--bd);border-radius:8px}
+button,.btn{font:inherit;border:1px solid var(--bd);background:var(--pn);color:var(--tx);padding:7px 13px;border-radius:7px;cursor:pointer;text-decoration:none;display:inline-block}
+button:hover,.btn:hover{border-color:var(--pr2)}button.pr{background:var(--pr);border-color:var(--pr);color:#fff}button.dg{color:var(--er)}button.sm,.btn.sm{padding:3px 9px;font-size:12px}
+input,select,textarea{font:inherit;color:var(--tx);background:var(--pn);border:1px solid var(--bd);border-radius:7px;padding:7px 10px;max-width:100%}
+textarea{width:100%;min-height:70px}label{display:block;font-size:12px;color:var(--mu);margin:10px 0 3px}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}.sp{flex:1}
+.badge{display:inline-block;padding:2px 9px;border-radius:99px;font-size:12px;font-weight:600}
+.b-writing,.b-live,.b-submitted{background:#1e8e4e22;color:var(--ok)}.b-offline,.b-closed{background:#c62f2f22;color:var(--er)}.b-not_started,.b-draft{background:#6b768622;color:var(--mu)}
+.chips{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}.chip{padding:8px 14px;border-radius:9px;background:var(--pn);border:1px solid var(--bd)}.chip b{font-size:18px;margin-right:6px}
+.prog{height:8px;background:var(--bd);border-radius:5px;min-width:80px;overflow:hidden}.prog i{display:block;height:100%;background:var(--pr2)}
+.warn{background:#d98a0022;border:1px solid var(--wa);padding:10px 14px;border-radius:8px;margin-bottom:14px}
+.hb{display:flex;align-items:center;gap:8px;margin:5px 0}.hb span:first-child{width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.hb .prog{flex:1;height:14px}
+code,.mono{font-family:Consolas,monospace;background:var(--bg);padding:2px 6px;border-radius:5px;word-break:break-all}
+#modal{position:fixed;inset:0;background:#0009;display:none;align-items:center;justify-content:center;z-index:9;padding:14px}
+#modal>div{background:var(--pn);border-radius:12px;padding:20px;width:640px;max-width:100%;max-height:92vh;overflow:auto}
+#toast{position:fixed;right:18px;bottom:18px;background:#222;color:#fff;padding:10px 16px;border-radius:8px;display:none;z-index:99;max-width:420px}
+#login{margin:12vh auto;width:340px}.f2{display:grid;grid-template-columns:1fr 1fr;gap:10px}.mu{color:var(--mu)}
+@media print{aside,.noprint{display:none!important}main{padding:0}.slip{break-inside:avoid}}
+.slips{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.slip{border:1px dashed #888;padding:8px;font-size:12px}
+
+/* Dashboard refresh: responsive navigation, compact insights and clearer actions */
+.dash-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;flex-wrap:wrap;margin-bottom:12px}.dash-head h2{margin-bottom:3px}.panel-title{display:flex;justify-content:space-between;align-items:center}.quick-actions{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:9px}.quick-actions button{text-align:left;min-height:42px}.exam-insight{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;padding:12px 0;border-top:1px solid var(--bd)}.exam-metrics{display:flex;gap:18px}.exam-metrics span{display:flex;flex-direction:column;min-width:62px}.exam-metrics b{font-size:18px;color:var(--pr)}.exam-metrics small{font-size:11px;color:var(--mu)}.activity-row{display:grid;grid-template-columns:135px 100px 1fr;gap:9px;padding:7px 0;border-bottom:1px solid var(--bd)}
+@media(max-width:760px){body{display:block}aside{width:100%;height:auto;position:sticky;top:0;z-index:5;padding:9px 0}aside h1{margin:0 12px 7px}nav{display:flex;overflow-x:auto;white-space:nowrap;padding-bottom:3px}nav a{padding:9px 12px;border-left:0;border-bottom:3px solid transparent;flex:none}nav a.on{border-bottom-color:#6aa5e6}main{padding:14px 12px}.cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.card{padding:11px}.card b{font-size:22px}.quick-actions{grid-template-columns:repeat(2,minmax(0,1fr))}.exam-metrics{width:100%;justify-content:space-between}.activity-row{grid-template-columns:1fr;gap:2px}.scroll{max-width:100%}}
+
+.badge.ok{background:#16834a18;color:#16834a}.badge.wa{background:#b7790818;color:#946200}
+/* GTMC visual system refinement — additive, no markup or data changes */
+:root{--bg:#f4f7fb;--pn:#fff;--tx:#15263b;--mu:#64748b;--bd:#dce5f0;--pr:#0756a8;--pr2:#2677c9;--ok:#16834a;--wa:#b77908;--er:#c43d43;--sb:#082b50}
+body{font-family:Inter,"Segoe UI",system-ui,Arial,sans-serif;letter-spacing:.005em}
+aside{box-shadow:5px 0 24px #092b5010}
+aside h1{font-size:16px;letter-spacing:.01em;padding:8px 0 12px}
+nav a{margin:2px 9px;padding:10px 13px;border-radius:8px;border-left:0;transition:background .16s ease,color .16s ease}
+nav a.on{background:#ffffff20;border-left:0;box-shadow:inset 3px 0 #76b7ff}
+main{padding:26px clamp(14px,2.5vw,36px)}
+h2{font-size:clamp(20px,2vw,25px);font-weight:750;letter-spacing:-.025em}
+h3{font-weight:700}
+.panel,.card{border-radius:14px;box-shadow:0 5px 20px #163b6010;transition:box-shadow .18s ease,border-color .18s ease}
+.card:hover{border-color:#b7cce3;box-shadow:0 8px 24px #163b6018}
+.card b{font-size:28px;letter-spacing:-.04em}
+button,.btn{border-radius:9px;padding:8px 14px;font-weight:600;transition:transform .12s ease,box-shadow .12s ease,border-color .12s ease}
+button:hover,.btn:hover{border-color:var(--pr2);box-shadow:0 3px 10px #0756a81a}
+button:active{transform:translateY(1px)}
+button.pr{box-shadow:0 4px 12px #0756a826}
+input,select,textarea{border-radius:9px;min-height:38px}
+input:focus,select:focus,textarea:focus{outline:3px solid #2677c926;border-color:var(--pr2)}
+th{z-index:1}
+.scroll{border-radius:11px}
+.badge{padding:4px 10px}
+.quick-actions button{min-height:48px;padding:12px 14px}
+#login{border-radius:18px;box-shadow:0 14px 42px #102f5017}
+#toast{border-radius:10px;box-shadow:0 8px 28px #0003}
+@media(max-width:760px){aside{box-shadow:0 5px 18px #092b5018}nav a{margin:0 3px;padding:9px 11px}main{padding:15px 11px}.panel{padding:13px;border-radius:12px}.quick-actions button{min-height:46px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
+
+
+/* GTMC premium interface system — responsive admin experience */
+:root{--bg:#f3f7fc;--pn:#fff;--tx:#142b45;--mu:#637991;--bd:#dce6f1;--pr:#0756a8;--pr2:#287bc8;--sb:#062b50;--ok:#16834a;--wa:#a96c08;--er:#c43d43;--elev:0 12px 34px rgba(10,48,86,.075)}
+body{background:radial-gradient(ellipse at 85% -10%,#dcecff 0,transparent 38%),var(--bg);color:var(--tx);font-family:Inter,"Segoe UI",system-ui,sans-serif}
+aside{background:linear-gradient(180deg,#082f58 0%,#061f3b 100%);box-shadow:8px 0 32px #082b5018;padding:18px 0}
+aside h1{display:flex;align-items:center;min-height:58px;margin:0 14px 18px;padding:8px 8px 8px 58px;position:relative;font-size:15px;line-height:1.25}
+aside h1:before{content:"";position:absolute;left:6px;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:12px;background:#fff url('/gtmc-logo.jpg') center/contain no-repeat;box-shadow:0 3px 12px #0002}
+aside h1 small{font-size:11px;letter-spacing:.09em;text-transform:uppercase;margin-top:5px;color:#a9c9e8}
+nav a{display:flex;align-items:center;min-height:43px;margin:3px 10px;padding:10px 13px;border-radius:10px;color:#d8e8f8;font-weight:550;transition:background .18s ease,transform .18s ease}
+nav a:hover{background:#ffffff16;transform:translateX(2px)}
+nav a.on{background:linear-gradient(90deg,#ffffff25,#ffffff12);box-shadow:inset 3px 0 #8fc8ff;color:#fff}
+main{padding:clamp(18px,2.8vw,38px);max-width:1680px}
+h2{font-size:clamp(22px,2vw,28px);letter-spacing:-.035em;color:#102d4b}
+.panel,.card{border:1px solid #e0e9f3;border-radius:16px;box-shadow:var(--elev)}
+.panel{padding:clamp(15px,2vw,22px)}
+.card{padding:17px;background:linear-gradient(145deg,#fff,#fbfdff)}
+.card b{font-size:30px;color:#0756a8}
+.card span{font-weight:550;letter-spacing:.015em}
+button,.btn{border-radius:10px;min-height:38px;font-weight:650;border-color:#d7e3ef;transition:all .16s ease}
+button:hover,.btn:hover{border-color:#75a9dc;box-shadow:0 5px 14px #0756a81a;transform:translateY(-1px)}
+button.pr{background:linear-gradient(110deg,#0756a8,#176fc0);border-color:#0756a8}
+button.dg{background:#fff7f7;border-color:#f0d4d5}
+input,select,textarea{border:1px solid #d5e1ed;background:#fff;border-radius:10px;min-height:40px}
+input:focus,select:focus,textarea:focus{outline:3px solid #2677c91f;border-color:#287bc8}
+th{background:#f5f8fc;color:#526b84;font-size:11px;letter-spacing:.07em}
+td{color:#29425c}
+.scroll{border:1px solid #e0e9f3;border-radius:12px;box-shadow:inset 0 1px #fff}
+#modal>div{border:1px solid #e0e9f3;border-radius:18px;box-shadow:0 22px 70px #061f3b45}
+#toast{border-radius:12px;box-shadow:0 10px 30px #061f3b35}
+#login{border:1px solid #dfe9f3;background:#fff;box-shadow:0 22px 65px #0a31531b;padding:26px}
+#login:before{content:"";display:block;width:76px;height:76px;margin:0 auto 14px;border-radius:18px;background:#fff url('/gtmc-logo.jpg') center/contain no-repeat;box-shadow:0 4px 18px #12385d18}
+.dash-head{align-items:center}
+.quick-actions button{background:linear-gradient(180deg,#fff,#f7faff);border-color:#dce7f2}
+.badge{font-weight:700}
+@media(max-width:760px){
+ aside{padding:9px 0 6px}
+ aside h1{min-height:45px;padding-left:48px;margin:0 10px 8px}
+ aside h1:before{width:36px;height:36px;border-radius:9px}
+ nav{gap:2px;padding:0 7px 5px}
+ nav a{min-height:39px;margin:0;padding:8px 11px;font-size:12px}
+ main{padding:14px 10px 24px}
+ .panel{padding:13px}
+ .card{padding:12px}
+ .card b{font-size:24px}
+ .bar{gap:7px}
+ .bar>*{max-width:100%}
+ table{font-size:12px}
+ th,td{padding:8px 7px}
+}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
+
+</style></head><body>
+<div id="login" class="panel" style="display:none"><h2>CBT Admin Console</h2>
+<label>Username</label><input id="lu" value="admin" style="width:100%"><label>Password</label><input id="lp" type="password" style="width:100%" onkeydown="if(event.key==='Enter')doLogin()">
+<p><button class="pr" style="width:100%" onclick="doLogin()">Sign in</button></p><p class="mu" id="lerr"></p></div>
+<aside id="side" style="display:none"><h1 id="brand">CBT Console<small>Admin</small></h1><nav id="nav"></nav></aside>
+<main id="main"></main><div id="modal"><div id="mbox"></div></div><div id="toast"></div>
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const toast=(m,bad)=>{const t=$('#toast');t.textContent=m;t.style.background=bad?'#c62f2f':'#222';t.style.display='block';clearTimeout(t._h);t._h=setTimeout(()=>t.style.display='none',4200)};
+async function api(p,o={}){const fd=o.body instanceof FormData;const r=await fetch('/api/admin'+p,{credentials:'same-origin',...o,headers:o.body&&!fd?{'Content-Type':'application/json'}:{}});
+ if(r.status===401&&p!=='/login'){showLogin();throw new Error('Please sign in')}const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||('Error '+r.status));return j}
+const post=(p,b)=>api(p,{method:'POST',body:JSON.stringify(b||{})}),del=p=>api(p,{method:'DELETE'});
+const run=async f=>{try{return await f()}catch(e){toast(e.message,1)}};
+function modal(html){$('#mbox').innerHTML=html;$('#modal').style.display='flex'}const closeModal=()=>{$('#modal').style.display='none'};
+$('#modal').addEventListener('mousedown',e=>{if(e.target.id==='modal')closeModal()});
+const opts=(a,sel,all)=>(all?`<option value="">${all}</option>`:'')+a.map(x=>`<option value="${x.id}" ${x.id==sel?'selected':''}>${esc(x.name||x.title)}</option>`).join('');
+const NAV=[['dashboard','📊 Dashboard'],['monitor','🖥 Live Monitor'],['messages','✉ Student Messages'],['exams','📝 Exams'],['questions','❓ Question Bank'],['theoryMarking','✍ Theory Marking'],['students','🎓 Students'],['classes','🏫 Classes'],['subjects','📚 Subjects'],['results','🏆 Results'],['settings','⚙ Settings & Backup'],['audit','📜 Activity Log']];
+$('#nav').innerHTML=NAV.map(([k,v])=>`<a data-p="${k}" onclick="go('${k}')">${v}</a>`).join('');
+let timer=null;
+function go(p){clearInterval(timer);timer=null;document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.dataset.p===p));location.hash=p;run(()=>pages[p]())}
+async function boot(){const m=await api('/me').catch(()=>({}));if(!m.user)return showLogin();$('#login').style.display='none';$('#side').style.display='block';$('#brand').innerHTML=esc(m.school)+'<small>Admin Console</small>';const h=location.hash.slice(1);go(h in pages?h:'dashboard')}
+function showLogin(){$('#side').style.display='none';$('#main').innerHTML='';$('#login').style.display='block'}
+async function doLogin(){try{await post('/login',{username:$('#lu').value,password:$('#lp').value});boot()}catch(e){$('#lerr').textContent=e.message}}
+const logout=async()=>{await post('/logout');showLogin()};
+
+// ---------- reusable import dialog (Excel / Word / CSV)
+function importDialog(kind,title,{classes=[],subjects=[]}={},done){
+ const extra=kind==='students'?`<label>Default class (used when the file has no Class column)</label><select id="ic">${opts(classes,'', '— none —')}</select>`:kind==='questions'?`<label>Default subject (used when the file has no Subject column)</label><select id="is">${opts(subjects,'','— none —')}</select>`:'';
+ modal(`<h3>${title}</h3><p class="mu">Upload an <b>Excel (.xlsx)</b>, <b>Word (.docx, data in a table)</b> or <b>CSV</b> file. Header names are matched automatically. ${kind==='questions'?'New subjects are created automatically.':kind==='students'?'New classes are created automatically; existing RegNos are updated.':''}</p>
+ <p>Templates: <a class="btn sm" href="/api/admin/template/${kind}/xlsx">Excel</a> <a class="btn sm" href="/api/admin/template/${kind}/docx">Word</a></p>${extra}
+ <label>File</label><input type="file" id="if" accept=".xlsx,.xlsm,.csv,.docx"><div id="ir" style="margin-top:12px"></div>
+ <p style="text-align:right"><button onclick="closeModal()">Close</button> <button class="pr" id="ib">${kind==='questions'?'Validate & preview':'Upload'}</button></p>`);
+ $('#ib').onclick=()=>run(async()=>{const f=$('#if').files[0];if(!f)throw new Error('Choose a file first');const fd=new FormData();fd.append('file',f);
+  if($('#ic'))fd.append('default_class',$('#ic').selectedOptions[0].text==='— none —'?'':$('#ic').selectedOptions[0].text);if($('#is'))fd.append('default_subject',$('#is').selectedOptions[0].text==='— none —'?'':$('#is').selectedOptions[0].text);
+  $('#ib').disabled=true;$('#ib').textContent='Working…';let r;try{r=await api('/import/'+kind,{method:'POST',body:fd})}finally{$('#ib').disabled=false;$('#ib').textContent=kind==='questions'?'Validate & preview':'Upload'}
+  const errs=(r.errors||[]).map(e=>`<tr><td>${e.row}</td><td>${esc(e.reason)}</td></tr>`).join('');
+  const etab=errs?`<div class="scroll" style="max-height:200px;margin-top:8px"><table><tr><th>Row</th><th>Problem</th></tr>${errs}</table></div>`:'';
+  if(kind==='questions'){$('#ir').innerHTML=`<div class="panel"><b style="color:var(--ok)">${r.valid} valid</b> · <b style="color:var(--er)">${r.error_count} with problems</b> · ${r.total} rows read${r.error_count?` · <a href="/api/admin/import/errors/${r.token}">download error list</a>`:''}${etab}</div>`;
+   if(r.valid){$('#ib').textContent=`Import ${r.valid} questions`;$('#ib').onclick=()=>run(async()=>{const c=await post('/import/questions/commit',{token:r.token});toast(`${c.imported} questions imported`);closeModal();done&&done()})}}
+  else{$('#ir').innerHTML=`<div class="panel"><b style="color:var(--ok)">${r.added} added</b> · ${r.updated||0} updated · <b style="color:var(--er)">${r.error_count} skipped</b>${etab}</div>`;done&&done()}})}
+
+const pages={
+async dashboard(){
+ const [d,si,exams,classes]=await Promise.all([api('/dashboard'),api('/server-info'),api('/exams'),api('/classes')]);
+ const mx=Math.max(1,...d.per_subject.map(s=>s.n));
+ const urls=si.secure_reverse_proxy?['Use the school HTTPS address configured for the reverse proxy']:si.ips.length?si.ips.map(i=>'http://'+i+':'+si.port+'/'):['(Connect the server to the LAN to see its address)'];
+ const completed=exams.filter(e=>e.submitted>0).slice(0,4);
+ const analyses=await Promise.all(completed.map(e=>api('/results/'+e.id).then(r=>({exam:e,result:r})).catch(()=>null)));
+ const valid=analyses.filter(Boolean);
+ const recentHtml=valid.length?valid.map(x=>'<div class="exam-insight"><div><b>'+esc(x.exam.title)+'</b><div class="mu">'+esc(x.exam.subject)+' · '+esc(x.exam.classes||'')+' · '+x.result.count+' candidates</div></div><div class="exam-metrics"><span><b>'+x.result.avg+'%</b><small>Average</small></span><span><b>'+x.result.pass_rate+'%</b><small>Pass rate</small></span><span><b>'+x.result.high+'%</b><small>Highest</small></span></div><button class="sm" onclick="sessionStorage.res='+x.exam.id+';go(\'results\')">View results</button></div>').join(''):'<p class="mu">No submitted examination results are available yet. Results analysis will appear here after candidates submit an exam.</p>';
+ const classHtml=classes.length?classes.map(c=>'<div class="hb"><span>'+esc(c.name)+'</span><div class="prog"><i style="width:'+Math.min(100,(c.n/Math.max(1,...classes.map(z=>z.n)))*100)+'%"></i></div><b>'+c.n+'</b></div>').join(''):'<p class="mu">No classes have been added.</p>';
+ const qHtml=d.per_subject.map(s=>'<div class="hb"><span>'+esc(s.name)+'</span><div class="prog"><i style="width:'+(s.n/mx*100)+'%"></i></div><b>'+s.n+'</b></div>').join('')||'<p class="mu">No questions yet. Use Question Bank → Bulk import.</p>';
+ $('#main').innerHTML='<div class="dash-head"><div><h2>Administrator dashboard</h2><p class="mu">A live overview of your CBT centre and examination activity.</p></div><div class="bar"><button class="pr" onclick="go(\'exams\')">＋ Create examination</button><button onclick="go(\'monitor\')">Open live monitor</button></div></div>'+
+ (d.default_pw?'<div class="warn">⚠ The default administrator password is still active. Change it in <a href="#settings" onclick="go(\'settings\')">Settings</a>.</div>':'')+
+ '<div class="cards">'+[['Students',d.students],['Classes',d.classes],['Subjects',d.subjects],['Questions',d.questions],['All exams',d.exams],['Live exams',d.live],['Candidates writing',d.writing],['Submitted sessions',d.submitted]].map(([a,b])=>'<div class="card"><b>'+b+'</b><span>'+a+'</span></div>').join('')+'</div>'+
+ '<div class="panel"><div class="panel-title"><div><h3>Quick actions</h3><p class="mu">Jump directly to common administrator tasks.</p></div></div><div class="quick-actions"><button onclick="go(\'exams\')">📝 Manage examinations</button><button onclick="go(\'questions\')">❓ Add / import questions</button><button onclick="go(\'students\')">🎓 Manage students</button><button onclick="go(\'results\')">🏆 View results</button><button onclick="go(\'settings\')">⚙ Backups & settings</button><button onclick="go(\'audit\')">📜 View activity log</button></div></div>'+
+ '<div class="grid2"><div class="panel"><h3>Candidate connection</h3><p class="mu">Use the server address below on student computers connected to the same LAN.</p>'+urls.map(u=>'<p><code>'+esc(u)+'</code></p>').join('')+'<p class="mu">Microsoft Edge kiosk command:</p><code>msedge.exe --kiosk '+esc(urls[0])+' --edge-kiosk-type=fullscreen --no-first-run</code></div><div class="panel"><h3>Student population by class</h3>'+classHtml+'</div></div>'+
+ '<div class="panel"><h3>Recent examination performance</h3><p class="mu">Latest examinations with submitted candidates. Select View results for the full score sheet and downloadable report.</p>'+recentHtml+'</div>'+
+ '<div class="grid2"><div class="panel"><h3>Question-bank coverage</h3><p class="mu">Questions currently available in each of the most populated subjects.</p>'+qHtml+'</div><div class="panel"><h3>Recent administrator activity</h3><div class="activity-list">'+d.recent.map(r=>'<div class="activity-row"><span class="mu">'+esc(r.when)+'</span><b>'+esc(r.actor)+'</b><span>'+esc(r.action)+'</span></div>').join('')+'</div><p><button class="sm" onclick="go(\'audit\')">View complete activity log →</button></p></div></div>';
+},
+
+async monitor(){const ex=await api('/exams');if(!ex.length){$('#main').innerHTML='<h2>Live Monitor</h2><p class="mu">Create an exam first.</p>';return}
+ const first=(ex.find(e=>e.status==='live')||ex[0]).id;let cur=+sessionStorage.mon||first;if(!ex.some(e=>e.id===cur))cur=first;
+ $('#main').innerHTML=`<h2>Live Monitor</h2><div class="bar"><select id="me">${opts(ex.map(e=>({id:e.id,name:`${e.title} [${e.status}]`})),cur)}</select><select id="mf"><option value="">All students</option><option value="writing">Writing</option><option value="paused">Paused</option><option value="offline">Offline / disconnected</option><option value="not_started">Not started</option><option value="submitted">Submitted</option></select>
+  <input id="mq" placeholder="Search name or RegNo"><span class="sp"></span><button id="mx">＋ Extend all</button><button id="pauseExam" class="pr">Pause exam</button><button id="broadcast">✉ Message candidates</button><a class="btn" id="mdl">⬇ Excel</a></div><div class="chips" id="mc"></div><div class="scroll"><table><thead><tr><th>RegNo</th><th>Name</th><th>Class</th><th>Status</th><th>Progress</th><th>Time left</th><th>Seen</th><th>Tab leaves</th><th></th></tr></thead><tbody id="mb"></tbody></table></div><p class="mu">Auto-refreshes every 5 seconds.</p>`;
+ let data=null;const draw=()=>{if(!data)return;const f=$('#mf').value,q=$('#mq').value.toLowerCase();const c=data.counts;
+  $('#mc').innerHTML=[['Assigned',data.total],['Writing',c.writing],['Paused',c.paused],['Offline',c.offline],['Not started',c.not_started],['Submitted',c.submitted]].map(([a,b])=>`<div class="chip"><b>${b}</b>${a}</div>`).join('');
+  $('#mb').innerHTML=data.rows.filter(r=>(!f||r.state===f)&&(!q||(r.name+r.reg_no).toLowerCase().includes(q))).map(r=>{const pc=r.nq?r.na/r.nq*100:0,mm=r.left!=null?`${Math.floor(r.left/60)}:${String(r.left%60).padStart(2,'0')}`:'',seen=r.last_seen?Math.max(0,Math.round(Date.now()/1000-r.last_seen))+'s ago':'';
+   return`<tr><td>${esc(r.reg_no)}</td><td>${esc(r.name)}</td><td>${esc(r.cls)}</td><td><span class="badge b-${r.state}">${r.state.replace('_',' ')}</span></td><td>${r.sess_id?`<div class="prog"><i style="width:${pc}%"></i></div><small>${r.na}/${r.nq}${r.state==='submitted'?` · score ${r.score}/${r.total}`:''}</small>`:''}</td><td>${r.state==='writing'||r.state==='offline'||r.state==='paused'?mm:''}</td><td class="mu">${r.state==='submitted'||!r.sess_id?'':seen}</td><td>${r.tab_switches?`<b style="color:var(--er)">${r.tab_switches}</b>`:''}</td>
+   <td style="white-space:nowrap">${r.state==='writing'||r.state==='offline'||r.state==='paused'?`${r.state==='paused'?`<button class="sm pr" onclick="sAct(${r.sess_id},'resume')">Resume</button>`:`<button class="sm" onclick="sAct(${r.sess_id},'pause')">Pause</button>`} <button class="sm" onclick="sAct(${r.sess_id},'extend')">+time</button> <button class="sm" onclick="sAct(${r.sess_id},'reset')">Reset login</button> <button class="sm dg" onclick="sAct(${r.sess_id},'submit')">Submit</button>`:''}</td></tr>`}).join('')};
+ window.sAct=(id,a)=>run(async()=>{let m=0;if(a==='extend'){m=+prompt('Extra minutes for this student?','10');if(!m)return}else{const question=a==='submit'?'Force-submit this student now?':a==='pause'?'Pause this student’s examination?':a==='resume'?'Resume this student’s examination?':'Reset this login? The student will have to sign in again.';if(!confirm(question))return}await post(`/sessions/${id}/action`,{action:a,minutes:m});load()});
+ const load=()=>run(async()=>{cur=+$('#me').value;sessionStorage.mon=cur;data=await api('/monitor/'+cur);$('#mdl').href='/api/admin/export/monitor/'+cur;$('#pauseExam').textContent=data.exam.status==='paused'?'▶ Resume exam':'Ⅱ Pause exam';draw()});
+ $('#me').onchange=load;$('#mf').onchange=draw;$('#mq').oninput=draw;$('#pauseExam').onclick=()=>run(async()=>{const st=data.exam.status==='paused'?'live':'paused';if(st==='paused'&&!confirm('Pause this examination for every student currently writing?'))return;await post(`/exams/${cur}/status`,{status:st});toast(st==='paused'?'Examination paused':'Examination resumed');load()});$('#broadcast').onclick=()=>{sessionStorage.messageExam=cur;go('messages')};$('#mx').onclick=()=>run(async()=>{const m=+prompt('Extend ALL in-progress students by how many minutes?','10');if(!m)return;await post(`/exams/${cur}/extend`,{minutes:m});toast('Time extended');load()});
+ load();timer=setInterval(load,5000)},
+
+async exams(){const [ex,cl,su]=await Promise.all([api('/exams'),api('/classes'),api('/subjects')]);
+ $('#main').innerHTML=`<h2>Exams</h2><div class="bar"><button class="pr" id="ne">＋ New exam</button></div><div class="scroll"><table><thead><tr><th>Title</th><th>Subject</th><th>Classes</th><th>Qs</th><th>Min</th><th>Status</th><th>Submitted</th><th></th></tr></thead><tbody>${ex.map(e=>`<tr><td><b>${esc(e.title)}</b></td><td>${esc(e.subject)}</td><td>${esc(e.classes)}</td><td>${e.num_questions}<small class="mu">/${e.pool}</small></td><td>${e.duration_min}</td><td><span class="badge b-${e.status}">${e.status}</span></td><td>${e.submitted}/${e.sessions}</td>
+  <td style="white-space:nowrap">${e.status==='live'?`<button class="sm" onclick="exSt(${e.id},'paused')">Ⅱ Pause</button><button class="sm dg" onclick="exSt(${e.id},'closed')">■ Close</button>`:e.status==='paused'?`<button class="sm pr" onclick="exSt(${e.id},'live')">▶ Resume</button><button class="sm dg" onclick="exSt(${e.id},'closed')">■ Close</button>`:`<button class="sm pr" onclick="exSt(${e.id},'live')">▶ Open</button>`} <button class="sm" onclick="sessionStorage.mon=${e.id};go('monitor')">Monitor</button> <button class="sm" onclick="openProctor(${e.id})">Proctor</button> <a class="btn sm" href="/api/admin/remote-host/package/${e.id}">Phone package</a> <button class="sm" onclick="sessionStorage.res=${e.id};go('results')">Results</button> <button class="sm dg" onclick="exDel(${e.id})">Delete</button></td></tr>`).join('')||'<tr><td colspan=8 class="mu">No exams yet.</td></tr>'}</tbody></table></div>`;
+ window.exSt=(i,s)=>run(async()=>{if(s==='closed'&&!confirm('Close this exam? Everyone still writing will be submitted automatically.'))return;await post(`/exams/${i}/status`,{status:s});toast('Exam status updated: '+s);pages.exams()});
+ window.exDel=i=>run(async()=>{if(!confirm('Delete this exam AND all its student sessions and results?'))return;await del('/exams/'+i);pages.exams()});
+ window.openProctor=i=>run(async()=>{const r=await api('/proctor/'+i);const rows=r.rows||[];modal(`<h3>Proctor review · ${esc(r.exam.title)}</h3><p class="mu">Policy: <b>${esc(r.exam.camera_policy||'off')}</b>. Events are monitoring signals, not automatic cheating findings.</p><div class="scroll"><table><thead><tr><th>Time</th><th>Student</th><th>Event</th><th>Review</th><th>Action</th></tr></thead><tbody>${rows.map(x=>`<tr><td>${new Date(x.server_ts*1000).toLocaleString()}</td><td>${esc(x.student)}<small class="mu">${esc(x.reg_no)}</small></td><td>${esc(x.event_type)}</td><td><select id="prstate_${x.id}"><option ${x.review_state==='Unreviewed'?'selected':''}>Unreviewed</option><option ${x.review_state==='Reviewed - no concern'?'selected':''}>Reviewed - no concern</option><option ${x.review_state==='Needs follow-up'?'selected':''}>Needs follow-up</option></select><input id="prnote_${x.id}" placeholder="Review note" value="${esc(x.review_note||'')}"></td><td><button class="sm pr" onclick="reviewProctor(${x.id})">Save</button></td></tr>`).join('')||'<tr><td colspan="5" class="mu">No Proctor Mode events recorded.</td></tr>'}</tbody></table></div><p class="mu">This release records camera state and browser events only; it does not upload continuous video or images.</p><button onclick="closeModal()">Close</button>`)});
+ window.reviewProctor=id=>run(async()=>{await post('/proctor/events/'+id+'/review',{review_state:$('#prstate_'+id).value,review_note:$('#prnote_'+id).value});toast('Review saved');});
+ $('#ne').onclick=()=>{modal(`<h3>New exam</h3><label>Title</label><input id="et" style="width:100%" placeholder="e.g. First Term Biology Exam"><div class="f2"><div><label>Subject</label><select id="es" style="width:100%">${opts(su)}</select></div><div><label>Objective questions per student</label><input id="en" type="number" min="0" value="40" style="width:100%"></div><div><label>Theory questions per student</label><input id="eth" type="number" min="0" value="0" style="width:100%"></div><div><label>Duration (minutes)</label><input id="ed" type="number" value="60" style="width:100%"></div><div><label>Pass mark (%)</label><input id="ep" type="number" value="50" style="width:100%"></div><div><label>Proctor Mode</label><select id="ecam" style="width:100%"><option value="off">Off — no camera</option><option value="optional">Optional — student may decline</option><option value="required">Required — camera check before start</option></select></div></div>
+  <label>Classes taking this exam</label><div style="display:flex;gap:12px;flex-wrap:wrap">${cl.map(c=>`<label style="margin:0;color:var(--tx)"><input type="checkbox" class="ecl" value="${c.id}"> ${esc(c.name)} (${c.n})</label>`).join('')}</div>
+  <label>Instructions shown to students (optional)</label><textarea id="ei"></textarea><p><label style="color:var(--tx)"><input type="checkbox" id="esh" checked> Shuffle questions and options per student</label><label style="color:var(--tx)"><input type="checkbox" id="eso"> Show score to student after submission</label></p>
+  <p style="text-align:right"><button onclick="closeModal()">Cancel</button> <button class="pr" id="ec">Create exam</button></p>`);
+ const createBtn=$('#ec');
+ createBtn.onclick=()=>run(async()=>{createBtn.disabled=true;createBtn.textContent='Creating…';try{await post('/exams',{title:$('#et').value,subject_id:$('#es').value,num_questions:(+$('#en').value + +$('#eth').value),objective_questions:$('#en').value,theory_questions:$('#eth').value,duration_min:$('#ed').value,pass_mark:$('#ep').value,class_ids:[...document.querySelectorAll('.ecl:checked')].map(x=>+x.value),instructions:$('#ei').value,shuffle:$('#esh').checked,show_score:$('#eso').checked,camera_policy:$('#ecam').value});closeModal();toast('Exam created. Click Open when ready.');pages.exams()}finally{createBtn.disabled=false;createBtn.textContent='Create exam'}})}}, 
+
+async questions(){const su=await api('/subjects');let page=1,sel=new Set();
+ $('#main').innerHTML=`<h2>Question Bank</h2><div class="bar"><select id="qs">${opts(su,'','All subjects')}</select><input id="qq" placeholder="Search text or topic"><span class="sp"></span><button id="qa">＋ Add</button><button class="pr" id="qi">⬆ Bulk import (Excel / Word)</button><a class="btn" id="qe">⬇ Export Excel</a><button class="dg" id="qd">Delete selected</button></div><div class="scroll"><table><thead><tr><th><input type="checkbox" id="qall"></th><th>#</th><th>Subject</th><th>Type</th><th>Question</th><th>Ans / key</th><th>Marks</th><th>Topic</th><th></th></tr></thead><tbody id="qb"></tbody></table></div><div class="bar" style="margin-top:10px"><button id="qp">‹ Prev</button><span id="qn" class="mu"></span><button id="qx">Next ›</button></div>`;
+ let rows=[];const load=()=>run(async()=>{sel.clear();const r=await api(`/questions?page=${page}&subject_id=${$('#qs').value}&q=${encodeURIComponent($('#qq').value)}`);rows=r.rows;$('#qe').href='/api/admin/export/questions?subject_id='+$('#qs').value;
+  $('#qn').textContent=`${r.total} questions · page ${page} of ${Math.max(1,Math.ceil(r.total/r.per))}`;$('#qx').disabled=page*r.per>=r.total;$('#qp').disabled=page<2;
+  $('#qb').innerHTML=rows.map(q=>`<tr><td><input type="checkbox" class="qc" value="${q.id}"></td><td>${q.id}</td><td>${esc(q.subject)}</td><td><span class="badge">${q.question_type==='theory'?'Theory':'Objective'}</span></td><td title="${esc(q.text)}">${esc(q.text.slice(0,110))}${q.text.length>110?'…':''}</td><td><b>${q.question_type==='theory'?esc(q.marking_mode):esc(q.answer)}</b></td><td>${q.marks}</td><td>${esc(q.topic)}</td><td><button class="sm" onclick="qEdit(${q.id})">Edit</button></td></tr>`).join('')||'<tr><td colspan=8 class="mu">No questions found.</td></tr>';$('#qall').checked=false});
+ $('#qall').onchange=e=>document.querySelectorAll('.qc').forEach(c=>c.checked=e.target.checked);
+ $('#qs').onchange=$('#qq').onchange=()=>{page=1;load()};$('#qp').onclick=()=>{page--;load()};$('#qx').onclick=()=>{page++;load()};
+ $('#qi').onclick=()=>importDialog('questions','Bulk import questions',{subjects:su},()=>{page=1;load()});
+ $('#qd').onclick=()=>run(async()=>{const ids=[...document.querySelectorAll('.qc:checked')].map(c=>+c.value);if(!ids.length)return toast('Tick the questions to delete',1);if(!confirm(`Delete ${ids.length} questions?`))return;const r=await post('/questions/delete',{ids});toast(`${r.deleted} deleted`+(r.blocked?`, ${r.blocked} kept (already used in an exam)`:''));load()});
+ const form=q=>{q=q||{};const accepted=(()=>{try{return JSON.parse(q.accepted_answers||'[]').join('\\n')}catch(e){return''}})(),keywords=(()=>{try{return JSON.parse(q.keywords||'[]').join(', ')}catch(e){return''}})();modal(`<h3>${q.id?'Edit':'Add'} question</h3><label>Subject</label><select id="fs" style="width:100%">${opts(su,q.subject_id||$('#qs').value)}</select><label>Question type</label><select id="fType" style="width:100%"><option value="objective" ${(q.question_type||'objective')==='objective'?'selected':''}>Objective (multiple choice)</option><option value="theory" ${q.question_type==='theory'?'selected':''}>Theory (written answer)</option></select><label>Question</label><textarea id="ft">${esc(q.text)}</textarea>
+ <div id="objectiveFields">${['a','b','c','d'].map(k=>`<label>Option ${k.toUpperCase()}</label><input id="f${k}" style="width:100%" value="${esc(q[k])}">`).join('')}<label>Correct option</label><select id="fanswer" style="width:100%">${'ABCD'.split('').map(k=>`<option ${q.answer===k?'selected':''}>${k}</option>`).join('')}</select></div>
+ <div id="theoryFields"><div class="f2"><div><label>Answer space</label><select id="fSpace" style="width:100%"><option value="short">Short</option><option value="medium">Medium</option><option value="large">Large</option><option value="lined">Lined answer sheet</option><option value="math">Mathematics working</option><option value="diagram">Graph / diagram workspace</option></select></div><div><label>Marking method</label><select id="fMode" style="width:100%"><option value="exact">Exact answer</option><option value="multiple">Multiple acceptable answers</option><option value="keyword">Keyword / rule-based partial marks</option><option value="manual">Teacher marks manually</option></select></div></div><label>Correct / model answer</label><textarea id="fAnswerText" placeholder="Enter the expected answer"></textarea><label>Other acceptable answers (one per line)</label><textarea id="fAccepted" placeholder="Alternative answer 1&#10;Alternative answer 2"></textarea><label>Marking keywords (comma separated)</label><input id="fKeywords" style="width:100%" placeholder="e.g. nucleus, control, cell"></div>
+ <div class="f2"><div><label>Marks</label><input id="fm" type="number" step="0.5" min="0.5" value="${q.marks||1}" style="width:100%"></div><div><label>Topic</label><input id="fo" style="width:100%" value="${esc(q.topic)}"></div><div><label>Difficulty</label><input id="fd" style="width:100%" value="${esc(q.difficulty)}"></div></div>
+ <p style="text-align:right"><button onclick="closeModal()">Cancel</button> <button class="pr" id="fsv">Save</button></p>`);
+ $('#fSpace').value=q.answer_space||'medium';$('#fMode').value=q.marking_mode||'manual';$('#fAnswerText').value=q.answer_text||'';$('#fAccepted').value=accepted;$('#fKeywords').value=keywords;
+ function toggleQuestionType(){const theory=$('#fType').value==='theory';$('#objectiveFields').style.display=theory?'none':'block';$('#theoryFields').style.display=theory?'block':'none'}$('#fType').onchange=toggleQuestionType;toggleQuestionType();
+ $('#fsv').onclick=()=>run(async()=>{const theory=$('#fType').value==='theory',b={subject_id:$('#fs').value,text:$('#ft').value,question_type:$('#fType').value,marks:$('#fm').value,topic:$('#fo').value,difficulty:$('#fd').value};if(theory){b.answer_text=$('#fAnswerText').value;b.accepted_answers=$('#fAccepted').value.split('\\n').map(x=>x.trim()).filter(Boolean);b.keywords=$('#fKeywords').value.split(',').map(x=>x.trim()).filter(Boolean);b.answer_space=$('#fSpace').value;b.marking_mode=$('#fMode').value}else{b.answer=$('#fanswer').value;['a','b','c','d'].forEach(k=>b[k]=document.getElementById('f'+k).value)}await api(q.id?'/questions/'+q.id:'/questions',{method:q.id?'PUT':'POST',body:JSON.stringify(b)});closeModal();toast('Saved');load()})};
+ window.qEdit=i=>form(rows.find(r=>r.id===i));$('#qa').onclick=()=>form();load()},
+
+async students(){const [cl,su]=await Promise.all([api('/classes'),api('/subjects')]);let page=1,rows=[];
+ $('#main').innerHTML=`<h2>Students</h2><div class="bar"><select id="sc">${opts(cl,'','All classes')}</select><input id="sq" placeholder="Search name or RegNo"><span class="sp"></span><button id="sa">＋ Add</button><button class="pr" id="si">⬆ Bulk import (Excel / Word)</button><a class="btn" id="se">⬇ Excel + codes</a><button id="sp">🖨 Print slips</button><button id="sr">New codes</button><button class="dg" id="sd">Delete selected</button></div><div class="scroll"><table><thead><tr><th><input type="checkbox" id="sall"></th><th>RegNo</th><th>Name</th><th>Class</th><th>Access code</th></tr></thead><tbody id="sb"></tbody></table></div><div class="bar" style="margin-top:10px"><button id="spv">‹ Prev</button><span id="sn" class="mu"></span><button id="snx">Next ›</button></div><div id="slips" style="display:none"></div>`;
+ const load=()=>run(async()=>{const r=await api(`/students?page=${page}&class_id=${$('#sc').value}&q=${encodeURIComponent($('#sq').value)}`);rows=r.rows;$('#se').href='/api/admin/export/students?class_id='+$('#sc').value;$('#sn').textContent=`${r.total} students · page ${page}`;$('#snx').disabled=page*r.per>=r.total;$('#spv').disabled=page<2;
+  $('#sb').innerHTML=rows.map(s=>`<tr><td><input type="checkbox" class="sk" value="${s.id}"></td><td>${esc(s.reg_no)}</td><td>${esc(s.name)}</td><td>${esc(s.class)}</td><td><span class="mono">${esc(s.access_code)}</span></td></tr>`).join('')||'<tr><td colspan=5 class="mu">No students.</td></tr>'});
+ const ids=()=>[...document.querySelectorAll('.sk:checked')].map(c=>+c.value);
+ $('#sall').onchange=e=>document.querySelectorAll('.sk').forEach(c=>c.checked=e.target.checked);$('#sc').onchange=$('#sq').onchange=()=>{page=1;load()};$('#spv').onclick=()=>{page--;load()};$('#snx').onclick=()=>{page++;load()};
+ $('#si').onclick=()=>importDialog('students','Bulk import students',{classes:cl},()=>{page=1;load()});
+ $('#sd').onclick=()=>run(async()=>{const i=ids();if(!i.length)return toast('Tick students first',1);if(!confirm(`Delete ${i.length} students and their results?`))return;await post('/students/delete',{ids:i});load()});
+ $('#sr').onclick=()=>run(async()=>{const i=ids(),c=$('#sc').value;if(!i.length&&!c)return toast('Tick students or pick a class first',1);if(!confirm('Generate NEW access codes? Old codes stop working.'))return;const r=await post('/students/regen',{ids:i,class_id:c});toast(r.count+' codes regenerated');load()});
+ $('#sp').onclick=()=>{const i=ids(),list=i.length?rows.filter(r=>i.includes(r.id)):rows;if(!list.length)return;$('#slips').innerHTML=`<div class="slips">${list.map(s=>`<div class="slip"><b>${esc(s.name)}</b><br>Class: ${esc(s.class)}<br>RegNo: <b>${esc(s.reg_no)}</b><br>Access code: <b style="font-size:15px">${esc(s.access_code)}</b></div>`).join('')}</div>`;const m=$('#main');[...m.children].forEach(c=>{if(c.id!=='slips')c.classList.add('noprint')});$('#slips').style.display='block';window.print();$('#slips').style.display='none';[...m.children].forEach(c=>c.classList.remove('noprint'))};
+ $('#sa').onclick=()=>{modal(`<h3>Add student</h3><label>RegNo</label><input id="ar" style="width:100%"><label>Full name</label><input id="an" style="width:100%"><label>Class</label><select id="ac" style="width:100%">${opts(cl)}</select><p style="text-align:right"><button onclick="closeModal()">Cancel</button> <button class="pr" id="asv">Save</button></p>`);$('#asv').onclick=()=>run(async()=>{await post('/students',{reg_no:$('#ar').value,name:$('#an').value,class_id:$('#ac').value});closeModal();load()})};load()},
+
+async classes(){return simpleList('classes','Class','Students')},
+async subjects(){return simpleList('subjects','Subject','Questions')},
+
+async results(){const ex=await api('/exams');if(!ex.length){$('#main').innerHTML='<h2>Results</h2><p class="mu">No exams yet.</p>';return}
+ let cur=+sessionStorage.res||ex[0].id;if(!ex.some(e=>e.id===cur))cur=ex[0].id;
+ $('#main').innerHTML=`<h2>Results</h2><div class="bar"><select id="re">${opts(ex,cur)}</select><span class="sp"></span><a class="btn pr" id="rx" style="background:var(--pr);color:#fff">⬇ Export to Excel</a></div><div id="rb"></div>`;
+ const load=()=>run(async()=>{cur=+$('#re').value;sessionStorage.res=cur;const r=await api('/results/'+cur);$('#rx').href='/api/admin/export/results/'+cur;const mx=Math.max(1,...Object.values(r.dist));
+  $('#rb').innerHTML=`<div class="cards">${[['Candidates',r.count],['Average %',r.avg],['Highest %',r.high],['Lowest %',r.low],['Pass rate %',r.pass_rate]].map(([a,b])=>`<div class="card"><b>${b}</b><span>${a}</span></div>`).join('')}</div>
+  <div class="grid2"><div class="panel"><h3>Grade distribution</h3>${Object.entries(r.dist).map(([g,n])=>`<div class="hb"><span>Grade ${g}</span><div class="prog"><i style="width:${n/mx*100}%"></i></div><b>${n}</b></div>`).join('')}</div><div class="panel"><h3>${esc(r.exam.title)}</h3><p class="mu">${esc(r.exam.subject)} · pass mark ${r.exam.pass_mark}%</p></div></div>
+  <div class="scroll"><table><thead><tr><th>Rank</th><th>RegNo</th><th>Name</th><th>Class</th><th>Score</th><th>%</th><th>Grade</th><th>Remark</th><th>Tab leaves</th></tr></thead><tbody>${r.rows.map(x=>`<tr><td>${x.rank}</td><td>${esc(x.reg_no)}</td><td>${esc(x.name)}</td><td>${esc(x.cls)}</td><td>${x.score}/${x.total}</td><td>${x.pct}</td><td><b>${x.grade}</b></td><td style="color:var(${x.pct>=r.exam.pass_mark?'--ok':'--er'})">${x.pct>=r.exam.pass_mark?'PASS':'FAIL'}</td><td>${x.tab_switches||''}</td></tr>`).join('')||'<tr><td colspan=9 class="mu">No submissions yet.</td></tr>'}</tbody></table></div>`});
+ $('#re').onchange=load;load()},
+
+async settings(){const [s,b,si]=await Promise.all([api('/settings'),api('/backups'),api('/server-info')]);
+ const localUrls=si.secure_reverse_proxy?[]:si.ips?.length?si.ips.map(ip=>`http://${ip}:${si.port}/`):[];
+ const proxyReady=!!si.secure_reverse_proxy;
+ $('#main').innerHTML=`<h2>Settings & Backup</h2>
+ <div class="panel"><h3>Local Exam Network & Server Connection</h3><p class="mu">This Admin computer is hosting the CBT server. Connect it to the same Wi-Fi/router as the students, or turn on Windows Mobile Hotspot in Windows Settings. Students join that network and open a student link below in Chrome. <b>No internet is required.</b></p>
+ <div style="display:flex;flex-wrap:wrap;gap:8px">${localUrls.map(u=>`<div style="display:flex;align-items:center;gap:6px;padding:5px 8px;background:var(--bg);border-radius:8px"><code>${esc(u)}</code><button class="sm" data-copy-local="${esc(u)}">Copy student link</button></div>`).join('')||(proxyReady?'<span class="mu">Use the school HTTPS address. The private Flask port is intentionally hidden behind the reverse proxy.</span>':'<span class="mu">No LAN address detected. Connect this computer to Wi-Fi, Ethernet or a phone hotspot, then refresh Settings.</span>')}</div>
+ <p class="mu">Keep the Admin app and this computer running during the exam. If using a Windows hotspot, enable it in Windows Settings → Network & Internet → Mobile hotspot. Allow GTMC CBT through Windows Firewall on Private networks only.</p>
+ <p><b>HTTPS reverse proxy:</b> <span class="badge ${proxyReady?'ok':'wa'}">${proxyReady?'Configured':'Not configured'}</span></p>
+ <p><b>Remote Admin:</b> <span class="badge ${si.remote_admin_enabled?'ok':'wa'}">${si.remote_admin_enabled?'Enabled':'Disabled'}</span></p>
+ <p class="mu">${esc(si.connection_hint||'Remote access needs a publicly reachable ISP address, school-controlled DNS and HTTPS. A phone hotspot may use CGNAT and block incoming connections.')}</p></div>
+ <div class="panel"><h3>School-wide appearance (Admin only)</h3>
+ <p class="mu">Only an administrator can change these settings. The selected appearance is applied to the Admin and student screens across the school.</p>
+ <div class="f2">
+ <div><label>Theme preset</label><select id="themePreset" style="width:100%"><option value="blue">GTMC Blue</option><option value="midnight">Midnight</option><option value="emerald">Emerald</option><option value="violet">Violet</option><option value="custom">Custom colours</option></select></div>
+ <div><label>Display mode</label><select id="themeMode" style="width:100%"><option value="light">Light</option><option value="dark">Dark</option></select></div>
+ <div><label>Primary colour</label><input type="color" id="theme_primary" style="width:100%;height:42px;padding:3px"></div><div><label>Page background</label><input type="color" id="theme_background" style="width:100%;height:42px;padding:3px"></div><div><label>Panels and cards</label><input type="color" id="theme_surface" style="width:100%;height:42px;padding:3px"></div><div><label>Text colour</label><input type="color" id="theme_text" style="width:100%;height:42px;padding:3px"></div><div><label>Sidebar colour</label><input type="color" id="theme_sidebar" style="width:100%;height:42px;padding:3px"></div>
+ </div>
+ <div class="bar" style="margin-top:12px"><button id="themePreview">Preview theme</button><button class="pr" id="themeSave">Save school-wide theme</button><button id="themeReset">Restore GTMC default</button><span class="mu" id="themeStatus"></span></div>
+ </div>
+ <div class="grid2"><div class="panel"><h3>General</h3><label>School / centre name (shown to students and in exports)</label><input id="gs" style="width:100%" value="${esc(s.school_name)}"><p><label style="color:var(--tx)"><input type="checkbox" id="gr" ${s.allow_remote_admin && proxyReady?'checked':''} ${proxyReady?'':'disabled'}> Allow remote Admin access over the configured HTTPS reverse proxy</label></p>
+ ${proxyReady?'':'<p class="mu">Remote Admin stays locked until the server is configured behind its own trusted HTTPS reverse proxy with secure cookies.</p>'}<button class="pr" id="gsv">Save</button></div>
+ <div class="panel"><h3>Change admin password</h3><label>Current password</label><input id="po" type="password" style="width:100%"><label>New password (min 6)</label><input id="pn" type="password" style="width:100%"><p><button class="pr" id="ppw">Change password</button></p></div></div>
+ <div class="panel"><h3>Android Remote Host Exam Package</h3><p class="mu">On the Windows Server, open Exams and download the Phone package for the required examination. Transfer that JSON file securely to the Android Admin phone, then import it here while the phone is in Host mode. It contains assigned candidates and question-bank answer keys, so keep the file private. Imported exams remain Draft until you review and open them.</p><input id="hostPackage" type="file" accept="application/json,.json"><p><button class="pr" id="importHostPackage">Import exam package to this device</button> <span class="mu" id="hostPackageStatus"></span></p></div>
+ <div class="panel"><h3>Android Host pairing & result synchronisation</h3>
+ <p class="mu">Pair an approved Android Host phone with this Windows Server. Generate a one-time code, enter it in the Android Host pairing screen, and keep the code private. Codes expire after 10 minutes and can be used once. This panel does not publish the server or create a public connection.</p>
+ <div class="bar"><button class="pr" id="ahGenerate">Generate one-time pairing code</button><button id="ahRefresh">Refresh device status</button><span id="ahCode" class="mu">No active pairing code displayed.</span></div>
+ <div class="panel" style="margin-top:12px"><b>Paired Android devices</b><div id="ahDevices" class="mu">Refresh to load paired devices.</div></div>
+ <div class="panel" style="margin-top:12px"><b>Synchronisation summary</b><div id="ahSummary" class="mu">Not loaded.</div><div id="ahConflicts" style="margin-top:8px"></div></div>
+ </div>
+ <div class="panel"><h3>Database backups</h3><p class="mu">An automatic backup is made every 10 minutes while an exam is open (last 30 kept). For a safe restore, stop the CBT server completely and use the separate restore_backup.py tool with the exact data folder and selected backup. Never manually overwrite cbt.db.</p><p><button class="pr" id="bk">Back up now</button></p><div class="scroll" style="max-height:260px"><table>${b.map(f=>`<tr><td>${esc(f.name)}</td><td class="mu">${f.kb} KB</td><td><a class="btn sm" href="/api/admin/backups/${f.name}">Download</a></td></tr>`).join('')||'<tr><td class="mu">No backups yet.</td></tr>'}</table></div></div><p><button class="dg" onclick="logout()">Sign out</button></p>`;
+ document.querySelectorAll('[data-copy-local]').forEach(btn=>btn.onclick=async()=>{const value=btn.getAttribute('data-copy-local');try{await navigator.clipboard.writeText(value);toast('Student link copied')}catch(e){prompt('Copy this student link:',value)}});
+const themeDefaults={blue:{primary:'#0756a8',background:'#f3f7fc',surface:'#ffffff',text:'#14263d',sidebar:'#062c53'},midnight:{primary:'#4f91e8',background:'#101923',surface:'#192635',text:'#e7edf5',sidebar:'#09121c'},emerald:{primary:'#087f68',background:'#f0f8f5',surface:'#ffffff',text:'#17352d',sidebar:'#073d34'},violet:{primary:'#7047b8',background:'#f6f3fb',surface:'#ffffff',text:'#302344',sidebar:'#24143d'}};
+ const savedTheme=s.theme&&Object.keys(s.theme).length?s.theme:{...themeDefaults.blue,mode:'light',preset:'blue'};
+ const themeInput=k=>$('#theme_'+k);
+ function readTheme(){return{preset:$('#themePreset').value,mode:$('#themeMode').value,primary:themeInput('primary').value,background:themeInput('background').value,surface:themeInput('surface').value,text:themeInput('text').value,sidebar:themeInput('sidebar').value}}
+ function paintTheme(t){const root=document.documentElement;root.style.setProperty('--pr',t.primary);root.style.setProperty('--pr2',t.primary);root.style.setProperty('--bg',t.background);root.style.setProperty('--pn',t.surface);root.style.setProperty('--tx',t.text);root.style.setProperty('--sb',t.sidebar);if(t.mode==='dark'){root.style.setProperty('--mu','#a6b4c5');root.style.setProperty('--bd','#344456')}else{root.style.setProperty('--mu','#64758a');root.style.setProperty('--bd','#dce5ef')}}
+ $('#themePreset').value=savedTheme.preset||'blue';$('#themeMode').value=savedTheme.mode||'light';['primary','background','surface','text','sidebar'].forEach(k=>themeInput(k).value=savedTheme[k]||themeDefaults.blue[k]);paintTheme(savedTheme);
+ $('#themePreset').onchange=()=>{const p=$('#themePreset').value;if(themeDefaults[p]){Object.entries(themeDefaults[p]).forEach(([k,v])=>themeInput(k).value=v);paintTheme({...readTheme(),...themeDefaults[p]})}};
+ $('#themeMode').onchange=()=>{if($('#themeMode').value==='dark'){const d={background:'#101923',surface:'#192635',text:'#e7edf5',sidebar:'#09121c'};Object.entries(d).forEach(([k,v])=>themeInput(k).value=v)}else if($('#themePreset').value==='blue'){const d=themeDefaults.blue;Object.entries(d).forEach(([k,v])=>themeInput(k).value=v)}paintTheme(readTheme())};
+ $('#themePreview').onclick=()=>{paintTheme(readTheme());$('#themeStatus').textContent='Preview only — not saved'};$('#themeReset').onclick=()=>{const t={...themeDefaults.blue,mode:'light',preset:'blue'};$('#themePreset').value='blue';$('#themeMode').value='light';Object.entries(t).forEach(([k,v])=>{if(themeInput(k))themeInput(k).value=v});paintTheme(t);$('#themeStatus').textContent='Default preview — save to apply school-wide'};
+ $('#themeSave').onclick=()=>run(async()=>{const theme=readTheme();await post('/settings',{school_name:$('#gs').value,allow_remote_admin:$('#gr').checked,theme});localStorage.setItem('gtmc-school-theme',JSON.stringify(theme));$('#themeStatus').textContent='Saved for the whole school';toast('School-wide theme saved')});
+ $('#gsv').onclick=()=>run(async()=>{await post('/settings',{school_name:$('#gs').value,allow_remote_admin:$('#gr').checked,theme:readTheme()});toast('Saved');pages.settings()});
+ $('#ppw').onclick=()=>run(async()=>{await post('/password',{old:$('#po').value,new:$('#pn').value});toast('Password changed');$('#po').value=$('#pn').value=''});
+ $('#bk').onclick=()=>run(async()=>{const r=await post('/backups');toast('Backup created: '+r.name);pages.settings()});
+ const loadAndroidHostStatus=async()=>{const r=await api('/android-host/status');
+  $('#ahDevices').innerHTML=r.devices.length?'<div class="scroll"><table><thead><tr><th>Device</th><th>Paired</th><th>Last seen</th><th>Status</th><th></th></tr></thead><tbody>'+r.devices.map(d=>'<tr><td>'+esc(d.label||'Android Host')+'<small class="mu">'+esc(d.device_id)+'</small></td><td>'+new Date(d.created_ts*1000).toLocaleString()+'</td><td>'+(d.last_seen?new Date(d.last_seen*1000).toLocaleString():'Never')+'</td><td>'+(d.revoked_ts?'<span class="badge wa">Revoked</span>':'<span class="badge ok">Active</span>')+'</td><td>'+(d.revoked_ts?'':'<button class="sm dg" data-ah-revoke="'+esc(d.device_id)+'">Revoke</button>')+'</td></tr>').join('')+'</tbody></table></div>':'No Android Host devices have been paired.';
+  $('#ahSummary').innerHTML='<b>'+r.synced_count+'</b> result packages acknowledged by this Windows Server · Last sync: '+(r.last_sync?new Date(r.last_sync*1000).toLocaleString():'No results synced yet');
+  $('#ahConflicts').innerHTML=r.conflicts.length?'<b>Conflicts requiring administrator attention</b><div class="scroll"><table><thead><tr><th>Attempt</th><th>Reason</th><th>Time</th><th>Review</th></tr></thead><tbody>'+r.conflicts.map(x=>'<tr><td>'+esc(x.attempt_uuid)+'</td><td>'+esc(x.reason)+'</td><td>'+new Date(x.created_ts*1000).toLocaleString()+'</td><td>'+esc(x.review_state)+'</td></tr>').join('')+'</tbody></table></div>':'No synchronisation conflicts recorded.';
+  document.querySelectorAll('[data-ah-revoke]').forEach(b=>b.onclick=()=>run(async()=>{if(!confirm('Revoke this Android Host device? It will no longer be able to synchronise.'))return;await post('/android-host/devices/'+encodeURIComponent(b.dataset.ahRevoke)+'/revoke');toast('Android Host device revoked');loadAndroidHostStatus()}));
+ };
+ $('#ahRefresh').onclick=()=>run(loadAndroidHostStatus);
+ $('#ahGenerate').onclick=()=>run(async()=>{const r=await post('/android-host/pairing-code');$('#ahCode').innerHTML='<b style="font-size:20px;letter-spacing:.06em">'+esc(r.pairing_code)+'</b> · expires in 10 minutes <button class="sm" id="ahCopy">Copy code</button>';$('#ahCopy').onclick=async()=>{try{await navigator.clipboard.writeText(r.pairing_code);toast('Pairing code copied')}catch(e){prompt('Copy this one-time code:',r.pairing_code)}};toast('One-time pairing code generated');});
+ run(loadAndroidHostStatus);
+
+ $('#importHostPackage').onclick=()=>run(async()=>{const file=$('#hostPackage').files[0];if(!file)return toast('Choose the JSON exam package first',1);let pkg;try{pkg=JSON.parse(await file.text())}catch(e){return toast('The selected file is not valid JSON',1)}const r=await post('/remote-host/package/import',pkg);$('#hostPackageStatus').textContent=`Imported ${r.imported_students} candidates and ${r.imported_questions} questions. Exam status: Draft.`;toast('Android Host exam package imported');});},
+
+async messages(){const [ex,cl,history]=await Promise.all([api('/exams'),api('/classes'),api('/messages')]);let students=[];
+ const pre=+sessionStorage.messageExam||0;
+ $('#main').innerHTML=`<h2>Student Messages & Emergency Broadcast</h2>
+ <div class="panel"><h3>Compose message</h3><div class="f2">
+ <div><label>Send to</label><select id="ma"><option value="all">All students</option><option value="class">A class</option><option value="student">One student</option><option value="exam" ${pre?'selected':''}>Students currently writing an exam</option></select></div>
+ <div><label>Class</label><select id="mcid">${opts(cl)}</select></div>
+ <div><label>Examination</label><select id="meid">${opts(ex,pre)}</select></div>
+ <div><label>Find student (name or admission number)</label><input id="msearch" placeholder="Search student"><select id="msid" style="width:100%"><option value="">Search and select a student</option></select></div>
+ </div><label>Message title</label><input id="mtitle" style="width:100%" maxlength="140" placeholder="Examination instruction">
+ <label>Message</label><textarea id="mbody" maxlength="3000" placeholder="Type the message for students..."></textarea>
+ <p><label style="color:var(--tx)"><input type="checkbox" id="memergency"> Mark as urgent / emergency broadcast</label></p>
+ <button class="pr" id="msend">Send message</button> <span class="mu" id="mstatus"></span></div>
+ <h3>Recent messages</h3><div class="scroll"><table><thead><tr><th>Sent</th><th>Student</th><th>Class</th><th>Title</th><th>Type</th><th>Status</th></tr></thead><tbody id="mhist">${history.rows.map(m=>`<tr><td class="mu">${new Date(m.created_ts*1000).toLocaleString()}</td><td>${esc(m.name)}<small class="mu"> ${esc(m.reg_no)}</small></td><td>${esc(m.cls)}</td><td>${esc(m.title)}</td><td>${m.emergency?'URGENT':'Normal'}</td><td>${m.read_ts?'Read':'Unread'}</td></tr>`).join('')||'<tr><td colspan="6" class="mu">No messages sent yet.</td></tr>'}</tbody></table></div>`;
+ $('#msearch').oninput=async()=>{const q=$('#msearch').value.trim();if(q.length<2){$('#msid').innerHTML='<option value="">Search and select a student</option>';return}const r=await api('/students/lookup?q='+encodeURIComponent(q));$('#msid').innerHTML='<option value="">Select student</option>'+r.map(x=>`<option value="${x.id}">${esc(x.name)} · ${esc(x.reg_no)} · ${esc(x.cls)}</option>`).join('')};
+ $('#msend').onclick=()=>run(async()=>{const audience=$('#ma').value;if(audience==='student'&&!$('#msid').value)return toast('Search and select a student first',1);if(audience==='exam'&&!$('#meid').value)return toast('Select an examination first',1);const b={audience,title:$('#mtitle').value,body:$('#mbody').value,emergency:$('#memergency').checked,class_id:$('#mcid').value,exam_id:$('#meid').value,student_id:$('#msid').value};const r=await post('/messages',b);$('#mstatus').textContent='Delivered to '+r.recipients+' student inbox(es).';toast('Message sent to '+r.recipients+' students');sessionStorage.removeItem('messageExam');pages.messages()});
+},
+
+async theoryMarking(){const exams=await api('/exams');if(!exams.length){$('#main').innerHTML='<h2>Theory Marking</h2><p class="mu">Create an examination first.</p>';return}let current=+sessionStorage.theoryExam||exams[0].id;
+ $('#main').innerHTML=`<h2>Theory Marking</h2><p class="mu">Review any submitted written response, award partial marks or override an automatic mark. The original automatic mark is retained for comparison.</p><div class="bar"><label>Examination</label><select id="tmExam">${opts(exams,current)}</select><button class="pr" id="tmLoad">Load responses</button></div><div id="tmRows"></div>`;
+ async function load(){current=+$('#tmExam').value;sessionStorage.theoryExam=current;const r=await api('/theory/'+current);const manual=r.rows;
+  $('#tmRows').innerHTML=manual.length?manual.map(x=>`<div class="panel"><div class="bar"><b>${esc(x.student)} · ${esc(x.reg_no)} · ${esc(x.cls)}</b><span class="sp"></span><span class="badge">${x.mark==null?'Awaiting mark':'Marked '+x.mark+'/'+x.max_marks}</span></div><p><b>Question:</b> ${esc(x.question)}</p><p class="mu">Marking method: ${esc(x.marking_mode)} · Model answer: ${esc(x.model_answer||'Not configured')}${x.original_mark!=null?' · Original automatic mark: '+x.original_mark+'/'+x.max_marks:''}</p><div style="background:var(--bg);border-radius:8px;padding:12px;white-space:pre-wrap"><b>Student answer</b><br>${esc(x.response_text||'No written response')}${x.response_drawing&&x.response_drawing!=='[]'?'<p class="mu">Graph / diagram work:</p><canvas class="theoryPreview" width="900" height="280" data-drawing="'+esc(x.response_drawing)+'" style="width:100%;max-height:220px;border:1px solid var(--bd);border-radius:8px;background-color:#fff;background-image:linear-gradient(#dfe8f1 1px,transparent 1px),linear-gradient(90deg,#dfe8f1 1px,transparent 1px);background-size:24px 24px"></canvas>':''}</div><div class="f2"><div><label>Mark (maximum ${x.max_marks})</label><input id="tmMark_${x.session_id}_${x.question_id}" type="number" min="0" max="${x.max_marks}" step="0.5" value="${x.mark==null?'':x.mark}" style="width:100%"></div><div><label>Feedback to retain</label><input id="tmFeedback_${x.session_id}_${x.question_id}" value="${esc(x.feedback||'')}" style="width:100%"></div></div><p><button class="pr" onclick="saveTheoryMark(${x.session_id},${x.question_id},${x.max_marks})">Save mark</button> <span class="mu" id="tmStatus_${x.session_id}_${x.question_id}">${x.marked_by?'Last marked by '+esc(x.marked_by):''}</span></p></div>`).join(''):'<div class="panel"><b>No manual theory responses awaiting marking.</b><p class="mu">No submitted manual-marking theory questions were found for this examination.</p></div>';
+  document.querySelectorAll('.theoryPreview').forEach(canvas=>{let strokes=[];try{strokes=JSON.parse(canvas.dataset.drawing||'[]')}catch(e){}const ctx=canvas.getContext('2d');ctx.strokeStyle='#244b70';ctx.lineWidth=3;ctx.lineCap='round';strokes.forEach(stroke=>{if(!stroke.length)return;ctx.beginPath();stroke.forEach((p,i)=>{if(i)ctx.lineTo(p[0]*canvas.width,p[1]*canvas.height);else ctx.moveTo(p[0]*canvas.width,p[1]*canvas.height)});ctx.stroke()})});
+ }
+ window.saveTheoryMark=(sid,qid,max)=>run(async()=>{const mark=$('#tmMark_'+sid+'_'+qid).value;if(mark===''||+mark<0||+mark>max)return toast('Enter a mark between 0 and '+max,1);const feedback=$('#tmFeedback_'+sid+'_'+qid).value;const r=await post('/theory/mark',{session_id:sid,question_id:qid,mark,feedback});$('#tmStatus_'+sid+'_'+qid).textContent='Saved · updated result '+r.score+'/'+r.total;toast('Theory mark saved');});
+ $('#tmLoad').onclick=()=>run(load);$('#tmExam').onchange=load;load()},
+ 
+async audit(){const r=await api('/audit');$('#main').innerHTML=`<h2>Activity Log</h2><div class="scroll"><table><thead><tr><th>When</th><th>Who</th><th>Action</th></tr></thead><tbody>${r.map(x=>`<tr><td class="mu">${x.when}</td><td>${esc(x.actor)}</td><td>${esc(x.action)}</td></tr>`).join('')}</tbody></table></div>`}
+};
+async function simpleList(kind,label,cnt){const rows=await api('/'+kind);
+ $('#main').innerHTML=`<h2>${label}es`.replace('Subjectes','Subjects')+`</h2><div class="bar"><input id="nm" placeholder="New ${label.toLowerCase()} name"><button id="ad">＋ Add</button><span class="sp"></span><button class="pr" id="im">⬆ Bulk import (Excel / Word)</button></div><div class="scroll"><table><thead><tr><th>${label}</th><th>${cnt}</th><th></th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.name)}</td><td>${r.n}</td><td><button class="sm dg" onclick="rmItem('${kind}',${r.id})">Delete</button></td></tr>`).join('')||`<tr><td colspan=3 class="mu">None yet.</td></tr>`}</tbody></table></div>`;
+ window.rmItem=(k,i)=>run(async()=>{if(!confirm('Delete?'))return;await del(`/${k}/${i}`);pages[k]()});
+ $('#ad').onclick=()=>run(async()=>{await post('/'+kind,{name:$('#nm').value});pages[kind]()});$('#nm').onkeydown=e=>{if(e.key==='Enter')$('#ad').click()};
+ $('#im').onclick=()=>importDialog(kind,'Bulk import '+kind,{},()=>pages[kind]())}
+fetch('/api/public/info').then(r=>r.json()).then(j=>{const t=j.theme||{};const root=document.documentElement;[['--pr',t.primary],['--pr2',t.primary],['--bg',t.background],['--pn',t.surface],['--tx',t.text],['--sb',t.sidebar]].forEach(([k,v])=>{if(v)root.style.setProperty(k,v)});if(t.mode==='dark'){root.style.setProperty('--mu','#a6b4c5');root.style.setProperty('--bd','#344456')} }).catch(()=>{});
+boot();
+</script></body></html>
