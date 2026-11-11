@@ -275,12 +275,12 @@ def _import_exam_package(conn, package):
         raise ValueError("The package contains an invalid proctor policy.")
 
     existing_exam = conn.execute("SELECT id FROM exams WHERE sync_uuid=?", (exam_uuid,)).fetchone()
+    exam_unchanged = False
     if existing_exam:
         local_id = existing_exam["id"]
         current = _local_exam_revision_hash(conn, local_id)
-        if current == revision:
-            return {"exam_sync_uuid": exam_uuid, "revision_hash": revision, "status": "unchanged"}
-        if conn.execute("SELECT 1 FROM sessions WHERE exam_id=? LIMIT 1", (local_id,)).fetchone():
+        exam_unchanged = current == revision
+        if not exam_unchanged and conn.execute("SELECT 1 FROM sessions WHERE exam_id=? LIMIT 1", (local_id,)).fetchone():
             raise ValueError("This examination has candidate attempts. A changed package cannot overwrite it; administrator review is required.")
 
     subject_row = conn.execute("SELECT id FROM subjects WHERE sync_uuid=?", (subject_uuid,)).fetchone()
@@ -373,15 +373,16 @@ def _import_exam_package(conn, package):
 
     if existing_exam:
         exam_id = existing_exam["id"]
-        conn.execute("""UPDATE exams SET title=?,subject_id=?,duration_min=?,num_questions=?,shuffle=?,
-            show_score=?,pass_mark=?,instructions=?,objective_count=?,theory_count=?,camera_policy=?,
-            sync_revision_hash=?,status='draft' WHERE id=?""",
-            (exam["title"], subject_id, int(exam["duration_min"]), int(exam["num_questions"]),
-             int(bool(exam.get("shuffle", 1))), int(bool(exam.get("show_score", 0))),
-             float(exam.get("pass_mark", 50)), str(exam.get("instructions") or ""),
-             int(exam.get("objective_count") or 0), int(exam.get("theory_count") or 0),
-             exam.get("camera_policy", "off"), revision, exam_id))
-        conn.execute("DELETE FROM exam_classes WHERE exam_id=?", (exam_id,))
+        if not exam_unchanged:
+            conn.execute("""UPDATE exams SET title=?,subject_id=?,duration_min=?,num_questions=?,shuffle=?,
+                show_score=?,pass_mark=?,instructions=?,objective_count=?,theory_count=?,camera_policy=?,
+                sync_revision_hash=?,status='draft' WHERE id=?""",
+                (exam["title"], subject_id, int(exam["duration_min"]), int(exam["num_questions"]),
+                 int(bool(exam.get("shuffle", 1))), int(bool(exam.get("show_score", 0))),
+                 float(exam.get("pass_mark", 50)), str(exam.get("instructions") or ""),
+                 int(exam.get("objective_count") or 0), int(exam.get("theory_count") or 0),
+                 exam.get("camera_policy", "off"), revision, exam_id))
+            conn.execute("DELETE FROM exam_classes WHERE exam_id=?", (exam_id,))
     else:
         exam_id = conn.execute("""INSERT INTO exams(title,subject_id,duration_min,num_questions,shuffle,
             show_score,pass_mark,instructions,status,created_ts,objective_count,theory_count,camera_policy,
@@ -433,12 +434,14 @@ def pull_packages_once(data_dir, server_url, device_id, device_token):
             exam = package.get("exam") or {}
             exam_uuid = str(exam.get("sync_uuid") or "")
             revision = str(exam.get("sync_revision_hash") or "")
-            if not exam_uuid or not revision:
+            roster_revision = str(package.get("roster_revision_hash") or "")
+            if not exam_uuid or not revision or not roster_revision:
                 continue
+            revision_token = revision + "." + roster_revision
             previous = conn.execute(
                 "SELECT revision_hash FROM android_sync_package_state WHERE exam_sync_uuid=?",
                 (exam_uuid,)).fetchone()
-            if previous and previous["revision_hash"] == revision:
+            if previous and previous["revision_hash"] == revision_token:
                 continue
             try:
                 conn.execute("BEGIN IMMEDIATE")
@@ -447,7 +450,7 @@ def pull_packages_once(data_dir, server_url, device_id, device_token):
                     (exam_sync_uuid,revision_hash,status,last_error,updated_ts) VALUES(?,?,?,'',?)
                     ON CONFLICT(exam_sync_uuid) DO UPDATE SET revision_hash=excluded.revision_hash,
                     status=excluded.status,last_error='',updated_ts=excluded.updated_ts""",
-                    (exam_uuid, revision, outcome["status"], int(time.time())))
+                    (exam_uuid, revision_token, outcome["status"], int(time.time())))
                 conn.commit()
             except (ValueError, TypeError, KeyError, sqlite3.IntegrityError) as exc:
                 conn.rollback()
@@ -455,7 +458,7 @@ def pull_packages_once(data_dir, server_url, device_id, device_token):
                     (exam_sync_uuid,revision_hash,status,last_error,updated_ts) VALUES(?,?,'conflict',?,?)
                     ON CONFLICT(exam_sync_uuid) DO UPDATE SET revision_hash=excluded.revision_hash,
                     status='conflict',last_error=excluded.last_error,updated_ts=excluded.updated_ts""",
-                    (exam_uuid, revision, str(exc)[:500], int(time.time())))
+                    (exam_uuid, revision_token, str(exc)[:500], int(time.time())))
                 conn.commit()
         return True
     finally:
