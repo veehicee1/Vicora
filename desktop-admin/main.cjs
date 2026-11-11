@@ -8,6 +8,7 @@ const { spawn } = require("child_process");
 let mainWindow = null;
 let connectedOrigin = null;
 let hostProcess = null;
+let hostExit = null;
 
 function normalizeServerAddress(input) {
   const value = String(input || "").trim();
@@ -73,6 +74,7 @@ async function waitForLocalHost(logPath) {
   const deadline = Date.now() + 45000;
   let lastError = null;
   while (Date.now() < deadline) {
+    if (hostExit) throw new Error("The VICORA Host closed before it was ready. " + (hostExit.code === null ? hostExit.signal : "Exit code " + hostExit.code));
     try {
       await verifyServer(address);
       return address;
@@ -106,12 +108,14 @@ async function startLocalHost() {
   fs.mkdirSync(path.dirname(logPath), { recursive: true });
   const logFd = fs.openSync(logPath, "a");
   try {
+    hostExit = null;
     hostProcess = spawn(executable, [], {
       detached: true,
       windowsHide: true,
       stdio: ["ignore", logFd, logFd],
-      env: { ...process.env }
+      env: { ...process.env, CBT_HOST_LOG: logPath }
     });
+    hostProcess.on("exit", (code, signal) => { hostExit = { code, signal }; });
     hostProcess.unref();
   } finally {
     fs.closeSync(logFd);
