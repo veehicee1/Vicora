@@ -26,7 +26,7 @@ os.makedirs(BK, exist_ok=True)
 DB_PATH = os.path.join(DATA, 'cbt.db')
 
 SCHEMA = """
-CREATE TABLE IF NOT EXISTS admins(id INTEGER PRIMARY KEY, username TEXT UNIQUE, password_hash TEXT);
+CREATE TABLE IF NOT EXISTS admins(id INTEGER PRIMARY KEY, username TEXT UNIQUE, password_hash TEXT, role TEXT NOT NULL DEFAULT 'super_admin', active INTEGER NOT NULL DEFAULT 1);
 CREATE TABLE IF NOT EXISTS classes(id INTEGER PRIMARY KEY, name TEXT UNIQUE NOT NULL, sync_uuid TEXT);
 CREATE TABLE IF NOT EXISTS subjects(id INTEGER PRIMARY KEY, name TEXT UNIQUE NOT NULL, sync_uuid TEXT);
 CREATE TABLE IF NOT EXISTS students(id INTEGER PRIMARY KEY, reg_no TEXT UNIQUE NOT NULL, name TEXT NOT NULL,
@@ -98,6 +98,15 @@ def init_db():
     c = raw()
     c.execute('PRAGMA journal_mode=WAL')
     c.executescript(SCHEMA)
+    # Additive staff RBAC migration: existing administrators retain their credentials
+    # and become Super Admins; no examination or student records are rewritten.
+    admin_cols = {r['name'] for r in c.execute('PRAGMA table_info(admins)').fetchall()}
+    if 'role' not in admin_cols:
+        c.execute("ALTER TABLE admins ADD COLUMN role TEXT NOT NULL DEFAULT 'super_admin'")
+    if 'active' not in admin_cols:
+        c.execute('ALTER TABLE admins ADD COLUMN active INTEGER NOT NULL DEFAULT 1')
+    c.execute("UPDATE admins SET role='super_admin' WHERE role IS NULL OR role=''")
+    c.execute('UPDATE admins SET active=1 WHERE active IS NULL')
     # Stable cross-device identities are additive; existing integer IDs remain unchanged.
     for table in ('classes', 'subjects', 'students', 'questions', 'exams'):
         cols = {r['name'] for r in c.execute(f'PRAGMA table_info({table})').fetchall()}
@@ -304,11 +313,72 @@ def nocache(r):
     return r
 
 
+ROLE_NAMES = {
+    'super_admin': 'Super Admin',
+    'exam_administrator': 'Exam Administrator',
+    'invigilator': 'Invigilator',
+    'examiner': 'Examiner / Marker',
+    'auditor': 'Auditor',
+}
+
+def staff_permission(role, path, method):
+    """Server-side allow-list. Unknown admin routes remain Super Admin only."""
+    if role == 'super_admin':
+        return True
+    if path == '/api/admin/password':
+        return True
+    if role == 'exam_administrator':
+        blocked = (
+            path.startswith('/api/admin/staff') or path.startswith('/api/admin/settings')
+            or path.startswith('/api/admin/school-logo') or path.startswith('/api/admin/server-info')
+            or path.startswith('/api/admin/android-host') or path.startswith('/api/admin/backups')
+            or path == '/api/admin/audit'
+        )
+        return path.startswith('/api/admin/') and not blocked
+    if role == 'invigilator':
+        allowed = (
+            path == '/api/admin/dashboard'
+            or path.startswith('/api/admin/monitor/')
+            or path.startswith('/api/admin/sessions/')
+            or path.startswith('/api/admin/proctor/')
+            or path.startswith('/api/admin/messages')
+            or path.startswith('/api/admin/export/monitor/')
+            or path.startswith('/api/admin/exams/') and path.endswith('/extend')
+        )
+        return allowed
+    if role == 'examiner':
+        return (
+            path == '/api/admin/dashboard'
+            or path.startswith('/api/admin/theory/')
+            or path.startswith('/api/admin/results/')
+            or path.startswith('/api/admin/export/results/')
+        )
+    if role == 'auditor':
+        return (
+            method == 'GET' and (
+                path == '/api/admin/dashboard' or path == '/api/admin/audit'
+                or path.startswith('/api/admin/results/')
+                or path.startswith('/api/admin/export/results/')
+                or path.startswith('/api/admin/export/monitor/')
+            )
+        )
+    return False
+
+
 def admin(f):
     @wraps(f)
     def w(*a, **k):
-        if not session.get('admin'):
+        username = session.get('admin')
+        if not username:
             return err('Not logged in', 401)
+        staff = q1('SELECT username, role, active FROM admins WHERE username=?', (username,))
+        if not staff or not staff['active']:
+            session.clear()
+            return err('Staff account is inactive or unavailable. Sign in again.', 401)
+        role = staff['role'] if staff['role'] in ROLE_NAMES else 'super_admin'
+        session['admin_role'] = role
+        if not staff_permission(role, request.path, request.method):
+            return err('Your staff role does not have permission for this action.', 403)
         return f(*a, **k)
     return w
 
@@ -581,13 +651,14 @@ def a_login():
     if throttled(key):
         return err('Too many attempts. Wait 5 minutes.', 429)
     r = q1('select * from admins where username=?', (d.get('username', '').strip(),))
-    if not r or not check_password_hash(r['password_hash'], d.get('password', '')):
+    if not r or not r['active'] or not check_password_hash(r['password_hash'], d.get('password', '')):
         add_fail(key)
         return err('Wrong username or password', 401)
     session.permanent = True
     session['admin'] = r['username']
-    audit('Admin logged in')
-    return jsonify(ok=True, user=r['username'])
+    session['admin_role'] = r['role']
+    audit('Staff logged in: ' + r['username'] + ' (' + ROLE_NAMES.get(r['role'], r['role']) + ')')
+    return jsonify(ok=True, user=r['username'], role=r['role'], role_name=ROLE_NAMES.get(r['role'], r['role']))
 
 
 @app.post('/api/admin/logout')
@@ -598,7 +669,12 @@ def a_logout():
 
 @app.get('/api/admin/me')
 def a_me():
-    return jsonify(user=session.get('admin'), school=getset('school_name'))
+    username = session.get('admin')
+    staff = q1('SELECT username, role, active FROM admins WHERE username=?', (username,)) if username else None
+    if not staff or not staff['active']:
+        session.clear()
+        return jsonify(user=None, role=None, school=getset('school_name'))
+    return jsonify(user=staff['username'], role=staff['role'], role_name=ROLE_NAMES.get(staff['role'], staff['role']), school=getset('school_name'))
 
 
 @app.post('/api/admin/password')
@@ -729,6 +805,58 @@ def dashboard():
 def audit_list():
     return jsonify([dict(r, when=fmt_ts(r['ts'])) for r in qa('select * from audit order by id desc limit 300')])
 
+
+
+# ---------------------------------------------------------------- admin: staff accounts (Super Admin only)
+@app.get('/api/admin/staff')
+@admin
+def staff_list():
+    rows = qa('SELECT id, username, role, active FROM admins ORDER BY username')
+    return jsonify(rows=[dict(r, role_name=ROLE_NAMES.get(r['role'], r['role'])) for r in rows])
+
+
+@app.post('/api/admin/staff')
+@admin
+def staff_create():
+    d = request.get_json(silent=True) or {}
+    username = str(d.get('username') or '').strip()
+    password = str(d.get('password') or '')
+    role = str(d.get('role') or 'exam_administrator')
+    if not re.fullmatch(r'[A-Za-z0-9_.@-]{3,80}', username):
+        return err('Username must be 3-80 characters and use letters, numbers, dot, underscore, @ or hyphen.')
+    if len(password) < 8:
+        return err('New staff password must be at least 8 characters.')
+    if role not in ROLE_NAMES:
+        return err('Choose a valid staff role.')
+    if q1('SELECT id FROM admins WHERE lower(username)=lower(?)', (username,)):
+        return err('That username already exists.')
+    ex('INSERT INTO admins(username,password_hash,role,active) VALUES(?,?,?,1)',
+       (username, generate_password_hash(password), role))
+    audit('Created staff account: ' + username + ' (' + ROLE_NAMES[role] + ')')
+    return jsonify(ok=True)
+
+
+@app.post('/api/admin/staff/<int:staff_id>')
+@admin
+def staff_update(staff_id):
+    d = request.get_json(silent=True) or {}
+    target = q1('SELECT id, username, role, active FROM admins WHERE id=?', (staff_id,))
+    if not target:
+        return err('Staff account not found.', 404)
+    role = d.get('role', target['role'])
+    active = d.get('active', target['active'])
+    if role not in ROLE_NAMES or active not in (0, 1, True, False):
+        return err('Invalid role or account status.')
+    active = 1 if active else 0
+    if target['username'] == session.get('admin') and (role != target['role'] or not active):
+        return err('You cannot change your own role or deactivate your own account.')
+    if target['role'] == 'super_admin' and (role != 'super_admin' or not active):
+        remaining = q1("SELECT COUNT(*) n FROM admins WHERE role='super_admin' AND active=1 AND id<>?", (staff_id,))
+        if not remaining or remaining['n'] < 1:
+            return err('At least one active Super Admin account must remain.')
+    ex('UPDATE admins SET role=?, active=? WHERE id=?', (role, active, staff_id))
+    audit('Updated staff account: ' + target['username'] + ' (' + ROLE_NAMES[role] + ', ' + ('active' if active else 'inactive') + ')')
+    return jsonify(ok=True)
 
 # ---------------------------------------------------------------- admin: classes & subjects
 def simple_crud(table, label):
