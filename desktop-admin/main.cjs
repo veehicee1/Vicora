@@ -61,8 +61,12 @@ function schoolLanLinks() {
   const links = [];
   for (const records of Object.values(os.networkInterfaces())) {
     for (const item of records || []) {
-      if (item.family === "IPv4" && !item.internal && !item.address.startsWith("169.254.")) {
-        links.push("http://" + item.address + ":8000/");
+      if (item.family === "IPv4" && !item.internal) {
+        const octets = item.address.split(".").map(Number);
+        const [a, b] = octets;
+        const privateLan = a === 10 || (a === 192 && b === 168) ||
+          (a === 172 && b >= 16 && b <= 31);
+        if (privateLan) links.push("http://" + item.address + ":8000/");
       }
     }
   }
