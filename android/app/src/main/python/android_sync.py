@@ -247,6 +247,221 @@ def sync_once(data_dir, server_url, device_id, device_token):
         conn.close()
 
 
+
+def _ensure_package_state(conn):
+    conn.execute("""CREATE TABLE IF NOT EXISTS android_sync_package_state(
+        exam_sync_uuid TEXT PRIMARY KEY, revision_hash TEXT NOT NULL,
+        status TEXT NOT NULL, last_error TEXT DEFAULT '', updated_ts INTEGER NOT NULL)""")
+    conn.commit()
+
+
+def _import_exam_package(conn, package):
+    """Import one approved Windows package without replacing any exam with attempts."""
+    if not isinstance(package, dict) or package.get("schema_version") != 1:
+        raise ValueError("Unsupported examination package schema.")
+    exam = package.get("exam") or {}
+    subject = package.get("subject") or {}
+    classes = package.get("classes")
+    students = package.get("students")
+    questions = package.get("questions")
+    revision = str(exam.get("sync_revision_hash") or "")
+    exam_uuid = str(exam.get("sync_uuid") or "")
+    subject_uuid = str(subject.get("sync_uuid") or "")
+    import re
+    if (not re.fullmatch(r"[a-f0-9]{64}", revision) or not exam_uuid or not subject_uuid
+            or not exam.get("title") or not all(isinstance(x, list) for x in (classes, students, questions))):
+        raise ValueError("The examination package is incomplete or has an invalid revision.")
+    if exam.get("camera_policy", "off") not in ("off", "optional", "required"):
+        raise ValueError("The package contains an invalid proctor policy.")
+
+    existing_exam = conn.execute("SELECT id FROM exams WHERE sync_uuid=?", (exam_uuid,)).fetchone()
+    if existing_exam:
+        local_id = existing_exam["id"]
+        current = _local_exam_revision_hash(conn, local_id)
+        if current == revision:
+            return {"exam_sync_uuid": exam_uuid, "revision_hash": revision, "status": "unchanged"}
+        if conn.execute("SELECT 1 FROM sessions WHERE exam_id=? LIMIT 1", (local_id,)).fetchone():
+            raise ValueError("This examination has candidate attempts. A changed package cannot overwrite it; administrator review is required.")
+
+    subject_row = conn.execute("SELECT id FROM subjects WHERE sync_uuid=?", (subject_uuid,)).fetchone()
+    if subject_row:
+        subject_id = subject_row["id"]
+        conn.execute("UPDATE subjects SET name=? WHERE id=?", (str(subject.get("name") or ""), subject_id))
+    else:
+        subject_row = conn.execute("SELECT id,sync_uuid FROM subjects WHERE lower(name)=lower(?)",
+                                   (str(subject.get("name") or ""),)).fetchone()
+        if subject_row and subject_row["sync_uuid"] not in (None, "", subject_uuid):
+            raise ValueError("A subject with the same name has a different school identity.")
+        if subject_row:
+            subject_id = subject_row["id"]
+            conn.execute("UPDATE subjects SET sync_uuid=? WHERE id=?", (subject_uuid, subject_id))
+        else:
+            subject_id = conn.execute("INSERT INTO subjects(name,sync_uuid) VALUES(?,?)",
+                                      (str(subject.get("name") or ""), subject_uuid)).lastrowid
+
+    class_ids = {}
+    for item in classes:
+        if not isinstance(item, dict) or not item.get("sync_uuid") or not item.get("name"):
+            raise ValueError("The package contains an invalid class.")
+        row = conn.execute("SELECT id FROM classes WHERE sync_uuid=?", (item["sync_uuid"],)).fetchone()
+        if not row:
+            row = conn.execute("SELECT id,sync_uuid FROM classes WHERE lower(name)=lower(?)",
+                               (item["name"],)).fetchone()
+            if row and row["sync_uuid"] not in (None, "", item["sync_uuid"]):
+                raise ValueError("A class with the same name has a different school identity.")
+            if row:
+                local_class = row["id"]
+                conn.execute("UPDATE classes SET sync_uuid=? WHERE id=?", (item["sync_uuid"], local_class))
+            else:
+                local_class = conn.execute("INSERT INTO classes(name,sync_uuid) VALUES(?,?)",
+                                           (item["name"], item["sync_uuid"])).lastrowid
+        else:
+            local_class = row["id"]
+            conn.execute("UPDATE classes SET name=? WHERE id=?", (item["name"], local_class))
+        class_ids[item["sync_uuid"]] = local_class
+
+    for item in students:
+        if not isinstance(item, dict) or not item.get("sync_uuid") or not item.get("reg_no") or not item.get("access_code"):
+            raise ValueError("The package contains an invalid candidate record.")
+        class_id = class_ids.get(item.get("class_sync_uuid"))
+        if not class_id:
+            raise ValueError("A candidate references a class missing from this package.")
+        row = conn.execute("SELECT id FROM students WHERE sync_uuid=?", (item["sync_uuid"],)).fetchone()
+        if not row:
+            row = conn.execute("SELECT id,sync_uuid FROM students WHERE lower(reg_no)=lower(?)",
+                               (item["reg_no"],)).fetchone()
+            if row and row["sync_uuid"] not in (None, "", item["sync_uuid"]):
+                raise ValueError("A registration number belongs to a different school identity.")
+        if row:
+            conn.execute("""UPDATE students SET sync_uuid=?,reg_no=?,name=?,class_id=?,access_code=?
+                            WHERE id=?""",
+                         (item["sync_uuid"], item["reg_no"], item.get("name") or "",
+                          class_id, item["access_code"], row["id"]))
+        else:
+            conn.execute("""INSERT INTO students(reg_no,name,class_id,access_code,sync_uuid)
+                            VALUES(?,?,?,?,?)""",
+                         (item["reg_no"], item.get("name") or "", class_id,
+                          item["access_code"], item["sync_uuid"]))
+
+    for item in questions:
+        if not isinstance(item, dict) or not item.get("sync_uuid") or not item.get("text"):
+            raise ValueError("The package contains an invalid question.")
+        if item.get("subject_sync_uuid") != subject_uuid:
+            raise ValueError("A question belongs to a different subject.")
+        values = (subject_id, item["text"], item.get("a") or "", item.get("b") or "",
+                  item.get("c") or "", item.get("d") or "", item.get("answer") or "",
+                  float(item.get("marks") or 1), item.get("topic") or "", item.get("difficulty") or "",
+                  item.get("question_type") or "objective", item.get("answer_text") or "",
+                  item.get("accepted_answers") or "[]", item.get("keywords") or "[]",
+                  item.get("answer_space") or "medium", item.get("marking_mode") or "exact")
+        row = conn.execute("SELECT id FROM questions WHERE sync_uuid=?", (item["sync_uuid"],)).fetchone()
+        if row:
+            conn.execute("""UPDATE questions SET subject_id=?,text=?,a=?,b=?,c=?,d=?,answer=?,marks=?,
+                topic=?,difficulty=?,question_type=?,answer_text=?,accepted_answers=?,keywords=?,
+                answer_space=?,marking_mode=? WHERE id=?""", values + (row["id"],))
+        else:
+            same = conn.execute("SELECT id,sync_uuid FROM questions WHERE subject_id=? AND text=?",
+                                (subject_id, item["text"])).fetchone()
+            if same and same["sync_uuid"] not in (None, "", item["sync_uuid"]):
+                raise ValueError("A question with identical wording has a different identity.")
+            if same:
+                conn.execute("UPDATE questions SET sync_uuid=? WHERE id=?", (item["sync_uuid"], same["id"]))
+            else:
+                conn.execute("""INSERT INTO questions(subject_id,text,a,b,c,d,answer,marks,topic,difficulty,
+                    question_type,answer_text,accepted_answers,keywords,answer_space,marking_mode,sync_uuid)
+                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""", values + (item["sync_uuid"],))
+
+    if existing_exam:
+        exam_id = existing_exam["id"]
+        conn.execute("""UPDATE exams SET title=?,subject_id=?,duration_min=?,num_questions=?,shuffle=?,
+            show_score=?,pass_mark=?,instructions=?,objective_count=?,theory_count=?,camera_policy=?,
+            sync_revision_hash=?,status='draft' WHERE id=?""",
+            (exam["title"], subject_id, int(exam["duration_min"]), int(exam["num_questions"]),
+             int(bool(exam.get("shuffle", 1))), int(bool(exam.get("show_score", 0))),
+             float(exam.get("pass_mark", 50)), str(exam.get("instructions") or ""),
+             int(exam.get("objective_count") or 0), int(exam.get("theory_count") or 0),
+             exam.get("camera_policy", "off"), revision, exam_id))
+        conn.execute("DELETE FROM exam_classes WHERE exam_id=?", (exam_id,))
+    else:
+        exam_id = conn.execute("""INSERT INTO exams(title,subject_id,duration_min,num_questions,shuffle,
+            show_score,pass_mark,instructions,status,created_ts,objective_count,theory_count,camera_policy,
+            sync_uuid,sync_revision_hash,android_host_sync_enabled)
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)""",
+            (exam["title"], subject_id, int(exam["duration_min"]), int(exam["num_questions"]),
+             int(bool(exam.get("shuffle", 1))), int(bool(exam.get("show_score", 0))),
+             float(exam.get("pass_mark", 50)), str(exam.get("instructions") or ""), "draft",
+             int(time.time()), int(exam.get("objective_count") or 0), int(exam.get("theory_count") or 0),
+             exam.get("camera_policy", "off"), exam_uuid, revision)).lastrowid
+    conn.execute("UPDATE exams SET android_host_sync_enabled=1 WHERE id=?", (exam_id,))
+    class_uuids = package.get("class_sync_uuids") or []
+    for class_uuid in class_uuids:
+        if class_uuid not in class_ids:
+            raise ValueError("The package references an unknown assigned class.")
+        conn.execute("INSERT OR IGNORE INTO exam_classes(exam_id,class_id) VALUES(?,?)",
+                     (exam_id, class_ids[class_uuid]))
+    actual = _local_exam_revision_hash(conn, exam_id)
+    if actual != revision:
+        raise ValueError("Imported package revision does not match its content; no exam was activated.")
+    return {"exam_sync_uuid": exam_uuid, "revision_hash": revision, "status": "imported"}
+
+
+def pull_packages_once(data_dir, server_url, device_id, device_token):
+    """Fetch only administrator-approved exam packages; never overwrite attempts."""
+    if not server_url.startswith("https://") or not device_id or not device_token:
+        raise ValueError("A trusted HTTPS pairing is required before exam synchronisation.")
+    conn = _connect(data_dir)
+    try:
+        _ensure_package_state(conn)
+        known = {row["exam_sync_uuid"]: row["revision_hash"] for row in conn.execute(
+            "SELECT exam_sync_uuid,revision_hash FROM android_sync_package_state")}
+        body = json.dumps({"device_id": device_id, "known_revisions": known},
+                          separators=(",", ":")).encode("utf-8")
+        req = urllib.request.Request(
+            server_url.rstrip("/") + "/api/android-host/sync-pull", data=body, method="POST",
+            headers={"Authorization": "Bearer " + device_token,
+                     "Content-Type": "application/json; charset=utf-8", "Accept": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=35) as response:
+                result = json.loads(response.read(20 * 1024 * 1024 + 1).decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            if exc.code in (401, 403):
+                raise ValueError("Android Host pairing was revoked or is no longer valid.")
+            raise
+        if not result.get("ok") or not isinstance(result.get("packages"), list):
+            raise ValueError("Windows Server returned an invalid examination sync response.")
+        for package in result["packages"]:
+            exam = package.get("exam") or {}
+            exam_uuid = str(exam.get("sync_uuid") or "")
+            revision = str(exam.get("sync_revision_hash") or "")
+            if not exam_uuid or not revision:
+                continue
+            previous = conn.execute(
+                "SELECT revision_hash FROM android_sync_package_state WHERE exam_sync_uuid=?",
+                (exam_uuid,)).fetchone()
+            if previous and previous["revision_hash"] == revision:
+                continue
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                outcome = _import_exam_package(conn, package)
+                conn.execute("""INSERT INTO android_sync_package_state
+                    (exam_sync_uuid,revision_hash,status,last_error,updated_ts) VALUES(?,?,?,'',?)
+                    ON CONFLICT(exam_sync_uuid) DO UPDATE SET revision_hash=excluded.revision_hash,
+                    status=excluded.status,last_error='',updated_ts=excluded.updated_ts""",
+                    (exam_uuid, revision, outcome["status"], int(time.time())))
+                conn.commit()
+            except (ValueError, TypeError, KeyError, sqlite3.IntegrityError) as exc:
+                conn.rollback()
+                conn.execute("""INSERT INTO android_sync_package_state
+                    (exam_sync_uuid,revision_hash,status,last_error,updated_ts) VALUES(?,?,'conflict',?,?)
+                    ON CONFLICT(exam_sync_uuid) DO UPDATE SET revision_hash=excluded.revision_hash,
+                    status='conflict',last_error=excluded.last_error,updated_ts=excluded.updated_ts""",
+                    (exam_uuid, revision, str(exc)[:500], int(time.time())))
+                conn.commit()
+        return True
+    finally:
+        conn.close()
+
+
 def local_status(data_dir):
     conn = _connect(data_dir)
     try:
