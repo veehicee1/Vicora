@@ -11,16 +11,27 @@ import threading
 _lock = threading.RLock()
 _server = None
 _server_thread = None
+_server_host = None
+_server_port = None
 _worker_started = False
 
 
 def start_server(data_dir, web_dir, host="0.0.0.0", port=8765, school_name=None):
     """Start (or reuse) the Android-local CBT host and return its address."""
-    global _server, _server_thread, _worker_started
+    global _server, _server_thread, _server_host, _server_port, _worker_started
 
     with _lock:
         if _server is not None and _server_thread is not None and _server_thread.is_alive():
-            return {"ok": True, "host": host, "port": int(port), "already_running": True}
+            if _server_host == str(host) and _server_port == int(port):
+                return {"ok": True, "host": host, "port": int(port), "already_running": True}
+            # A user may switch from localhost-only offline mode to LAN hosting.
+            # Rebind the listener instead of incorrectly reporting a LAN host.
+            _server.shutdown()
+            _server_thread.join(timeout=5)
+            _server = None
+            _server_thread = None
+            _server_host = None
+            _server_port = None
 
         os.makedirs(data_dir, exist_ok=True)
         if not os.path.isdir(web_dir):
@@ -60,6 +71,8 @@ def start_server(data_dir, web_dir, host="0.0.0.0", port=8765, school_name=None)
             name="vicora-android-cbt-server",
             daemon=True,
         )
+        _server_host = str(host)
+        _server_port = int(port)
         _server_thread.start()
 
         return {"ok": True, "host": host, "port": int(port), "already_running": False}
