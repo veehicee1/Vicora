@@ -218,8 +218,7 @@ public class MainActivity extends Activity {
     }
 
     private void startStandaloneWithSchoolName(String requestedMode, String schoolName) {
-        if ("host".equals(requestedMode)) getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        else getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         Toast.makeText(this, "host".equals(requestedMode)
             ? "Starting VICORA Wi-Fi / hotspot host…"
             : "Starting offline CBT…", Toast.LENGTH_SHORT).show();
@@ -320,7 +319,7 @@ public class MainActivity extends Activity {
         } else {
             for (String ip : addresses) message.append("\n\nhttp://").append(ip).append(":8765/");
         }
-        message.append("\n\nInternet is not required. Keep the Admin app open throughout the examination.");
+        message.append("\n\nInternet is not required for local candidates. Keep this phone powered, connected to the school Wi-Fi/hotspot, and leave the VICORA Host notification active.");
         new AlertDialog.Builder(this).setTitle("VICORA Student Exam Link")
             .setMessage(message.toString())
             .setPositiveButton("Open Hotspot Settings", (dialog, which) -> openHotspotSettings())
@@ -329,7 +328,7 @@ public class MainActivity extends Activity {
                 if (!addresses.isEmpty()) {
                     String link = "http://" + addresses.get(0) + ":8765/";
                     ClipboardManager clipboard = (ClipboardManager)getSystemService(CLIPBOARD_SERVICE);
-                    if (clipboard != null) clipboard.setPrimaryClip(ClipData.newPlainText("GTMC student exam link", link));
+                    if (clipboard != null) clipboard.setPrimaryClip(ClipData.newPlainText("VICORA student exam link", link));
                     Toast.makeText(this, "Student link copied", Toast.LENGTH_SHORT).show();
                 }
             }).show();
