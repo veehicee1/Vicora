@@ -532,6 +532,16 @@ def admin_page():
     return send_from_directory(WEB, 'admin.html')
 
 
+@app.get('/vicora-logo.svg')
+def vicora_logo():
+    return send_from_directory(WEB, 'vicora-logo.svg', mimetype='image/svg+xml', max_age=86400)
+
+
+@app.get('/vicora-icon.svg')
+def vicora_icon():
+    return send_from_directory(WEB, 'vicora-icon.svg', mimetype='image/svg+xml', max_age=86400)
+
+
 @app.get('/school-logo')
 def school_logo():
     filename = getset('school_logo', '')
