@@ -28,6 +28,10 @@ def configure_environment(program_data=None, bundle_dir=None, host="0.0.0.0", po
     os.environ["CBT_PORT"] = str(int(port))
     os.environ["CBT_TRUST_PROXY"] = "0"
     os.environ["CBT_COOKIE_SECURE"] = "0"
+    # A tunnel/reverse proxy running on this PC (for example, a local
+    # Cloudflare Tunnel connector) may forward HTTPS to this host. The app
+    # trusts only X-Forwarded-Proto from loopback, never forwarded client IPs.
+    os.environ.setdefault("CBT_TRUSTED_PROXY_IPS", "127.0.0.1,::1")
     return data_dir, web_dir
 
 
