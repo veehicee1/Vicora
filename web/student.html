@@ -76,6 +76,8 @@ body{background:radial-gradient(ellipse at 85% 0%,#dcecff 0,transparent 42%),lin
 .center{border:1px solid #e0e9f3;background:rgba(255,255,255,.97);box-shadow:0 22px 64px #12385d17}
 #v-login .center{position:relative;padding-top:34px}
 #school{display:flex;align-items:center;gap:14px;min-height:78px;font-size:clamp(21px,3vw,28px);line-height:1.15;color:#0a3767}
+.vicora-brand{display:flex;justify-content:center;margin:0 auto 18px}.vicora-brand img{width:min(190px,65%);height:46px;object-fit:contain}
+#top .vicora-icon{width:30px;height:30px;object-fit:contain;border-radius:7px;background:#102b50;margin-right:4px}
 #school:before{content:"";display:block;flex:0 0 72px;height:72px;border-radius:16px;background:#fff var(--school-logo,url('/home/icon.svg')) center/contain no-repeat;box-shadow:0 4px 18px #12385d16}
 label{font-weight:650;color:#435d78}
 input{border:1px solid #d6e2ef;background:#fbfdff}
@@ -129,7 +131,7 @@ button:focus-visible,.opt:focus-visible{outline:3px solid #3b8bd2;outline-offset
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
 
 </style></head><body>
-<div id="v-login" class="v on"><div class="center"><h1 id="school">CBT Examination</h1><p class="mu">Enter your details to begin.</p>
+<div id="v-login" class="v on"><div class="center"><div class="vicora-brand"><img src="/vicora-logo.svg" alt="VICORA"></div><h1 id="school">CBT Examination</h1><p class="mu">Enter your details to begin.</p>
 <label>Registration number</label><input id="reg" autocomplete="off"><label>Access code</label><input id="code" autocomplete="off" style="text-transform:uppercase" onkeydown="if(event.key==='Enter')login()">
 <button class="pr full" onclick="login()">Continue</button><div class="err" id="lerr"></div></div></div>
 
@@ -139,7 +141,7 @@ button:focus-visible,.opt:focus-visible{outline:3px solid #3b8bd2;outline-offset
 <ul class="mu"><li>Your answers are saved automatically.</li><li>The timer runs on the server; refreshing or a power cut will not reset it.</li><li>Do not leave the exam screen. Leaving is recorded and reported to the invigilator.</li></ul>
 <button class="pr full" id="startBtn" onclick="start()">Start exam</button><button class="full" onclick="show('v-exams')">Back</button><div class="err" id="serr"></div></div></div>
 
-<div id="v-exam" class="v"><div id="top"><b id="xt"></b><span class="sp"></span><span id="studentTag"></span><span id="saveStatus">Saved</span><button onclick="toggleCalc()">Calculator</button><span id="timer">--:--</span><button class="pr" style="background:#fff;color:var(--pr)" onclick="confirmSubmit()">Submit</button></div>
+<div id="v-exam" class="v"><div id="top"><b id="xt"></b><img class="vicora-icon" src="/vicora-icon.svg" alt="VICORA"><span class="sp"></span><span id="studentTag"></span><span id="saveStatus">Saved</span><button onclick="toggleCalc()">Calculator</button><span id="timer">--:--</span><button class="pr" style="background:#fff;color:var(--pr)" onclick="confirmSubmit()">Submit</button></div>
 <div id="wrap"><div class="qp"><div class="qn" id="qn"></div><div class="qt" id="qt"></div><div id="qo"></div>
 <div class="nav"><button onclick="step(-1)" id="bp">‹ Previous</button><button id="bf" onclick="flag()">⚑ Flag for review</button><span class="sp"></span><button class="pr" onclick="step(1)" id="bn">Next ›</button></div></div>
 <div class="side"><b>Questions</b><div class="pal" id="pal" style="margin-top:8px"></div><div class="leg"><i style="background:var(--ok)"></i>Answered<i style="border:3px solid var(--wa)"></i>Flagged<i style="background:#fff;border:1px solid var(--bd)"></i>Blank</div><div id="cnt" class="mu"></div></div></div></div>
