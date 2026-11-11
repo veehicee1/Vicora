@@ -76,8 +76,10 @@ def main():
     data_dir, web_dir = configure_environment()
     log_dir = data_dir / "logs"
     log_dir.mkdir(exist_ok=True)
+    log_file = Path(os.environ.get("CBT_HOST_LOG") or (log_dir / "windows-host.log"))
+    log_file.parent.mkdir(parents=True, exist_ok=True)
     logging.basicConfig(
-        filename=str(log_dir / "windows-host.log"),
+        filename=str(log_file),
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(message)s",
     )
@@ -104,7 +106,8 @@ def main():
             logging.info("Student access link: http://%s:8000/", address)
         logging.info("Keep this host computer powered on and connected to the school network.")
         serve(cbt.app, host="0.0.0.0", port=8000, threads=64, channel_timeout=120)
-    except SystemExit:
+    except SystemExit as exc:
+        logging.warning("VICORA Host setup exited: %s", exc)
         raise
     except Exception:
         logging.exception("VICORA Windows Host stopped unexpectedly")
