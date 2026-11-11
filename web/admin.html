@@ -75,7 +75,8 @@ th{z-index:1}
 body{background:radial-gradient(ellipse at 85% -10%,#dcecff 0,transparent 38%),var(--bg);color:var(--tx);font-family:Inter,"Segoe UI",system-ui,sans-serif}
 aside{background:linear-gradient(180deg,#082f58 0%,#061f3b 100%);box-shadow:8px 0 32px #082b5018;padding:18px 0}
 aside h1{display:flex;align-items:center;min-height:58px;margin:0 14px 18px;padding:8px 8px 8px 58px;position:relative;font-size:15px;line-height:1.25}
-aside h1:before{content:"";position:absolute;left:6px;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:12px;background:#fff var(--school-logo,url('/home/icon.svg')) center/contain no-repeat;box-shadow:0 3px 12px #0002}
+aside h1:before{content:"";position:absolute;left:6px;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:12px;background:#fff url('/vicora-icon.svg') center/contain no-repeat;box-shadow:0 3px 12px #0002}
+#brand:after{content:"";position:absolute;right:8px;top:50%;transform:translateY(-50%);width:28px;height:28px;border-radius:7px;background:#fff var(--school-logo,url('/home/icon.svg')) center/contain no-repeat}
 aside h1 small{font-size:11px;letter-spacing:.09em;text-transform:uppercase;margin-top:5px;color:#a9c9e8}
 nav a{display:flex;align-items:center;min-height:43px;margin:3px 10px;padding:10px 13px;border-radius:10px;color:#d8e8f8;font-weight:550;transition:background .18s ease,transform .18s ease}
 nav a:hover{background:#ffffff16;transform:translateX(2px)}
@@ -99,7 +100,7 @@ td{color:#29425c}
 #modal>div{border:1px solid #e0e9f3;border-radius:18px;box-shadow:0 22px 70px #061f3b45}
 #toast{border-radius:12px;box-shadow:0 10px 30px #061f3b35}
 #login{border:1px solid #dfe9f3;background:#fff;box-shadow:0 22px 65px #0a31531b;padding:26px}
-#login:before{content:"";display:block;width:76px;height:76px;margin:0 auto 14px;border-radius:18px;background:#fff var(--school-logo,url('/home/icon.svg')) center/contain no-repeat;box-shadow:0 4px 18px #12385d18}
+#login:before{content:"";display:block;width:168px;height:48px;margin:0 auto 14px;border-radius:0;background:transparent url('/vicora-logo.svg') center/contain no-repeat}
 .dash-head{align-items:center}
 .quick-actions button{background:linear-gradient(180deg,#fff,#f7faff);border-color:#dce7f2}
 .badge{font-weight:700}
@@ -121,7 +122,7 @@ td{color:#29425c}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
 
 </style></head><body>
-<div id="login" class="panel" style="display:none"><h2>CBT Admin Console</h2>
+<div id="login" class="panel" style="display:none"><h2>VICORA CBT Admin</h2><img src="/school-logo" alt="School logo" style="display:block;width:58px;height:58px;object-fit:contain;margin:0 auto 10px">
 <label>Username</label><input id="lu" value="admin" style="width:100%"><label>Password</label><input id="lp" type="password" style="width:100%" onkeydown="if(event.key==='Enter')doLogin()">
 <p><button class="pr" style="width:100%" onclick="doLogin()">Sign in</button></p><p class="mu" id="lerr"></p></div>
 <aside id="side" style="display:none"><h1 id="brand">CBT Console<small>Admin</small></h1><nav id="nav"></nav></aside>
