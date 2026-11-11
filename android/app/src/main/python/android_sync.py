@@ -273,6 +273,14 @@ def _import_exam_package(conn, package):
         raise ValueError("The examination package is incomplete or has an invalid revision.")
     if exam.get("camera_policy", "off") not in ("off", "optional", "required"):
         raise ValueError("The package contains an invalid proctor policy.")
+    remote_school = str(package.get("school_name") or "").strip()
+    local_school_row = conn.execute("SELECT value FROM settings WHERE key='school_name'").fetchone()
+    local_school = str(local_school_row["value"] if local_school_row else "").strip()
+    if remote_school and local_school and remote_school.casefold() != local_school.casefold():
+        raise ValueError("This Android Host belongs to a different school identity. Do not mix school databases.")
+    if remote_school and not local_school:
+        conn.execute("""INSERT INTO settings(key,value) VALUES('school_name',?)
+                        ON CONFLICT(key) DO UPDATE SET value=excluded.value""", (remote_school,))
 
     existing_exam = conn.execute("SELECT id FROM exams WHERE sync_uuid=?", (exam_uuid,)).fetchone()
     exam_unchanged = False
