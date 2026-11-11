@@ -230,7 +230,7 @@ def restrict_public_remote_surface():
     path = request.path
     allowed_exact = {
         '/', '/home', '/home/', '/home/manifest.webmanifest', '/home/icon.svg',
-        '/home/sw.js', '/gtmc-logo.jpg', '/api/public/info'
+        '/home/sw.js', '/gtmc-logo.jpg', '/vicora-logo.svg', '/vicora-icon.svg', '/api/public/school-logo', '/api/public/info'
     }
     if path in allowed_exact or path.startswith('/api/student/'):
         return None
