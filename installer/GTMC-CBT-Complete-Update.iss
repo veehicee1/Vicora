@@ -1,6 +1,6 @@
-#define MyAppName "GTMC CBT Complete Update"
+#define MyAppName "VICORA CBT Complete Update"
 #define MyAppVersion "2.0.0"
-#define MyAppPublisher "Greater Tomorrow Model College"
+#define MyAppPublisher "Veehicee Telecommunications and Services"
 
 [Setup]
 AppId={{B9E2A10A-6D77-4D3C-A45A-3E5B91C0A126}
@@ -14,7 +14,7 @@ PrivilegesRequired=admin
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 OutputDir=..\dist-installer
-OutputBaseFilename=GTMC-CBT-Complete-Update-Windows
+OutputBaseFilename=VICORA-CBT-Complete-Update-Windows
 Compression=none
 SolidCompression=no
 WizardStyle=modern
