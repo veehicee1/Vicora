@@ -13,6 +13,10 @@ class StaffRBACTests(unittest.TestCase):
         app.config.update(TESTING=True)
         self.client = app.test_client()
         with app.app_context():
+            for username in ("marker.one", "marker.rbac"):
+                ex("DELETE FROM staff_exam_assignments WHERE staff_id IN (SELECT id FROM admins WHERE username=?)", (username,))
+                ex("DELETE FROM admins WHERE username=?", (username,))
+            ex("DELETE FROM exams WHERE title IN ('RBAC Assigned Exam','RBAC Unassigned Exam')")
             ex("UPDATE admins SET role='super_admin', active=1 WHERE username='admin'")
 
     def query(self, sql, args=()):
