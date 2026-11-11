@@ -1,11 +1,11 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>CBT Exam</title>
+<title>VICORA CBT Examination</title>
 <link rel="manifest" href="/home/manifest.webmanifest">
 <meta name="theme-color" content="#0756a8">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="GTMC Home CBT">
+<meta name="apple-mobile-web-app-title" content="VICORA CBT Examination">
 <link rel="apple-touch-icon" href="/vicora-icon.svg">
 <style>
 :root{--bg:#eef2f7;--pn:#fff;--tx:#1b2430;--mu:#667286;--bd:#d9e0ea;--pr:#1f4e79;--ok:#1e8e4e;--wa:#e0a100;--er:#c62f2f}
@@ -179,7 +179,7 @@ async function login(){$('#lerr').textContent='';try{S.creds={reg_no:$('#reg').v
  if(j.exams.length===1&&j.exams[0].state!=='done')pick(0);else show('v-exams')}catch(e){$('#lerr').textContent=e.message}}
 function pick(i){S.cur=S.exams[i];$('#it').textContent=S.cur.title;$('#im').textContent=`${S.cur.subject} · ${S.cur.duration_min} minutes · ${S.cur.num_questions} questions`;$('#ii').textContent=S.cur.instructions||'';$('#startBtn').textContent=S.cur.state==='resume'?'Continue exam':'Start exam';$('#serr').textContent='';show('v-intro')}
 async function prepareProctor(){S.cameraReady=false;S.proctorPending=[];const policy=S.cur?.camera_policy||'off';if(policy==='off')return true;
- const notice='GTMC Proctor Mode is enabled for this examination. The camera is used to confirm camera availability and record camera/browser interruption events for authorised school administrators to review. This version does not upload or store camera images or continuous video. Events are not automatic proof of misconduct.';
+ const notice='School examination monitoring is enabled for this examination. The camera is used to confirm camera availability and record camera/browser interruption events for authorised school administrators to review. This version does not upload or store camera images or continuous video. Events are not automatic proof of misconduct.';
  if(policy==='optional'&&!confirm(notice+'\\n\\nEnable your camera? Choose Cancel to continue without camera monitoring.')){S.proctorPending.push('camera_declined');return true;}
  if(policy==='required'&&!confirm(notice+'\\n\\nCamera permission is required to start this examination. Select OK to continue.')){ $('#serr').textContent='Camera permission is required for this examination.';return false; }
  try{if(!window.isSecureContext)throw new Error('Camera monitoring requires a trusted HTTPS connection. The plain HTTP phone hotspot link cannot provide camera access.');if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error('Camera access is not supported in this browser.');S.cameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});S.cameraReady=true;S.proctorPending.push('camera_started');const track=S.cameraStream.getVideoTracks()[0];if(track)track.addEventListener('ended',()=>{S.cameraReady=false;proctorEvent('camera_interrupted')});return true;}
