@@ -51,18 +51,22 @@ The installer adds a Windows Firewall inbound rule for TCP 8000 on Private netwo
 
 The Android host uses port 8765. Local Wi-Fi/hotspot hosting does not require internet access.
 
-## Android-to-Windows result synchronisation
+## Windows ↔ Android examination and result synchronisation
 
-1. Start the Windows host and sign in as Super Admin.
+The Windows school server is the authoritative source for exam setup, question content and candidate records when it is selected as the central server. Android is a paired edge host/cache that can serve the browser examination locally over Wi-Fi or hotspot.
+
+1. Start the Windows host and sign in as Super Admin or Exam Administrator.
 2. Open Admin → Settings → Android Host pairing and generate a one-time pairing code.
 3. In Android Host mode, choose Pair with Windows Server and enter the Windows server's trusted HTTPS address and one-time code.
-4. In Windows Admin → Exams, download the approved Phone package for an examination and transfer it securely to the Android Admin app.
-5. Import the package on Android. It remains Draft until an administrator reviews and opens it.
-6. Android queues completed attempts and uploads them to the paired Windows host when an internet connection is available.
-7. The Windows server validates device identity, candidate/exam/question identity and exam revision, then recomputes objective/automatic scores. Theory responses and drawings are made available for the normal marking workflow.
-8. The Android outbox marks an attempt synced only after Windows acknowledges it. Failed uploads retry; conflicts remain visible for administrator review.
+4. In Windows Admin → Exams, select **Enable Android sync** for each examination approved for that phone. Only explicitly enabled examinations are sent to paired devices.
+5. The Android host's network-constrained background worker checks for approved exam packages after pairing and periodically (WorkManager minimum interval: 15 minutes). It also runs result uploads in the same sync cycle.
+6. Downloaded exams, their assigned classes, candidate roster/access codes and question content are imported into the Android database automatically. Imported exams remain **Draft** until an administrator reviews and opens them on the Android host.
+7. Candidate attempts completed on Android are placed in the durable local outbox and uploaded to Windows over HTTPS. Windows validates the device, school identities, candidate, exam revision and question identities, then recomputes objective/automatic marks. Theory responses and drawings enter the normal marking workflow.
+8. Windows acknowledges each attempt before Android marks it synced. Network failures retry. Duplicate uploads are idempotent; revision mismatches and duplicate/conflicting attempts are held for administrator review.
 
-The current exam package transfer is a manual secure JSON-file step. Automatic exam-package pull/push between hosts is not yet implemented. The current result sync direction is Android → Windows; it is not general bidirectional database replication.
+**Revision and safety rules:** candidate roster changes are tracked separately from exam-content revisions, so new or updated candidate records can sync without rewriting an exam attempt. If exam content changes after an Android candidate has started an attempt, the phone will not overwrite that exam; it records a sync conflict for review. A school-name mismatch is rejected to prevent mixing two schools' databases. The automatic pull sends one approved exam package per polling cycle and enforces an 18 MB response limit; larger packages need to be reduced or transferred through the existing secure manual method.
+
+**What this means:** exam definitions and candidate records flow Windows → Android; completed Android attempts flow Android → Windows. This is controlled application-level synchronisation, not raw SQLite replication or simultaneous multi-master editing. If Android is selected as the only host, it can still serve browser candidates locally, but a separate Windows server must be paired as the central result destination for this sync path.
 
 ## Internet and off-site access
 
