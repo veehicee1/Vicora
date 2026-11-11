@@ -43,7 +43,7 @@ public final class AndroidHostPairing {
         JSONObject request = new JSONObject();
         request.put("pairing_code", oneTimeCode);
         request.put("device_id", deviceId);
-        request.put("label", "GTMC Android Host");
+        request.put("label", "VICORA Android Host");
 
         URL url = new URL(serverBaseUrl.replaceAll("/+$", "") + "/api/android-host/pair");
         HttpsURLConnection connection = (HttpsURLConnection) url.openConnection();
