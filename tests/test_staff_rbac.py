@@ -72,12 +72,12 @@ class StaffRBACTests(unittest.TestCase):
         self.assertEqual(questions.status_code, 403)
         self.assertEqual(pause_exam.status_code, 403)
 
-    def test_examiner_can_open_theory_marking_but_not_question_bank(self):
+    def test_examiner_cannot_open_unassigned_theory_marking_or_question_bank(self):
         self.execute("UPDATE admins SET role='examiner' WHERE username='admin'")
         self.sign_in_as()
         theory = self.client.get("/api/admin/theory/1")
         questions = self.client.get("/api/admin/questions")
-        self.assertNotEqual(theory.status_code, 403)
+        self.assertEqual(theory.status_code, 403)
         self.assertEqual(questions.status_code, 403)
 
     def test_exam_administrator_cannot_manage_staff_or_backups(self):
