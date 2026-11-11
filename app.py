@@ -412,6 +412,30 @@ def final_info():
     return {}
 
 
+def sauth(f):
+    @wraps(f)
+    def w(*a, **k):
+        tok = request.headers.get('X-Token', '')
+        s = q1("select * from sessions where token=? and token is not null and token<>''", (tok,)) if tok else None
+        if not s:
+            return err('Session expired. Please log in again.', 401)
+        e = q1('select * from exams where id=?', (s['exam_id'],))
+        g.ses, g.exam = s, e
+        if s['status'] == 'submitted':
+            return jsonify(done=True, **final_info())
+        if e['status'] == 'paused' or (s['paused_at'] or 0):
+            g.ses, g.exam = s, e
+            st = q1('select name,reg_no from students where id=?', (s['student_id'],))
+            return jsonify(paused=True, remaining=time_left(s, e['duration_min']), student=st, title=e['title'], exam_id=e['id'])
+        if e['status'] != 'live' or time_left(s, e['duration_min']) <= 0:
+            finalize(db(), s['id'])
+            g.ses = q1('select * from sessions where id=?', (s['id'],))
+            return jsonify(done=True, **final_info())
+        ex('update sessions set last_seen=? where id=?', (int(time.time()), s['id']))
+        return f(*a, **k)
+    return w
+
+
 @app.get('/api/student/paper')
 @sauth
 def s_paper():
@@ -2449,30 +2473,6 @@ def s_begin():
             return err('The system detected a repeated question and stopped paper generation. Please contact the administrator.', 500)
         db().commit()
     return jsonify(token=token)
-
-
-def sauth(f):
-    @wraps(f)
-    def w(*a, **k):
-        tok = request.headers.get('X-Token', '')
-        s = q1("select * from sessions where token=? and token is not null and token<>''", (tok,)) if tok else None
-        if not s:
-            return err('Session expired. Please log in again.', 401)
-        e = q1('select * from exams where id=?', (s['exam_id'],))
-        g.ses, g.exam = s, e
-        if s['status'] == 'submitted':
-            return jsonify(done=True, **final_info())
-        if e['status'] == 'paused' or (s['paused_at'] or 0):
-            g.ses, g.exam = s, e
-            st = q1('select name,reg_no from students where id=?', (s['student_id'],))
-            return jsonify(paused=True, remaining=time_left(s, e['duration_min']), student=st, title=e['title'], exam_id=e['id'])
-        if e['status'] != 'live' or time_left(s, e['duration_min']) <= 0:
-            finalize(db(), s['id'])
-            g.ses = q1('select * from sessions where id=?', (s['id'],))
-            return jsonify(done=True, **final_info())
-        ex('update sessions set last_seen=? where id=?', (int(time.time()), s['id']))
-        return f(*a, **k)
-    return w
 
 
 def final_info():
