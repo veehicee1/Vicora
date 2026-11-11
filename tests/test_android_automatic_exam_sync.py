@@ -20,6 +20,7 @@ class AndroidAutomaticExamSyncTests(unittest.TestCase):
         self.device_token = "device-token-" + uuid.uuid4().hex
         with cbt.app.app_context():
             cbt.ex("UPDATE admins SET role='super_admin',active=1 WHERE username='admin'")
+            cbt.setset("school_name", "Automatic Sync Test School")
             self.class_id = cbt.ex("INSERT INTO classes(name) VALUES(?)", ("Auto Sync Class " + self.suffix,)).lastrowid
             self.subject_id = cbt.ex("INSERT INTO subjects(name) VALUES(?)", ("Auto Sync Subject " + self.suffix,)).lastrowid
             self.student_id = cbt.ex(
@@ -50,6 +51,7 @@ class AndroidAutomaticExamSyncTests(unittest.TestCase):
     def tearDown(self):
         with cbt.app.app_context():
             cbt.ex("DELETE FROM android_host_devices WHERE device_id=?", (self.device_id,))
+            cbt.setset("school_name", "")
             cbt.ex("DELETE FROM sessions WHERE exam_id=?", (self.exam_id,))
             cbt.ex("DELETE FROM exams WHERE id=?", (self.exam_id,))
             cbt.ex("DELETE FROM questions WHERE subject_id=?", (self.subject_id,))
@@ -97,6 +99,8 @@ class AndroidAutomaticExamSyncTests(unittest.TestCase):
                     self.assertEqual(row["title"], self.package["exam"]["title"])
                     self.assertEqual(row["status"], "draft")
                     self.assertEqual(conn.execute("SELECT COUNT(*) FROM students").fetchone()[0], 1)
+                    school = conn.execute("SELECT value FROM settings WHERE key='school_name'").fetchone()
+                    self.assertEqual(school["value"], "Automatic Sync Test School")
                     # A changed package must not overwrite an examination once candidates have attempts.
                     exam_id = conn.execute("SELECT id FROM exams WHERE sync_uuid=?",
                                            (self.package["exam"]["sync_uuid"],)).fetchone()[0]
