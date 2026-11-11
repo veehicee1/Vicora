@@ -162,7 +162,7 @@ public class MainActivity extends Activity {
             AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("VICORA CBT Admin")
                 .setView(scroll)
-                .setNegativeButton("Exit", (d, which) -> { stopHostingService(); finish(); })
+                .setNegativeButton("Exit", (d, which) -> { stopHostingServiceAndServer(); finish(); })
                 .create();
 
             addModeButton(choices, dialog, "Host Exam on This Device (Wi-Fi / Hotspot)", () -> {
@@ -259,7 +259,7 @@ public class MainActivity extends Activity {
                 }
                 if (!url.endsWith("/")) url += "/";
                 currentMode="school";
-                stopHostingService();
+                stopHostingServiceAndServer();
                 getPreferences(0).edit().putString("mode","school").putString("server_url",url).apply();
                 loadUrl(appHomeUrl());
             }).setNegativeButton("Back",(d,w)->chooseMode()).show();
@@ -423,6 +423,21 @@ public class MainActivity extends Activity {
 
     private void stopHostingService() {
         stopService(new Intent(this, AndroidHostService.class));
+    }
+
+    private void stopHostingServiceAndServer() {
+        if (!Python.isStarted()) {
+            stopHostingService();
+            return;
+        }
+        new Thread(() -> {
+            try {
+                Python.getInstance().getModule("android_server").callAttr("stop_server");
+            } catch (Exception ex) {
+                android.util.Log.w("VICORA-Host", "Could not stop the local host cleanly.", ex);
+            }
+            runOnUiThread(this::stopHostingService);
+        }, "vicora-stop-host").start();
     }
 
     private void openHotspotSettings() {
