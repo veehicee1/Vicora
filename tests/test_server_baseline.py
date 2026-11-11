@@ -137,7 +137,7 @@ class ServerBaselineTests(unittest.TestCase):
 
     def test_remote_admin_is_blocked_by_default(self):
         with self.client.session_transaction() as sess:
-            sess["admin"] = "test-admin"
+            sess["admin"] = "admin"
         response = self.client.get(
             "/api/admin/dashboard",
             environ_overrides={"REMOTE_ADDR": "192.0.2.25"},
@@ -146,7 +146,7 @@ class ServerBaselineTests(unittest.TestCase):
 
     def test_remote_admin_cannot_be_enabled_without_https_proxy(self):
         with self.client.session_transaction() as sess:
-            sess["admin"] = "test-admin"
+            sess["admin"] = "admin"
         response = self.client.post(
             "/api/admin/settings",
             json={"school_name": "GTMC", "allow_remote_admin": True},
@@ -157,7 +157,7 @@ class ServerBaselineTests(unittest.TestCase):
 
     def test_loopback_admin_can_reach_dashboard_after_login(self):
         with self.client.session_transaction() as sess:
-            sess["admin"] = "test-admin"
+            sess["admin"] = "admin"
         response = self.client.get(
             "/api/admin/dashboard",
             environ_overrides={"REMOTE_ADDR": "127.0.0.1"},
@@ -248,7 +248,7 @@ class ServerBaselineTests(unittest.TestCase):
     def test_android_host_package_export_and_import_are_repeatable(self):
         fixture = self._proctor_fixture("optional")
         with self.client.session_transaction() as sess:
-            sess["admin"] = "package-admin"
+            sess["admin"] = "admin"
         exported = self.client.get(f"/api/admin/remote-host/package/{fixture['exam_id']}")
         self.assertEqual(exported.status_code, 200)
         self.assertIn("attachment", exported.headers.get("Content-Disposition", ""))
@@ -284,7 +284,7 @@ class ServerBaselineTests(unittest.TestCase):
         import hashlib
         import uuid
         with self.client.session_transaction() as sess:
-            sess["admin"] = "test-admin"
+            sess["admin"] = "admin"
         generated = self.client.post("/api/admin/android-host/pairing-code")
         self.assertEqual(generated.status_code, 200, generated.get_json())
         code = generated.get_json()["pairing_code"]
