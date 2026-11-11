@@ -49,7 +49,7 @@ begin
   InstallDir := ExpandConstant('{autopf}\GTMC CBT');
   if FileExists(InstallDir + '\CBTAdmin.exe') then
   begin
-    MsgBox('GTMC CBT Admin is already installed. Use the Complete Update installer to update both applications safely.', mbError, MB_OK);
+    MsgBox('VICORA CBT Admin is already installed. Use the Complete Update installer to update both applications safely.', mbError, MB_OK);
     Result := False;
   end
   else
