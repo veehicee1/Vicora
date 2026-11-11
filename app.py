@@ -537,21 +537,6 @@ def serve(host=None, port=None):
     wserve(app, host=host, port=port, threads=32)
 
 
-if __name__ == '__main__':
-    start_background()
-    print(f'GTMC CBT server listening on {SERVER_HOST}:{SERVER_PORT}')
-    if TRUST_PROXY:
-        print('Trusted local HTTPS reverse proxy mode is enabled; backend is loopback-only.')
-    else:
-        print('LAN mode: use a listed school-network IP. Do not expose this HTTP port directly to the internet.')
-    serve()
-, request.path)
-            if assigned_route and not examiner_has_exam(username, int(assigned_route.group(1))):
-                return err('This examination has not been assigned to your marker account.', 403)
-        return f(*a, **k)
-    return w
-
-
 # ---------------------------------------------------------------- file reading (xlsx / csv / docx)
 ALIAS = {}
 for canon, names in {
