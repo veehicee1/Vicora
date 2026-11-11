@@ -189,6 +189,27 @@ if TRUST_PROXY:
         raise RuntimeError('CBT_TRUST_PROXY=1 requires CBT_HOST to be loopback-only (127.0.0.1).')
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
+# A local HTTPS tunnel/reverse proxy may forward to this LAN host over loopback.
+# Trust only the scheme header from explicitly listed proxy source IPs; never
+# trust forwarded client IP/host headers or allow remote Admin through this path.
+class TrustedLocalProxyScheme:
+    def __init__(self, application, trusted_ips):
+        self.application = application
+        self.trusted_ips = frozenset(ip.strip() for ip in trusted_ips if ip.strip())
+
+    def __call__(self, environ, start_response):
+        remote = environ.get('REMOTE_ADDR', '')
+        forwarded_proto = environ.get('HTTP_X_FORWARDED_PROTO', '')
+        proto = forwarded_proto.split(',')[0].strip().lower()
+        if remote in self.trusted_ips and proto == 'https':
+            environ['wsgi.url_scheme'] = 'https'
+        return self.application(environ, start_response)
+
+
+TRUSTED_SCHEME_PROXY_IPS = os.environ.get('CBT_TRUSTED_PROXY_IPS', '').split(',')
+if TRUSTED_SCHEME_PROXY_IPS:
+    app.wsgi_app = TrustedLocalProxyScheme(app.wsgi_app, TRUSTED_SCHEME_PROXY_IPS)
+
 app.config.update(
     SESSION_COOKIE_SAMESITE='Lax',
     SESSION_COOKIE_SECURE=COOKIE_SECURE,
