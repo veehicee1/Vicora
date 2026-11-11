@@ -10,6 +10,7 @@ import android.os.Build;
 import android.os.IBinder;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 
 import com.chaquo.python.Python;
 import com.chaquo.python.android.AndroidPlatform;
@@ -21,6 +22,7 @@ public final class AndroidHostService extends Service {
     private static final String CHANNEL = "vicora_exam_host";
     private static final int NOTIFICATION_ID = 8766;
     private final Handler syncHandler = new Handler(Looper.getMainLooper());
+    private PowerManager.WakeLock hostWakeLock;
     private final Runnable syncPulse = new Runnable() {
         @Override public void run() {
             AndroidHostSyncScheduler.enqueueNow(AndroidHostService.this);
@@ -31,6 +33,12 @@ public final class AndroidHostService extends Service {
     @Override
     public void onCreate() {
         super.onCreate();
+        PowerManager power = (PowerManager) getSystemService(POWER_SERVICE);
+        if (power != null) {
+            hostWakeLock = power.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "VICORA:CBTHost");
+            hostWakeLock.setReferenceCounted(false);
+            hostWakeLock.acquire();
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
                     CHANNEL, "VICORA examination hosting", NotificationManager.IMPORTANCE_LOW);
@@ -57,6 +65,7 @@ public final class AndroidHostService extends Service {
 
     @Override public void onDestroy() {
         syncHandler.removeCallbacks(syncPulse);
+        if (hostWakeLock != null && hostWakeLock.isHeld()) hostWakeLock.release();
         super.onDestroy();
     }
 
@@ -74,7 +83,7 @@ public final class AndroidHostService extends Service {
                 Python.getInstance().getModule("android_server")
                         .callAttr("start_server", dataDir, webDir, "0.0.0.0");
             } catch (Exception ex) {
-                android.util.Log.e("GTMC-Host", "Could not restore the Android CBT host after process restart.", ex);
+                android.util.Log.e("VICORA-Host", "Could not restore the Android CBT host after process restart.", ex);
             }
         }, "gtmc-host-restart").start();
     }
