@@ -76,3 +76,26 @@ def start_server(data_dir, web_dir, host="0.0.0.0", port=8765, school_name=None)
         _server_thread.start()
 
         return {"ok": True, "host": host, "port": int(port), "already_running": False}
+
+
+def stop_server():
+    """Stop the embedded server when the administrator leaves Host mode."""
+    global _server, _server_thread, _server_host, _server_port
+    with _lock:
+        server = _server
+        thread = _server_thread
+        if server is None:
+            return {"ok": True, "already_stopped": True}
+        try:
+            server.shutdown()
+        finally:
+            close = getattr(server, "server_close", None)
+            if callable(close):
+                close()
+        if thread is not None and thread.is_alive():
+            thread.join(timeout=5)
+        _server = None
+        _server_thread = None
+        _server_host = None
+        _server_port = None
+        return {"ok": True, "already_stopped": False}
