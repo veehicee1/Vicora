@@ -1,0 +1,27 @@
+from pathlib import Path
+
+
+def test_vercel_student_gateway_is_not_an_open_proxy():
+    source = Path("api/[...path].js").read_text(encoding="utf-8")
+    assert 'new Set(["/api/public/info"])' in source
+    assert '["/api/student/"]' in source
+    assert "CF-Access-Client-Id" in source
+    assert "CF-Access-Client-Secret" in source
+    assert 'origin.protocol !== "https:"' in source
+    assert 'redirect: "manual"' in source
+    assert "%2e|%2f|%5c" in source
+    assert "String.fromCharCode(92)" in source
+    assert '"/api/admin' not in source
+
+
+def test_vercel_serves_only_the_existing_student_shell():
+    config = Path("vercel.json").read_text(encoding="utf-8")
+    assert '"outputDirectory": "public"' in config
+    assert '"framework": null' in config
+    assert Path("public/home/index.html").is_file()
+    assert Path("public/home/sw.js").is_file()
+    assert Path("public/home/manifest.webmanifest").is_file()
+    html = Path("public/home/index.html").read_text(encoding="utf-8")
+    assert "/api/student" in html
+    assert "/home/icon.svg" in html
+    assert "/gtmc-logo.jpg" not in html
