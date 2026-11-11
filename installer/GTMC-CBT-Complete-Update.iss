@@ -107,5 +107,8 @@ begin
   Log('GTMC CBT pre-update data backup completed: ' + BackupDir);
 end;
 
+[Run]
+Filename: "{sys}\\netsh.exe"; Parameters: "advfirewall firewall add rule name=""VICORA CBT School Host"" dir=in action=allow protocol=TCP localport=8000 profile=private"; Flags: runhidden; StatusMsg: "Allowing student devices to reach the school host on the private network..."
+
 [UninstallDelete]
 ; Never delete the school database, backups, or user settings.
