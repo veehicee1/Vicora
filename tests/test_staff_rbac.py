@@ -41,6 +41,32 @@ class StaffRBACTests(unittest.TestCase):
         self.assertEqual(admin["role"], "super_admin")
         self.assertEqual(admin["active"], 1)
 
+    def test_legacy_admin_migration_preserves_username_and_password_hash(self):
+        import sqlite3
+        import app as cbt
+        original_path = cbt.DB_PATH
+        with tempfile.TemporaryDirectory(prefix="vicora-legacy-admin-") as folder:
+            legacy_path = os.path.join(folder, "legacy.db")
+            conn = sqlite3.connect(legacy_path)
+            conn.execute("CREATE TABLE admins(id INTEGER PRIMARY KEY, username TEXT UNIQUE, password_hash TEXT)")
+            conn.execute("INSERT INTO admins(username,password_hash) VALUES(?,?)",
+                         ("legacy-admin", "existing-password-hash"))
+            conn.commit()
+            conn.close()
+            try:
+                cbt.DB_PATH = legacy_path
+                cbt.init_db()
+                conn = cbt.raw()
+                row = conn.execute("SELECT username,password_hash,role,active FROM admins WHERE username=?",
+                                   ("legacy-admin",)).fetchone()
+                conn.close()
+                self.assertEqual(row["username"], "legacy-admin")
+                self.assertEqual(row["password_hash"], "existing-password-hash")
+                self.assertEqual(row["role"], "super_admin")
+                self.assertEqual(row["active"], 1)
+            finally:
+                cbt.DB_PATH = original_path
+
     def test_super_admin_can_manage_staff_accounts(self):
         self.sign_in_as()
         response = self.client.post("/api/admin/staff", json={
@@ -113,8 +139,12 @@ class StaffRBACTests(unittest.TestCase):
         self.assertEqual([row["id"] for row in exams.get_json()], [assigned])
         allowed = self.client.get(f"/api/admin/results/{assigned}")
         denied = self.client.get(f"/api/admin/results/{unassigned}")
+        allowed_theory = self.client.get(f"/api/admin/theory/{assigned}")
+        denied_theory = self.client.get(f"/api/admin/theory/{unassigned}")
         self.assertEqual(allowed.status_code, 200)
         self.assertEqual(denied.status_code, 403)
+        self.assertEqual(allowed_theory.status_code, 200)
+        self.assertEqual(denied_theory.status_code, 403)
 
     def test_inactive_staff_session_is_rejected(self):
         self.execute("UPDATE admins SET active=0 WHERE username='admin'")
