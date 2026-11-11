@@ -1,0 +1,102 @@
+plugins {
+    id 'com.android.application'
+    id 'com.chaquo.python'
+}
+def repoRoot = rootProject.projectDir.parentFile
+def generatedPythonDir = layout.buildDirectory.dir('generated/chaquopy/python')
+def ciVersionCode = (System.getenv('GITHUB_RUN_NUMBER') ?: '1').toInteger()
+def releaseVersionName = System.getenv('GITHUB_REF_TYPE') == 'tag'
+    ? (System.getenv('GITHUB_REF_NAME') ?: 'v1.0.0').replaceFirst('^v', '')
+    : '1.0.0'
+dependencies {
+    implementation 'androidx.core:core:1.15.0'
+    implementation 'androidx.work:work-runtime:2.10.0'
+}
+
+android {
+    namespace 'org.gtmc.cbt'
+    compileSdk 35
+    buildFeatures {
+        buildConfig true
+    }
+    defaultConfig {
+        applicationId 'org.gtmc.cbt'
+        minSdk 24
+        targetSdk 35
+        versionCode ciVersionCode
+        versionName releaseVersionName
+        ndk { abiFilters 'arm64-v8a', 'armeabi-v7a' }
+    }
+    signingConfigs {
+        release {
+            def keystorePath = System.getenv('ANDROID_KEYSTORE_PATH')
+            if (keystorePath) {
+                storeFile file(keystorePath)
+                storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('ANDROID_KEY_PASSWORD')
+            }
+        }
+    }
+    flavorDimensions += 'appRole'
+    productFlavors {
+        admin {
+            dimension 'appRole'
+            applicationIdSuffix '.admin'
+            versionNameSuffix '-admin'
+            manifestPlaceholders = [appLabel: 'GTMC CBT Admin']
+        }
+        examination {
+            dimension 'appRole'
+            applicationIdSuffix '.exam'
+            versionNameSuffix '-exam'
+            manifestPlaceholders = [appLabel: 'GTMC CBT Examination']
+        }
+    }
+    buildTypes {
+        release {
+            signingConfig signingConfigs.release
+            minifyEnabled false
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+chaquopy {
+    defaultConfig {
+        version = '3.11'
+        pip { install '-r', 'src/main/python/requirements.txt' }
+    }
+    sourceSets { main { srcDir generatedPythonDir } }
+}
+tasks.register('syncCbtWebAssets', Copy) {
+    from(new File(repoRoot, 'web'))
+    into(new File(projectDir, 'src/main/assets/web'))
+}
+tasks.register('syncCbtBackend', Copy) {
+    from(new File(repoRoot, 'app.py'))
+    into(generatedPythonDir)
+}
+tasks.register('syncCbtRestoreBackend', Copy) {
+    from(new File(repoRoot, 'restore_backup.py'))
+    into(generatedPythonDir)
+}
+tasks.configureEach {
+    if (name != 'syncCbtBackend' && name != 'syncCbtRestoreBackend'
+            && name.toLowerCase().contains('python')) {
+        dependsOn tasks.named('syncCbtBackend')
+        dependsOn tasks.named('syncCbtRestoreBackend')
+    }
+}
+tasks.register('syncCbtLogoAsset', Copy) {
+    from(new File(repoRoot, 'gtmc-logo.jpg'))
+    into(new File(projectDir, 'src/main/assets/web'))
+}
+tasks.named('preBuild').configure {
+    dependsOn tasks.named('syncCbtWebAssets')
+    dependsOn tasks.named('syncCbtLogoAsset')
+    dependsOn tasks.named('syncCbtBackend')
+    dependsOn tasks.named('syncCbtRestoreBackend')
+}

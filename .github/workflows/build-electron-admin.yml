@@ -1,0 +1,44 @@
+name: Build GTMC CBT Admin Desktop
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/electron-admin-client
+  pull_request:
+    paths:
+      - "desktop-admin/**"
+      - "package.json"
+      - ".github/workflows/build-electron-admin.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build-electron-admin:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Install desktop build dependencies
+        run: npm install --no-audit --no-fund
+      - name: Check Admin desktop source
+        run: npm run check:admin
+      - name: Build standalone Admin application
+        run: npm run dist:admin:win
+      - name: Confirm portable Admin application exists
+        shell: pwsh
+        run: |
+          $app = Get-ChildItem "dist-admin-electron" -Filter "*.exe" | Select-Object -First 1
+          if (!$app) { throw "Standalone Admin application was not produced" }
+          if ($app.Length -lt 50000000) { throw "Standalone Admin application is unexpectedly small" }
+      - name: Upload standalone Admin application
+        uses: actions/upload-artifact@v4
+        with:
+          name: GTMC-CBT-Admin-Desktop-Windows
+          path: dist-admin-electron/*.exe
+          if-no-files-found: error
