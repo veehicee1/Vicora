@@ -22,6 +22,8 @@ on:
       - "installer/**"
       - ".github/workflows/build-windows.yml"
   push:
+    branches:
+      - feature/cbt-core-import
     tags:
       - "v*"
 
