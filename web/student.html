@@ -76,14 +76,14 @@ body{background:radial-gradient(ellipse at 85% 0%,#dcecff 0,transparent 42%),lin
 .center{border:1px solid #e0e9f3;background:rgba(255,255,255,.97);box-shadow:0 22px 64px #12385d17}
 #v-login .center{position:relative;padding-top:34px}
 #school{display:flex;align-items:center;gap:14px;min-height:78px;font-size:clamp(21px,3vw,28px);line-height:1.15;color:#0a3767}
-#school:before{content:"";display:block;flex:0 0 72px;height:72px;border-radius:16px;background:#fff url('/gtmc-logo.jpg') center/contain no-repeat;box-shadow:0 4px 18px #12385d16}
+#school:before{content:"";display:block;flex:0 0 72px;height:72px;border-radius:16px;background:#fff var(--school-logo,url('/home/icon.svg')) center/contain no-repeat;box-shadow:0 4px 18px #12385d16}
 label{font-weight:650;color:#435d78}
 input{border:1px solid #d6e2ef;background:#fbfdff}
 button{border:1px solid #d7e3ef;background:#fff;color:#193b5d;box-shadow:0 2px 5px #12385d08}
 button.pr{background:linear-gradient(110deg,#0756a8,#176fc0);border-color:#0756a8;color:#fff;box-shadow:0 6px 18px #0756a82b}
 button:focus-visible,.opt:focus-visible{outline:3px solid #3b8bd2;outline-offset:3px}
 #top{background:linear-gradient(105deg,#062c53,#0756a8 70%,#176fc0);box-shadow:0 5px 20px #082b5030}
-#top:before{content:"";display:block;flex:0 0 38px;height:38px;border-radius:9px;background:#fff url('/gtmc-logo.jpg') center/contain no-repeat}
+#top:before{content:"";display:block;flex:0 0 38px;height:38px;border-radius:9px;background:#fff var(--school-logo,url('/home/icon.svg')) center/contain no-repeat}
 #wrap{align-items:start}
 .qp,.side{border:1px solid #e0e9f3;box-shadow:0 10px 30px #12385d10;background:#fff}
 .qn{font-weight:750;letter-spacing:.035em;text-transform:uppercase;color:#58718a}
@@ -169,7 +169,7 @@ async function api(p,body,method){const h={'Content-Type':'application/json'};if
  const r=await fetch('/api/student'+p,{method:method||(body===undefined?'GET':'POST'),headers:h,body:body===undefined?undefined:JSON.stringify(body)});
  const j=await r.json().catch(()=>({}));if(r.status===401&&S.token&&p!=='/login'&&p!=='/begin'){sessionStorage.removeItem('cbtToken');S.token='';throw {auth:1,message:j.error}}
  if(!r.ok)throw {message:j.error||'Error '+r.status,status:r.status};return j}
-fetch('/api/public/info').then(r=>r.json()).then(j=>{$('#school').textContent=j.school;const t=j.theme||{},root=document.documentElement;[['--pr',t.primary],['--bg',t.background],['--pn',t.surface],['--tx',t.text]].forEach(([k,v])=>{if(v)root.style.setProperty(k,v)});if(t.mode==='dark'){root.style.setProperty('--mu','#a6b4c5');root.style.setProperty('--bd','#344456')} }).catch(()=>{});
+fetch('/api/public/info').then(r=>r.json()).then(j=>{$('#school').textContent=j.school;const root=document.documentElement;if(j.school_logo_url)root.style.setProperty('--school-logo','url("'+j.school_logo_url+'?v='+Date.now()+'")');const t=j.theme||{};[['--pr',t.primary],['--bg',t.background],['--pn',t.surface],['--tx',t.text]].forEach(([k,v])=>{if(v)root.style.setProperty(k,v)});if(t.mode==='dark'){root.style.setProperty('--mu','#a6b4c5');root.style.setProperty('--bd','#344456')} }).catch(()=>{});
 
 async function login(){$('#lerr').textContent='';try{S.creds={reg_no:$('#reg').value.trim(),code:$('#code').value.trim()};const j=await api('/login',S.creds);S.exams=j.exams;
  S.student=j.student;$('#hello').textContent='Welcome, '+j.student.name;$('#hmeta').textContent=j.student.reg_no+' · '+j.student.cls;pollMessages();
