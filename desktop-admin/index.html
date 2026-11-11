@@ -40,7 +40,7 @@ document.getElementById("host").addEventListener("click",async()=>{
   const result=await window.vicoraAdminDesktop.host();
   if(!result.ok){statusBox.textContent=result.message;return;}
   statusBox.textContent=result.alreadyRunning?"Connected to the existing VICORA school host.":"VICORA Windows Host is running. The Admin portal is opening.";
-  (result.studentLinks||[]).forEach(url=>{const a=document.createElement("a");a.href=url;a.textContent="Student examination link: "+url;linksBox.appendChild(a);});
+  (result.studentLinks||[]).forEach(url=>{const a=document.createElement("a");a.href=url;a.target="_blank";a.rel="noopener noreferrer";a.textContent="Open student examination link: "+url;linksBox.appendChild(a);});
 });
 document.getElementById("connect").addEventListener("click",async()=>{
   statusBox.textContent="Checking the school host…";
