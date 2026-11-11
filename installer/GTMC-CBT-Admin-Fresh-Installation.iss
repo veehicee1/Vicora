@@ -1,6 +1,6 @@
-#define MyAppName "GTMC CBT Admin"
+#define MyAppName "VICORA CBT Admin"
 #define MyAppVersion "2.0.0"
-#define MyAppPublisher "Greater Tomorrow Model College"
+#define MyAppPublisher "Veehicee Telecommunications and Services"
 
 [Setup]
 AppId={{6D8C3C72-43B1-4A91-8D6C-000000000001}
@@ -14,7 +14,7 @@ PrivilegesRequired=admin
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 OutputDir=..\dist-installer
-OutputBaseFilename=GTMC-CBT-Admin-Fresh-Installation-Windows
+OutputBaseFilename=VICORA-CBT-Admin-Fresh-Installation-Windows
 Compression=none
 SolidCompression=no
 WizardStyle=modern
@@ -36,10 +36,10 @@ Source: "..\dist\CBTAdmin-Diagnostic.exe"; DestDir: "{app}\Diagnostics"; Flags: 
 Source: "..\dist\CBTRestore.exe"; DestDir: "{app}\Tools"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\GTMC CBT\GTMC CBT Admin"; Filename: "{app}\CBTAdmin.exe"; WorkingDir: "{app}"
+Name: "{autoprograms}\GTMC CBT\VICORA CBT Admin"; Filename: "{app}\CBTAdmin.exe"; WorkingDir: "{app}"
 Name: "{autoprograms}\GTMC CBT\Diagnostics\Admin Diagnostic"; Filename: "{app}\Diagnostics\CBTAdmin-Diagnostic.exe"; WorkingDir: "{app}\Diagnostics"
 Name: "{autoprograms}\GTMC CBT\Restore CBT Backup"; Filename: "{app}\Tools\CBTRestore.exe"; WorkingDir: "{app}\Tools"
-Name: "{commondesktop}\GTMC CBT Admin"; Filename: "{app}\CBTAdmin.exe"; WorkingDir: "{app}"
+Name: "{commondesktop}\VICORA CBT Admin"; Filename: "{app}\CBTAdmin.exe"; WorkingDir: "{app}"
 
 [Code]
 function InitializeSetup(): Boolean;
