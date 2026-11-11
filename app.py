@@ -230,7 +230,7 @@ def restrict_public_remote_surface():
     path = request.path
     allowed_exact = {
         '/', '/home', '/home/', '/home/manifest.webmanifest', '/home/icon.svg',
-        '/home/sw.js', '/gtmc-logo.jpg', '/api/public/info'
+        '/home/sw.js', '/gtmc-logo.jpg', '/vicora-logo.svg', '/vicora-icon.svg', '/api/public/school-logo', '/api/public/info'
     }
     if path in allowed_exact or path.startswith('/api/student/'):
         return None
@@ -1250,6 +1250,19 @@ def exams_list():
     return jsonify(rows)
 
 
+@app.post('/api/admin/exams/<int:exam_id>/android-sync')
+@admin
+def set_exam_android_sync(exam_id):
+    d = request.get_json(silent=True) or {}
+    enabled = bool(d.get('enabled'))
+    exam = q1('select id,title from exams where id=?', (exam_id,))
+    if not exam:
+        return err('Examination not found.', 404)
+    ex('update exams set android_host_sync_enabled=? where id=?', (1 if enabled else 0, exam_id))
+    audit(('Enabled' if enabled else 'Disabled') + f' automatic Android Host sync for exam {exam_id}')
+    return jsonify(ok=True, exam_id=exam_id, enabled=enabled)
+
+
 @app.post('/api/admin/exams')
 @admin
 def exam_add():
@@ -1347,6 +1360,89 @@ def _android_device_from_request():
     return row
 
 
+
+def _build_android_host_package(exam_id):
+    exam = q1('select * from exams where id=?', (exam_id,))
+    if not exam:
+        return None
+    subject = q1('select * from subjects where id=?', (exam['subject_id'],))
+    if not subject:
+        return None
+    classes = qa('''select c.* from classes c join exam_classes ec on ec.class_id=c.id
+                    where ec.exam_id=? order by c.name''', (exam_id,))
+    class_ids = [row['id'] for row in classes]
+    if not class_ids:
+        return None
+    marks = ','.join('?' for _ in class_ids)
+    students = qa(f'''select s.* from students s where s.class_id in ({marks})
+                      order by s.reg_no''', class_ids)
+    questions = qa('select * from questions where subject_id=? order by id', (exam['subject_id'],))
+    revision_hash = _android_exam_revision_hash(db(), exam_id)
+    ex('update exams set sync_revision_hash=? where id=?', (revision_hash, exam_id))
+    exam['sync_revision_hash'] = revision_hash
+    class_uuid_by_id = {row['id']: row['sync_uuid'] for row in classes}
+    package = {
+        'schema_version': 1,
+        'school_name': getset('school_name'),
+        'exported_at': int(time.time()),
+        'subject': {'sync_uuid': subject['sync_uuid'], 'name': subject['name']},
+        'classes': [{'sync_uuid': row['sync_uuid'], 'name': row['name']} for row in classes],
+        'students': [{'sync_uuid': row['sync_uuid'], 'reg_no': row['reg_no'], 'name': row['name'],
+                      'class_sync_uuid': class_uuid_by_id.get(row['class_id'], ''),
+                      'access_code': row['access_code']} for row in students],
+        'questions': [{key: row.get(key) for key in ('sync_uuid','text','a','b','c','d','answer','marks','topic',
+                      'difficulty','question_type','answer_text','accepted_answers','keywords','answer_space',
+                      'marking_mode')} | {'subject_sync_uuid': subject['sync_uuid']} for row in questions],
+        'exam': {key: exam.get(key) for key in ('sync_uuid','title','duration_min','num_questions','shuffle',
+                 'show_score','pass_mark','instructions','objective_count','theory_count','camera_policy','sync_revision_hash')},
+        'class_sync_uuids': [row['sync_uuid'] for row in classes],
+    }
+    roster = [{'sync_uuid': row['sync_uuid'], 'reg_no': row['reg_no'], 'name': row['name'],
+               'class_sync_uuid': class_uuid_by_id.get(row['class_id'], ''),
+               'access_code': row['access_code']} for row in students]
+    roster_json = json.dumps(roster, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+    package['roster_revision_hash'] = hashlib.sha256(roster_json.encode('utf-8')).hexdigest()
+    return package
+
+
+@app.post('/api/android-host/sync-pull')
+def android_host_sync_pull():
+    if not request.is_secure and request.remote_addr not in ('127.0.0.1', '::1', 'localhost'):
+        return err('Android Host synchronisation requires HTTPS.', 400)
+    payload = request.get_json(silent=True) or {}
+    if not isinstance(payload, dict) or len(request.get_data(cache=True) or b'') > 128 * 1024:
+        return err('Invalid Android Host sync request.', 400)
+    device = _android_device_from_request()
+    if not device:
+        return err('Android Host device is not paired or has been revoked.', 401)
+    known = payload.get('known_revisions') or {}
+    if not isinstance(known, dict) or len(known) > 5000:
+        return err('Invalid known examination revision list.', 400)
+    rows = qa('''select id,sync_uuid from exams
+                 where android_host_sync_enabled=1 and sync_uuid is not null
+                 order by id desc limit 50''')
+    packages = []
+    more_available = False
+    max_response_bytes = 18 * 1024 * 1024
+    for row in rows:
+        package = _build_android_host_package(row['id'])
+        if not package:
+            continue
+        exam = package['exam']
+        revision_token = exam['sync_revision_hash'] + '.' + package['roster_revision_hash']
+        if known.get(exam['sync_uuid']) == revision_token:
+            continue
+        candidate = packages + [package]
+        encoded_size = len(json.dumps(candidate, ensure_ascii=False, separators=(',', ':')).encode('utf-8'))
+        if encoded_size > max_response_bytes:
+            if not packages:
+                return err('An approved examination package is larger than the automatic sync limit. Reduce its candidate/question package size or use the secure manual transfer.', 413)
+            more_available = True
+            break
+        packages.append(package)
+    return jsonify(ok=True, school=getset('school_name'), packages=packages,
+                   more_available=more_available)
+
 def _record_android_sync_conflict(payload, device_id, reason):
     try:
         attempt_uuid = str(uuid.UUID(str(payload.get('attempt_uuid') or '')))
@@ -1362,6 +1458,8 @@ def _record_android_sync_conflict(payload, device_id, reason):
 
 @app.post('/api/android-host/sync-results')
 def android_host_sync_results():
+    if not request.is_secure and request.remote_addr not in ('127.0.0.1', '::1', 'localhost'):
+        return err('Android Host synchronisation requires HTTPS.', 400)
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
         return err('Invalid result synchronisation payload.')

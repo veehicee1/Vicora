@@ -20,7 +20,7 @@ android {
         buildConfig true
     }
     defaultConfig {
-        applicationId 'org.gtmc.cbt'
+        applicationId 'com.veehicee.vicora'
         minSdk 24
         targetSdk 35
         versionCode ciVersionCode
@@ -90,13 +90,8 @@ tasks.configureEach {
         dependsOn tasks.named('syncCbtRestoreBackend')
     }
 }
-tasks.register('syncCbtLogoAsset', Copy) {
-    from(new File(repoRoot, 'gtmc-logo.jpg'))
-    into(new File(projectDir, 'src/main/assets/web'))
-}
 tasks.named('preBuild').configure {
     dependsOn tasks.named('syncCbtWebAssets')
-    dependsOn tasks.named('syncCbtLogoAsset')
     dependsOn tasks.named('syncCbtBackend')
     dependsOn tasks.named('syncCbtRestoreBackend')
 }

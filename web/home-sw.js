@@ -1,6 +1,6 @@
 /* GTMC Home CBT PWA shell. Never cache authenticated API traffic or answers. */
 const CACHE_NAME = 'gtmc-home-shell-v1';
-const SHELL_URLS = ['/home/', '/home/manifest.webmanifest', '/home/icon.svg', '/gtmc-logo.jpg'];
+const SHELL_URLS = ['/home/', '/home/manifest.webmanifest', '/home/icon.svg', '/vicora-icon.svg'];
 
 self.addEventListener('install', event => {
   event.waitUntil(

@@ -21,8 +21,8 @@ import java.util.Locale;
 
 public final class AppUpdateManager {
     private static final String RELEASE_API =
-        "https://api.github.com/repos/sheggun1/CBT-GTMC/releases/latest";
-    private static final String PREFS = "gtmc_app_updates";
+        "https://api.github.com/repos/veehicee1/VICORA-Releases/releases/latest";
+    private static final String PREFS = "vicora_app_updates";
     private static final long CHECK_INTERVAL_MS = 24L * 60L * 60L * 1000L;
     private static final int MAX_APK_BYTES = 150 * 1024 * 1024;
 
@@ -53,7 +53,7 @@ public final class AppUpdateManager {
                     activity.getSharedPreferences(PREFS, 0).edit()
                         .putLong("last_check", System.currentTimeMillis()).apply();
                     if (manual) activity.runOnUiThread(() -> Toast.makeText(activity,
-                        "GTMC CBT is already up to date.", Toast.LENGTH_LONG).show());
+                        "VICORA CBT is already up to date.", Toast.LENGTH_LONG).show());
                     return;
                 }
 
@@ -87,14 +87,14 @@ public final class AppUpdateManager {
                     .putString("pending_version", latestVersion)
                     .putLong("last_check", System.currentTimeMillis()).apply();
                 activity.runOnUiThread(() -> Toast.makeText(activity,
-                    "GTMC CBT " + latestVersion + " has been downloaded. Close and reopen the app to install it.",
+                    "VICORA CBT " + latestVersion + " has been downloaded. Close and reopen the app to install it.",
                     Toast.LENGTH_LONG).show());
             } catch (Exception ex) {
                 if (manual) activity.runOnUiThread(() -> Toast.makeText(activity,
                     "Update check failed: " + (ex.getMessage() == null ? "Please try again later." : ex.getMessage()),
                     Toast.LENGTH_LONG).show());
             }
-        }, "gtmc-update-check").start();
+        }, "vicora-update-check").start();
     }
 
     public static void installPendingUpdate(Activity activity) {
@@ -122,7 +122,7 @@ public final class AppUpdateManager {
                 return;
             }
             new AlertDialog.Builder(activity)
-                .setTitle("GTMC CBT update is ready")
+                .setTitle("VICORA CBT update is ready")
                 .setMessage("Android needs your permission to install the downloaded official update. Your CBT records are kept by the app.")
                 .setPositiveButton("Allow installation", (dialog, which) -> {
                     prefs.edit().putBoolean("awaiting_install_permission", true).apply();
@@ -155,7 +155,7 @@ public final class AppUpdateManager {
         connection.setConnectTimeout(15000);
         connection.setReadTimeout(20000);
         connection.setRequestProperty("Accept", "application/vnd.github+json");
-        connection.setRequestProperty("User-Agent", "GTMC-CBT-Android-Updater");
+        connection.setRequestProperty("User-Agent", "VICORA-CBT-Android-Updater");
         try {
             int status = connection.getResponseCode();
             if (status != 200) throw new IllegalStateException("Release service returned HTTP " + status);
@@ -175,7 +175,7 @@ public final class AppUpdateManager {
         connection.setConnectTimeout(20000);
         connection.setReadTimeout(30000);
         connection.setInstanceFollowRedirects(true);
-        connection.setRequestProperty("User-Agent", "GTMC-CBT-Android-Updater");
+        connection.setRequestProperty("User-Agent", "VICORA-CBT-Android-Updater");
         try {
             int status = connection.getResponseCode();
             if (status != 200) throw new IllegalStateException("APK download returned HTTP " + status);

@@ -36,6 +36,7 @@ public class MainActivity extends Activity {
     private WebView webView;
     private ValueCallback<Uri[]> filePathCallback;
     private static final int FILE_CHOOSER_REQUEST_CODE = 4107;
+    private static final int HOST_NOTIFICATION_PERMISSION_REQUEST = 6201;
     private String currentMode = "standalone";
     private boolean isAdminApp() { return "admin".equals(BuildConfig.FLAVOR); }
     private String currentBaseUrl() {
@@ -162,7 +163,7 @@ public class MainActivity extends Activity {
             AlertDialog dialog = new AlertDialog.Builder(this)
                 .setTitle("VICORA CBT Admin")
                 .setView(scroll)
-                .setNegativeButton("Exit", (d, which) -> { stopHostingService(); finish(); })
+                .setNegativeButton("Exit", (d, which) -> { stopHostingServiceAndServer(); finish(); })
                 .create();
 
             addModeButton(choices, dialog, "Host Exam on This Device (Wi-Fi / Hotspot)", () -> {
@@ -188,6 +189,15 @@ public class MainActivity extends Activity {
     private void startStandalone() {
         if (!"host".equals(currentMode)) currentMode = "standalone";
         final String requestedMode = currentMode;
+        if ("host".equals(requestedMode) && android.os.Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                    != android.content.pm.PackageManager.PERMISSION_GRANTED
+                && !getPreferences(0).getBoolean("host_notification_prompted", false)) {
+            getPreferences(0).edit().putBoolean("host_notification_prompted", true).apply();
+            requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS},
+                HOST_NOTIFICATION_PERMISSION_REQUEST);
+            return;
+        }
         String schoolName = getPreferences(0).getString("school_name", "");
         if ("host".equals(requestedMode) && schoolName.trim().isEmpty()) {
             EditText school = new EditText(this);
@@ -259,7 +269,7 @@ public class MainActivity extends Activity {
                 }
                 if (!url.endsWith("/")) url += "/";
                 currentMode="school";
-                stopHostingService();
+                stopHostingServiceAndServer();
                 getPreferences(0).edit().putString("mode","school").putString("server_url",url).apply();
                 loadUrl(appHomeUrl());
             }).setNegativeButton("Back",(d,w)->chooseMode()).show();
@@ -299,7 +309,8 @@ public class MainActivity extends Activity {
                 Enumeration<java.net.InetAddress> values = network.getInetAddresses();
                 while (values.hasMoreElements()) {
                     java.net.InetAddress address = values.nextElement();
-                    if (address instanceof Inet4Address && !address.isLoopbackAddress() && !address.isLinkLocalAddress()) {
+                    if (address instanceof Inet4Address && address.isSiteLocalAddress()
+                            && !address.isLoopbackAddress() && !address.isLinkLocalAddress()) {
                         String value = address.getHostAddress();
                         if (!addresses.contains(value)) addresses.add(value);
                     }
@@ -425,6 +436,21 @@ public class MainActivity extends Activity {
         stopService(new Intent(this, AndroidHostService.class));
     }
 
+    private void stopHostingServiceAndServer() {
+        if (!Python.isStarted()) {
+            stopHostingService();
+            return;
+        }
+        new Thread(() -> {
+            try {
+                Python.getInstance().getModule("android_server").callAttr("stop_server");
+            } catch (Exception ex) {
+                android.util.Log.w("VICORA-Host", "Could not stop the local host cleanly.", ex);
+            }
+            runOnUiThread(this::stopHostingService);
+        }, "vicora-stop-host").start();
+    }
+
     private void openHotspotSettings() {
         try { startActivity(new Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS)); }
         catch (Exception ex) { startActivity(new Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)); }
@@ -461,6 +487,19 @@ public class MainActivity extends Activity {
         }
         return super.onOptionsItemSelected(item);
     }
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == HOST_NOTIFICATION_PERMISSION_REQUEST) {
+            if (grantResults.length == 0 || grantResults[0] != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this,
+                    "Notifications are disabled. Android may not show the ongoing VICORA Host status in the notification drawer.",
+                    Toast.LENGTH_LONG).show();
+            }
+            startStandalone();
+        }
+    }
+
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         if (requestCode == FILE_CHOOSER_REQUEST_CODE) {

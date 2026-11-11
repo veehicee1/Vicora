@@ -1,5 +1,9 @@
 name: Build VICORA CBT Android APKs
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
   pull_request:
@@ -70,9 +74,9 @@ jobs:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: |
           set -euo pipefail
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/gtmc-cbt-release.jks"
-          test -s "$RUNNER_TEMP/gtmc-cbt-release.jks"
-          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/gtmc-cbt-release.jks" >> "$GITHUB_ENV"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/vicora-cbt-release.jks"
+          test -s "$RUNNER_TEMP/vicora-cbt-release.jks"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/vicora-cbt-release.jks" >> "$GITHUB_ENV"
 
       - name: Build Admin and Examination debug APKs
         working-directory: android
@@ -105,22 +109,35 @@ jobs:
       - name: Upload Admin debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: GTMC-CBT-Admin-Android-debug
+          name: VICORA-CBT-Admin-Android-debug
           path: android/app/build/outputs/apk/admin/debug/app-admin-debug.apk
           if-no-files-found: error
 
       - name: Upload Examination debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: GTMC-CBT-Examination-Android-debug
+          name: VICORA-CBT-Examination-Android-debug
           path: android/app/build/outputs/apk/examination/debug/app-examination-debug.apk
           if-no-files-found: error
+
+      - name: Publish signed APKs to public VICORA release repository
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          repository: veehicee1/VICORA-Releases
+          token: ${{ secrets.VICORA_RELEASES_TOKEN }}
+          tag_name: ${{ github.ref_name }}
+          name: VICORA CBT ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            android/app/build/outputs/apk/admin/release/app-admin-release.apk
+            android/app/build/outputs/apk/examination/release/app-examination-release.apk
 
       - name: Upload signed release APKs for inspection
         if: startsWith(github.ref, 'refs/tags/')
         uses: actions/upload-artifact@v4
         with:
-          name: GTMC-CBT-Android-signed-release
+          name: VICORA-CBT-Android-signed-release
           path: |
             android/app/build/outputs/apk/admin/release/app-admin-release.apk
             android/app/build/outputs/apk/examination/release/app-examination-release.apk

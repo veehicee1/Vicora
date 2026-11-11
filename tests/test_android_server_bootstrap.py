@@ -16,12 +16,16 @@ import android_server
 class FakeServer:
     def __init__(self):
         self.stopped = threading.Event()
+        self.closed = threading.Event()
 
     def serve_forever(self):
         self.stopped.wait(5)
 
     def shutdown(self):
         self.stopped.set()
+
+    def server_close(self):
+        self.closed.set()
 
 
 class FakeConnection:
@@ -108,8 +112,23 @@ class AndroidServerBootstrapTests(unittest.TestCase):
             self.assertEqual(hosted["host"], "0.0.0.0")
             self.assertFalse(hosted["already_running"])
             self.assertTrue(self.server.stopped.is_set())
+            self.assertTrue(self.server.closed.is_set())
             self.assertEqual(make_server.call_count, 2)
             self.assertEqual(android_server._server_host, "0.0.0.0")
+    def test_explicit_stop_closes_lan_listener(self):
+        with patch.dict(os.environ, {}, clear=False), \
+             patch("werkzeug.serving.make_server", return_value=self.server), \
+             patch.object(importlib, "import_module", return_value=self.backend):
+            android_server.start_server(self.data_dir, self.web_dir, "0.0.0.0", 8765)
+            result = android_server.stop_server()
+            self.assertTrue(result["ok"])
+            self.assertFalse(result["already_stopped"])
+            self.assertTrue(self.server.stopped.is_set())
+            self.assertTrue(self.server.closed.is_set())
+            self.assertIsNone(android_server._server)
+            self.assertIsNone(android_server._server_thread)
+            self.assertEqual(android_server._server_host, None)
+
     def test_missing_web_assets_fails_before_starting_backend(self):
         missing = os.path.join(self.temp.name, "missing-web")
         with patch.object(importlib, "import_module") as importer:

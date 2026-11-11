@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const path = require("path");
 const os = require("os");
 const fs = require("fs");
@@ -6,7 +6,8 @@ const net = require("net");
 const { spawn } = require("child_process");
 
 let mainWindow = null;
-let connectedOrigin = null;
+let adminWindow = null;
+let adminWindowOrigin = null;
 let hostProcess = null;
 let hostExit = null;
 
@@ -61,8 +62,12 @@ function schoolLanLinks() {
   const links = [];
   for (const records of Object.values(os.networkInterfaces())) {
     for (const item of records || []) {
-      if (item.family === "IPv4" && !item.internal && !item.address.startsWith("169.254.")) {
-        links.push("http://" + item.address + ":8000/");
+      if (item.family === "IPv4" && !item.internal) {
+        const octets = item.address.split(".").map(Number);
+        const [a, b] = octets;
+        const privateLan = a === 10 || (a === 192 && b === 168) ||
+          (a === 172 && b >= 16 && b <= 31);
+        if (privateLan) links.push("http://" + item.address + ":8000/");
       }
     }
   }
@@ -133,28 +138,55 @@ async function startLocalHost() {
 }
 
 function openAdmin(address) {
-  connectedOrigin = new URL(address).origin;
-  return mainWindow.loadURL(new URL("admin", address).toString());
+  const origin = new URL(address).origin;
+  if (adminWindow && !adminWindow.isDestroyed()) {
+    adminWindowOrigin = origin;
+    adminWindow.focus();
+    return adminWindow.loadURL(new URL("admin", address).toString());
+  }
+  adminWindow = new BrowserWindow({
+    width: 1240, height: 900, minWidth: 900, minHeight: 650,
+    title: "VICORA CBT Administration",
+    autoHideMenuBar: true, backgroundColor: "#f3f7fc",
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true }
+  });
+  adminWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  adminWindow.webContents.on("will-navigate", (event, target) => {
+    try {
+      if (new URL(target).origin !== adminWindowOrigin) event.preventDefault();
+    } catch { event.preventDefault(); }
+  });
+  adminWindowOrigin = origin;
+  adminWindow.on("closed", () => { adminWindow = null; adminWindowOrigin = null; });
+  return adminWindow.loadURL(new URL("admin", address).toString());
 }
 
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1240, height: 900, minWidth: 900, minHeight: 650,
-    title: "VICORA CBT Administration",
+    title: "VICORA CBT Host & Connection",
     autoHideMenuBar: true, backgroundColor: "#f3f7fc",
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true, nodeIntegration: false, sandbox: true
     }
   });
-  mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
-  mainWindow.webContents.on("will-navigate", (event, target) => {
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     try {
-      if (connectedOrigin && new URL(target).origin !== connectedOrigin) event.preventDefault();
-    } catch { event.preventDefault(); }
+      const target = new URL(url);
+      const octets = target.hostname.split(".").map(Number);
+      const [a, b] = octets;
+      const privateLan = net.isIP(target.hostname) === 4 &&
+        (a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31));
+      if (target.protocol === "http:" && target.port === "8000" && privateLan) {
+        shell.openExternal(target.toString());
+      }
+    } catch {}
+    return { action: "deny" };
   });
+  mainWindow.webContents.on("will-navigate", event => event.preventDefault());
   mainWindow.loadFile(path.join(__dirname, "index.html"));
-  mainWindow.on("closed", () => { mainWindow = null; connectedOrigin = null; });
+  mainWindow.on("closed", () => { mainWindow = null; });
 }
 
 ipcMain.handle("vicora-admin:host", async () => {
