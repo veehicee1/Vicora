@@ -63,7 +63,7 @@ async function verifyServer(address) {
   try {
     payload = await response.json();
   } catch {
-    throw new Error("The address responded, but it is not the GTMC CBT server.");
+    throw new Error("The address responded, but it is not the VICORA CBT server.");
   }
   if (payload.ok !== true || payload.service !== "gtmc-cbt") {
     throw new Error("This address is not reporting a ready VICORA CBT server.");
