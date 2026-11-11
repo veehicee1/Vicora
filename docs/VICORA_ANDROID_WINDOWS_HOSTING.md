@@ -54,7 +54,7 @@ The current exam package transfer is a manual secure JSON-file step. Automatic e
 
 ## Internet and off-site access
 
-An internet connection alone does not make a private phone or Windows LAN address reachable from home. For off-site access, deploy a trusted HTTPS gateway/reverse proxy with an explicit school-controlled access policy. Do not port-forward Android port 8765 or Windows port 8000 directly to the public internet. The Android host gateway must expose only the student-facing routes; Admin, pairing, device management, backups and database endpoints must remain private.
+An internet connection alone does not make a private phone or Windows LAN address reachable from home. For off-site access, deploy a trusted HTTPS gateway/reverse proxy with an explicit school-controlled access policy. For the Windows Host, the safest simple arrangement is a tunnel/reverse-proxy connector running on the same Windows PC and forwarding HTTPS requests to `http://127.0.0.1:8000`. The Windows Host accepts the forwarded HTTPS scheme only from loopback proxy connections; it does not trust forwarded client-IP headers and remote Admin remains disabled by default. This permits the Android Host pairing and result-sync endpoints to recognise the HTTPS connection without making the Admin console public. Do not port-forward Android port 8765 or Windows port 8000 directly to the public internet. The gateway should expose only the specific pairing and result-sync endpoints needed for device synchronisation, plus student-facing routes if required; Admin, device management, backups and database endpoints must remain private.
 
 ## Validation still required on real devices
 
