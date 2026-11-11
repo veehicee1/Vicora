@@ -624,7 +624,7 @@ def a_settings():
     except (TypeError, ValueError):
         theme = {}
     return jsonify(school_name=getset('school_name'), allow_remote_admin=getset('allow_remote_admin') == '1',
-                   theme=theme, school_logo_url='/school-logo')
+                   theme=theme, school_logo_url='/api/public/school-logo')
 
 
 @app.post('/api/admin/school-logo')
@@ -652,7 +652,7 @@ def a_school_logo_upload():
     setset('school_logo_data', base64.b64encode(data).decode('ascii'))
     setset('school_logo_mime', mime)
     audit('School interface logo updated')
-    return jsonify(ok=True, school_logo_url='/school-logo')
+    return jsonify(ok=True, school_logo_url='/api/public/school-logo')
 
 
 @app.post('/api/admin/settings')
