@@ -74,6 +74,7 @@ class AndroidAutomaticExamSyncTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.get_json())
         payload = response.get_json()
         self.assertEqual(len(payload["packages"]), 1)
+        self.assertFalse(payload["more_available"])
         package = payload["packages"][0]
         self.assertEqual(package["exam"]["sync_uuid"], self.package["exam"]["sync_uuid"])
         self.assertRegex(package["roster_revision_hash"], r"^[a-f0-9]{64}$")
@@ -87,6 +88,46 @@ class AndroidAutomaticExamSyncTests(unittest.TestCase):
         )
         self.assertEqual(again.status_code, 200, again.get_json())
         self.assertEqual(again.get_json()["packages"], [])
+
+    def test_sync_pull_returns_multiple_enabled_exam_packages_in_one_cycle(self):
+        with cbt.app.app_context():
+            second_subject_id = cbt.ex(
+                "INSERT INTO subjects(name) VALUES(?)", ("Second Sync Subject " + self.suffix,)
+            ).lastrowid
+            cbt.ex(
+                """INSERT INTO questions(subject_id,text,a,b,c,d,answer,marks,question_type)
+                   VALUES(?,?,?,?,?,?,?,?,?)""",
+                (second_subject_id, "Second sync question " + self.suffix,
+                 "A", "B", "C", "D", "B", 1, "objective"),
+            )
+            second_exam_id = cbt.ex(
+                """INSERT INTO exams(title,subject_id,duration_min,num_questions,status,created_ts,
+                   objective_count,android_host_sync_enabled) VALUES(?,?,?,?,?,?,?,1)""",
+                ("Second Auto Sync Exam " + self.suffix, second_subject_id, 30, 1, "draft", 1, 1),
+            ).lastrowid
+            cbt.ex("INSERT INTO exam_classes(exam_id,class_id) VALUES(?,?)",
+                   (second_exam_id, self.class_id))
+        try:
+            response = self.client.post(
+                "/api/android-host/sync-pull",
+                base_url="https://school.example",
+                json={"device_id": self.device_id, "known_revisions": {}},
+                headers={"Authorization": "Bearer " + self.device_token},
+            )
+            self.assertEqual(response.status_code, 200, response.get_json())
+            payload = response.get_json()
+            self.assertEqual(len(payload["packages"]), 2)
+            self.assertFalse(payload["more_available"])
+            self.assertEqual(
+                {item["exam"]["sync_uuid"] for item in payload["packages"]},
+                {self.package["exam"]["sync_uuid"],
+                 cbt.q1("SELECT sync_uuid FROM exams WHERE id=?", (second_exam_id,))["sync_uuid"]},
+            )
+        finally:
+            with cbt.app.app_context():
+                cbt.ex("DELETE FROM exams WHERE id=?", (second_exam_id,))
+                cbt.ex("DELETE FROM questions WHERE subject_id=?", (second_subject_id,))
+                cbt.ex("DELETE FROM subjects WHERE id=?", (second_subject_id,))
 
     def test_admin_can_enable_and_disable_automatic_android_exam_sync(self):
         disabled = self.client.post(
