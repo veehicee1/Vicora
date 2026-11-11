@@ -222,7 +222,7 @@ class ServerBaselineTests(unittest.TestCase):
         c.close()
         self.assertEqual(count, 1)
         with self.client.session_transaction() as sess:
-            sess["admin"] = "proctor-reviewer"
+            sess["admin"] = "admin"
         listing = self.client.get(f"/api/admin/proctor/{fixture['exam_id']}")
         self.assertEqual(listing.status_code, 200)
         event_id = listing.get_json()["rows"][0]["id"]
