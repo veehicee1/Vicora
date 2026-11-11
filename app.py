@@ -1005,6 +1005,45 @@ def staff_create():
     return jsonify(ok=True)
 
 
+@app.get('/api/admin/staff/<int:staff_id>/exams')
+@admin
+def staff_exam_list(staff_id):
+    target = q1('SELECT id, role FROM admins WHERE id=?', (staff_id,))
+    if not target:
+        return err('Staff account not found.', 404)
+    if target['role'] != 'examiner':
+        return jsonify(exam_ids=[])
+    rows = qa('SELECT exam_id FROM staff_exam_assignments WHERE staff_id=? ORDER BY exam_id', (staff_id,))
+    return jsonify(exam_ids=[r['exam_id'] for r in rows])
+
+
+@app.post('/api/admin/staff/<int:staff_id>/exams')
+@admin
+def staff_exam_save(staff_id):
+    target = q1('SELECT id, username, role FROM admins WHERE id=?', (staff_id,))
+    if not target:
+        return err('Staff account not found.', 404)
+    if target['role'] != 'examiner':
+        return err('Only Examiner / Marker accounts can be assigned examinations.')
+    d = request.get_json(silent=True) or {}
+    raw_ids = d.get('exam_ids') or []
+    if not isinstance(raw_ids, list):
+        return err('Exam assignments must be a list.')
+    try:
+        exam_ids = sorted(set(int(x) for x in raw_ids))
+    except (TypeError, ValueError):
+        return err('Invalid examination selection.')
+    for exam_id in exam_ids:
+        if not q1('SELECT id FROM exams WHERE id=?', (exam_id,)):
+            return err('One or more selected examinations no longer exist.')
+    ex('DELETE FROM staff_exam_assignments WHERE staff_id=?', (staff_id,))
+    for exam_id in exam_ids:
+        ex('INSERT INTO staff_exam_assignments(staff_id,exam_id,assigned_by,assigned_ts) VALUES(?,?,?,?)',
+           (staff_id, exam_id, session.get('admin'), int(time.time())))
+    audit('Updated exam assignments for marker: ' + target['username'])
+    return jsonify(ok=True, assigned=len(exam_ids))
+
+
 @app.post('/api/admin/staff/<int:staff_id>')
 @admin
 def staff_update(staff_id):
@@ -1313,12 +1352,17 @@ def export_questions():
 @app.get('/api/admin/exams')
 @admin
 def exams_list():
-    return jsonify(qa('''select e.*, s.name subject,
+    rows = qa('''select e.*, s.name subject,
       (select group_concat(c.name, ', ') from exam_classes ec join classes c on c.id=ec.class_id where ec.exam_id=e.id) classes,
       (select count(*) from sessions where exam_id=e.id) sessions,
       (select count(*) from sessions where exam_id=e.id and status='submitted') submitted,
       (select count(*) from questions where subject_id=e.subject_id) pool
-      from exams e join subjects s on s.id=e.subject_id order by e.id desc'''))
+      from exams e join subjects s on s.id=e.subject_id order by e.id desc''')
+    if session.get('admin_role') == 'examiner':
+        staff = q1('SELECT id FROM admins WHERE username=?', (session.get('admin'),))
+        assigned = {r['exam_id'] for r in qa('SELECT exam_id FROM staff_exam_assignments WHERE staff_id=?', (staff['id'],))} if staff else set()
+        rows = [r for r in rows if r['id'] in assigned]
+    return jsonify(rows)
 
 
 @app.post('/api/admin/exams')
@@ -2070,6 +2114,8 @@ def theory_mark():
         where s.id=? and q.id=? and q.question_type='theory' and s.status='submitted' ''', (sid,qid))
     if not q:
         return err('Submitted theory response not found', 404)
+    if session.get('admin_role') == 'examiner' and not examiner_has_exam(session.get('admin'), q['exam_id']):
+        return err('This examination has not been assigned to your marker account.', 403)
     if mark < 0 or mark > float(q['marks']):
         return err(f'Mark must be between 0 and {q["marks"]}')
     response = (q['response_text'] or '').strip()
