@@ -11,6 +11,15 @@ This branch contains the CBT product only. School management, parent portal, gen
 - The source repository was not modified.
 - Files were copied individually. Original Git commit history, branches, tags, and binary assets are not yet fully migrated.
 
+## VICORA platform identity and school branding
+- Added the VICORA wordmark and separate VICORA icon as the product's main platform identity.
+- The admin sign-in and console use VICORA branding; the student sign-in and exam header also retain VICORA branding.
+- Added an Admin Settings school-identity area where an administrator can set the school's display name and upload its logo.
+- School logos accept PNG, JPEG, or WebP images up to 2 MB. The image is stored in the SQLite settings store so it is included in normal database backups.
+- The selected school name and logo are shown in the student portal and school-facing admin areas. The public logo endpoint is explicitly allowlisted through the restricted Vercel student gateway; admin upload remains behind the authenticated admin API.
+- This configuration is per CBT server/database installation. Shared multi-school tenancy in one database is not implemented.
+- These changes are in `feature/cbt-core-import` only. No build, automated test, deployment, or production verification has yet been completed.
+
 ## Imported application components
 - Flask/SQLite server: `app.py`
 - Server dependencies: `requirements.txt`
