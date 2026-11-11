@@ -86,6 +86,32 @@ class StaffRBACTests(unittest.TestCase):
         self.assertEqual(staff.status_code, 403)
         self.assertEqual(backups.status_code, 403)
 
+    def test_marker_only_sees_and_marks_assigned_examinations(self):
+        self.execute("DELETE FROM staff_exam_assignments WHERE staff_id IN (SELECT id FROM admins WHERE username='marker.rbac')")
+        self.execute("DELETE FROM admins WHERE username='marker.rbac'")
+        self.execute("INSERT OR IGNORE INTO subjects(name) VALUES('RBAC Test Subject')")
+        subject = self.query("SELECT id FROM subjects WHERE name='RBAC Test Subject'")["id"]
+        self.execute("INSERT INTO exams(title,subject_id,duration_min,num_questions,created_ts) VALUES('RBAC Assigned Exam',?,30,0,0)", (subject,))
+        assigned = self.query("SELECT id FROM exams WHERE title='RBAC Assigned Exam'")["id"]
+        self.execute("INSERT INTO exams(title,subject_id,duration_min,num_questions,created_ts) VALUES('RBAC Unassigned Exam',?,30,0,0)", (subject,))
+        unassigned = self.query("SELECT id FROM exams WHERE title='RBAC Unassigned Exam'")["id"]
+        self.sign_in_as()
+        created = self.client.post("/api/admin/staff", json={
+            "username": "marker.rbac", "password": "StrongPass123!", "role": "examiner"
+        })
+        self.assertEqual(created.status_code, 200, created.get_json())
+        staff_id = self.query("SELECT id FROM admins WHERE username='marker.rbac'")["id"]
+        saved = self.client.post(f"/api/admin/staff/{staff_id}/exams", json={"exam_ids": [assigned]})
+        self.assertEqual(saved.status_code, 200, saved.get_json())
+        self.sign_in_as("marker.rbac")
+        exams = self.client.get("/api/admin/exams")
+        self.assertEqual(exams.status_code, 200)
+        self.assertEqual([row["id"] for row in exams.get_json()], [assigned])
+        allowed = self.client.get(f"/api/admin/results/{assigned}")
+        denied = self.client.get(f"/api/admin/results/{unassigned}")
+        self.assertEqual(allowed.status_code, 200)
+        self.assertEqual(denied.status_code, 403)
+
     def test_inactive_staff_session_is_rejected(self):
         self.execute("UPDATE admins SET active=0 WHERE username='admin'")
         self.sign_in_as()
