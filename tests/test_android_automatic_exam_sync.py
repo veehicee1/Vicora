@@ -121,6 +121,13 @@ class AndroidAutomaticExamSyncTests(unittest.TestCase):
             try:
                 cbt.DB_PATH = os.path.join(target_dir, "cbt.db")
                 cbt.init_db()
+                # init_db seeds a generic default school name. This test models a
+                # freshly installed, not-yet-claimed Android host, so clear only
+                # this disposable test database before importing the paired school.
+                blank = cbt.raw()
+                blank.execute("UPDATE settings SET value='' WHERE key='school_name'")
+                blank.commit()
+                blank.close()
                 conn = android_sync._connect(target_dir)
                 try:
                     result = android_sync._import_exam_package(conn, self.package)
