@@ -1,0 +1,42 @@
+name: GTMC CBT Quality Checks
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  python-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements.txt
+      - name: Install application dependencies
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Check dependency consistency
+        run: python -m pip check
+      - name: Extract inline browser JavaScript
+        run: python scripts/extract_inline_js.py
+      - name: Validate Admin and Examination JavaScript
+        run: |
+          node --check js-check/admin.js
+          node --check js-check/student.js
+      - name: Compile Python source
+        run: python -m compileall -q app.py main.py exam_main.py desktop_connection.py
+      - name: Run server and connection regression tests
+        run: python -m unittest discover -s tests -v
