@@ -337,14 +337,17 @@ def staff_permission(role, path, method):
         return path.startswith('/api/admin/') and not blocked
     if role == 'invigilator':
         allowed = (
-            method == 'GET' and (path == '/api/admin/exams' or path == '/api/admin/classes' or path == '/api/admin/students/lookup')
-            or path == '/api/admin/dashboard'
-            or path.startswith('/api/admin/monitor/')
+            method == 'GET' and (
+                path == '/api/admin/exams' or path == '/api/admin/classes'
+                or path == '/api/admin/students/lookup' or path == '/api/admin/dashboard'
+                or path.startswith('/api/admin/monitor/')
+                or path.startswith('/api/admin/proctor/')
+                or path.startswith('/api/admin/export/monitor/')
+                or path == '/api/admin/messages'
+            )
             or path.startswith('/api/admin/sessions/')
-            or path.startswith('/api/admin/proctor/')
-            or path.startswith('/api/admin/messages')
-            or path.startswith('/api/admin/export/monitor/')
-            or path.startswith('/api/admin/exams/') and path.endswith('/extend')
+            or path.startswith('/api/admin/messages') and method == 'POST'
+            or path.startswith('/api/admin/exams/') and path.endswith('/extend') and method == 'POST'
         )
         return allowed
     if role == 'examiner':
