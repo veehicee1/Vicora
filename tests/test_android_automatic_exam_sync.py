@@ -4,6 +4,11 @@ import os
 import tempfile
 import unittest
 import uuid
+import sys
+
+ANDROID_PYTHON = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "android", "app", "src", "main", "python"))
+if ANDROID_PYTHON not in sys.path:
+    sys.path.insert(0, ANDROID_PYTHON)
 
 os.environ.setdefault("CBT_DATA", tempfile.mkdtemp(prefix="vicora-android-auto-sync-tests-"))
 
