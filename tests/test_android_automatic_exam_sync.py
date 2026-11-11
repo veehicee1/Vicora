@@ -83,6 +83,33 @@ class AndroidAutomaticExamSyncTests(unittest.TestCase):
         self.assertEqual(again.status_code, 200, again.get_json())
         self.assertEqual(again.get_json()["packages"], [])
 
+    def test_admin_can_enable_and_disable_automatic_android_exam_sync(self):
+        disabled = self.client.post(
+            f"/api/admin/exams/{self.exam_id}/android-sync", json={"enabled": False}
+        )
+        self.assertEqual(disabled.status_code, 200, disabled.get_json())
+        with cbt.app.app_context():
+            row = cbt.q1("SELECT android_host_sync_enabled FROM exams WHERE id=?", (self.exam_id,))
+        self.assertEqual(row["android_host_sync_enabled"], 0)
+        enabled = self.client.post(
+            f"/api/admin/exams/{self.exam_id}/android-sync", json={"enabled": True}
+        )
+        self.assertEqual(enabled.status_code, 200, enabled.get_json())
+        with cbt.app.app_context():
+            row = cbt.q1("SELECT android_host_sync_enabled FROM exams WHERE id=?", (self.exam_id,))
+        self.assertEqual(row["android_host_sync_enabled"], 1)
+
+    def test_sync_pull_rejects_plain_http_from_remote_network(self):
+        response = self.client.post(
+            "/api/android-host/sync-pull",
+            base_url="http://school.example",
+            json={"device_id": self.device_id, "known_revisions": {}},
+            headers={"Authorization": "Bearer " + self.device_token},
+            environ_overrides={"REMOTE_ADDR": "192.168.1.50"},
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("HTTPS", response.get_json()["error"])
+
     def test_android_package_import_creates_school_data_and_preserves_attempts(self):
         original_path = cbt.DB_PATH
         with tempfile.TemporaryDirectory(prefix="vicora-android-target-") as target_dir:
