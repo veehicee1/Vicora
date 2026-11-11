@@ -551,13 +551,22 @@ def school_logo():
     return send_file(os.path.join(DATA, filename), mimetype=allowed[filename], max_age=3600)
 
 
+@app.get('/api/public/school-logo')
+def public_school_logo():
+    filename = getset('school_logo', '')
+    allowed = {'school-logo.png': 'image/png', 'school-logo.jpg': 'image/jpeg', 'school-logo.webp': 'image/webp'}
+    if filename not in allowed or not os.path.isfile(os.path.join(DATA, filename)):
+        return send_from_directory(WEB, 'vicora-icon.svg', mimetype='image/svg+xml')
+    return send_file(os.path.join(DATA, filename), mimetype=allowed[filename], max_age=3600)
+
+
 @app.get('/api/public/info')
 def public_info():
     try:
         theme = json.loads(getset('school_theme', '{}') or '{}')
     except (TypeError, ValueError):
         theme = {}
-    return jsonify(school=getset('school_name'), theme=theme, school_logo_url='/school-logo')
+    return jsonify(school=getset('school_name'), theme=theme, school_logo_url='/api/public/school-logo')
 
 
 # ---------------------------------------------------------------- admin: auth & settings
