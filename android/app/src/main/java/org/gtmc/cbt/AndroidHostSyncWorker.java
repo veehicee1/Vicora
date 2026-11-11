@@ -27,10 +27,14 @@ public final class AndroidHostSyncWorker extends Worker {
             if (!Python.isStarted()) Python.start(new AndroidPlatform(getApplicationContext()));
             String dataDir = getApplicationContext().getFilesDir().getAbsolutePath() + "/gtmc-cbt-data";
             PyObject module = Python.getInstance().getModule("android_sync");
-            boolean complete = module.callAttr("sync_once", dataDir,
+            boolean pulled = module.callAttr("pull_packages_once", dataDir,
                     pairing.getString("server_url"), pairing.getString("device_id"),
                     pairing.getString("device_token")).toBoolean();
-            return complete ? Result.success() : Result.retry();
+            if (!pulled) return Result.retry();
+            boolean uploaded = module.callAttr("sync_once", dataDir,
+                    pairing.getString("server_url"), pairing.getString("device_id"),
+                    pairing.getString("device_token")).toBoolean();
+            return uploaded ? Result.success() : Result.retry();
         } catch (Exception ex) {
             return Result.retry();
         }
