@@ -30,7 +30,7 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "{app}\Diagnostics"
 
 [Files]
-Source: "..\dist-electron\GTMC-CBT-Examination-1.0.0-Windows.exe"; DestDir: "{app}"; DestName: "CBTExamination.exe"; Flags: ignoreversion
+Source: "..\dist-electron\VICORA-CBT-Examination-1.0.0-Windows.exe"; DestDir: "{app}"; DestName: "CBTExamination.exe"; Flags: ignoreversion
 Source: "..\dist\CBTExamination-Diagnostic.exe"; DestDir: "{app}\Diagnostics"; Flags: ignoreversion
 
 [Icons]
