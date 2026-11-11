@@ -58,8 +58,8 @@ class AndroidServerBootstrapTests(unittest.TestCase):
 
     def test_host_bootstrap_sets_private_paths_before_import_and_binds_lan(self):
         with patch.dict(os.environ, {}, clear=False), \
-             patch.object(importlib, "import_module", return_value=self.backend) as importer, \
-             patch("werkzeug.serving.make_server", return_value=self.server) as make_server:
+             patch("werkzeug.serving.make_server", return_value=self.server) as make_server, \
+             patch.object(importlib, "import_module", return_value=self.backend) as importer:
             result = android_server.start_server(self.data_dir, self.web_dir, "0.0.0.0", 8765)
 
             self.assertEqual(result["port"], 8765)
