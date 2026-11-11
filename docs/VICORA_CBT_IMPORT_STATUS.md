@@ -56,12 +56,12 @@ Implemented in the development branch:
 - Staff login/session responses include the assigned role; each protected request rechecks the account's current role and active status from the database.
 - Backend allow-lists distinguish Super Admin, Exam Administrator, Invigilator, Examiner/Marker and Auditor. Unknown admin routes remain Super Admin-only for restricted roles.
 - Invigilators can supervise live sessions and use approved pause/resume/extension actions, but cannot reset or force-submit candidate sessions.
-- Super Admin-only staff endpoints support account creation, role changes and activation/deactivation. Passwords are hashed and never returned.
+- Super Admin-only staff endpoints support account creation, role changes, activation/deactivation and password resets. Passwords are hashed and never returned.
 - The Admin Dashboard has role-aware navigation and a Staff Accounts screen.
 - Examiner/Marker accounts can be assigned specific examinations. Their exam list, theory responses, marking actions and result reports are restricted to assigned examinations.
 - Added regression coverage for role boundaries, examiner assignments, inactive accounts, staff creation and self-lockout prevention.
 - Restored the JavaScript extraction helper required by the quality-check workflow and enabled that workflow on this development branch.
 
-**Latest automated verification:** GitHub Actions quality checks passed on commit `7e9992fece1b9cb93287fa429ff8ecce28e46fd2`. The run completed JavaScript syntax validation, Python compilation and all **54 automated tests** successfully.
+**Latest automated verification:** GitHub Actions quality checks passed on commit `7c77580e820bfab9e6ca7e6ba7d8c6b6d1c16f84`. The run completed JavaScript syntax validation, Python compilation and all **56 automated tests** successfully.
 
 **Still outstanding:** manual browser testing of the staff screens, a migration test using a copy of an existing school database, and separate Windows/Android packaging verification against the latest RBAC changes. This remains a partial source import and development branch; it is not approved for production deployment.
