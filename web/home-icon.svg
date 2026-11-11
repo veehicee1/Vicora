@@ -1,7 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="104" fill="#0756a8"/>
-  <path d="M88 196 256 94l168 102v22H88z" fill="#fff"/>
-  <path d="M116 232h280v166H116z" fill="#fff"/>
-  <path d="M154 270h44v44h-44zm80 0h44v44h-44zm80 0h44v44h-44zM154 338h204v26H154z" fill="#0756a8"/>
-  <path d="M74 408h364v26H74z" fill="#d9eaff"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-labelledby="title">
+<title id="title">VICORA icon</title>
+<rect x="2" y="2" width="96" height="96" rx="22" fill="#102B50"/>
+<path d="M14 20h22l14 31 14-31h22L50 83h-1z" fill="#2878C8"/>
+<path d="M14 20h22l14 31-12 24z" fill="#20B6A4"/>
+<path d="M50 83 38 58l26-38h22z" fill="#F1F5FA" opacity=".96"/>
 </svg>
