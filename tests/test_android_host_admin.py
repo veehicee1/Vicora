@@ -49,6 +49,52 @@ class AndroidHostAdminTests(unittest.TestCase):
         self.assertEqual(saved["reviewed_by"], "admin")
         self.assertGreater(saved["reviewed_ts"], 0)
 
+    def test_pairing_code_is_one_time_and_device_can_be_revoked(self):
+        generated = self.client.post("/api/admin/android-host/pairing-code")
+        self.assertEqual(generated.status_code, 200, generated.get_json())
+        code = generated.get_json()["pairing_code"]
+        device_id = str(uuid.uuid4())
+        paired = self.client.post(
+            "/api/android-host/pair",
+            base_url="https://school.example",
+            json={"pairing_code": code, "device_id": device_id, "label": "VICORA Test Android"},
+        )
+        self.assertEqual(paired.status_code, 200, paired.get_json())
+        token = paired.get_json()["device_token"]
+        self.assertGreaterEqual(len(token), 32)
+        with app.app_context():
+            device = q1("SELECT token_hash,revoked_ts FROM android_host_devices WHERE device_id=?", (device_id,))
+        import hashlib
+        self.assertNotEqual(device["token_hash"], token)
+        self.assertEqual(device["token_hash"], hashlib.sha256(token.encode("utf-8")).hexdigest())
+        self.assertEqual(device["revoked_ts"], 0)
+
+        reused = self.client.post(
+            "/api/android-host/pair",
+            base_url="https://school.example",
+            json={"pairing_code": code, "device_id": device_id, "label": "VICORA Test Android"},
+        )
+        self.assertEqual(reused.status_code, 401)
+
+        revoked = self.client.post(f"/api/admin/android-host/devices/{device_id}/revoke")
+        self.assertEqual(revoked.status_code, 200, revoked.get_json())
+        with app.app_context():
+            device = q1("SELECT revoked_ts FROM android_host_devices WHERE device_id=?", (device_id,))
+        self.assertGreater(device["revoked_ts"], 0)
+        with app.app_context():
+            ex("DELETE FROM android_host_devices WHERE device_id=?", (device_id,))
+
+    def test_remote_http_pairing_is_rejected(self):
+        generated = self.client.post("/api/admin/android-host/pairing-code")
+        self.assertEqual(generated.status_code, 200, generated.get_json())
+        response = self.client.post(
+            "/api/android-host/pair",
+            json={"pairing_code": generated.get_json()["pairing_code"], "device_id": str(uuid.uuid4())},
+            environ_overrides={"REMOTE_ADDR": "192.168.1.50"},
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("HTTPS", response.get_json()["error"])
+
     def test_admin_status_includes_review_details_for_dashboard(self):
         response = self.client.get("/api/admin/android-host/status")
         self.assertEqual(response.status_code, 200, response.get_json())
