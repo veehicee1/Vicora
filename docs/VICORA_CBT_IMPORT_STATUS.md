@@ -58,6 +58,9 @@ The first RBAC implementation is now present in the development branch:
 - Invigilators can supervise sessions and use pause/resume/extend actions, but cannot reset or force-submit a candidate session.
 - Super Admin-only staff endpoints support account creation, role changes and activation/deactivation. Passwords are hashed and never returned.
 - The Admin Dashboard now has role-aware navigation and a Staff Accounts screen visible to Super Admins only.
-- Added regression tests for additive schema fields, staff creation, auditor restrictions, inactive accounts and self-lockout prevention.
+- Examiner/Marker accounts can be assigned specific examinations; their exam list, theory responses, marking actions and result reports are restricted to those assignments.
+- Invigilator screens hide reset/force-submit controls, and backend checks reject those actions even if called directly.
+- Restored `scripts/extract_inline_js.py`, which the existing quality-check workflow requires to extract browser JavaScript before syntax validation.
+- Added regression tests for additive schema fields, staff creation, each operational role, examiner assignment boundaries, inactive accounts and self-lockout prevention.
 
-**Verification status:** tests have been added but have not yet been executed in this environment. The UI/API integration has not been browser-tested. Do not treat this branch as production-ready until the full regression suite and platform builds pass against a copy of the existing database.
+**Verification status:** the previous quality-check run failed before reaching JavaScript, Python compilation or tests because the import lacked `scripts/extract_inline_js.py`. That helper has now been restored, but the updated branch has not yet had a fresh CI run. The UI/API integration has not been browser-tested. Do not treat this branch as production-ready until the full regression suite and platform builds pass against a copy of the existing database.
