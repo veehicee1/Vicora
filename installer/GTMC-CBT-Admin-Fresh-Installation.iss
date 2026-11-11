@@ -27,6 +27,8 @@ SetupLogging=yes
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Dirs]
+Name: "{commonappdata}\\CBTSystem"; Permissions: users-modify
+Name: "{commonappdata}\\CBTSystem\\backups"; Permissions: users-modify
 Name: "{app}\Diagnostics"
 Name: "{app}\Tools"
 
