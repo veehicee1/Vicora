@@ -12,18 +12,28 @@ class StaffRBACTests(unittest.TestCase):
     def setUp(self):
         app.config.update(TESTING=True)
         self.client = app.test_client()
-        ex("UPDATE admins SET role='super_admin', active=1 WHERE username='admin'")
+        with app.app_context():
+            ex("UPDATE admins SET role='super_admin', active=1 WHERE username='admin'")
+
+    def query(self, sql, args=()):
+        with app.app_context():
+            return q1(sql, args)
+
+    def execute(self, sql, args=()):
+        with app.app_context():
+            return ex(sql, args)
 
     def sign_in_as(self, username="admin"):
         with self.client.session_transaction() as sess:
             sess["admin"] = username
 
     def test_existing_admin_schema_has_additive_role_fields(self):
-        from app import db
-        cols = {r["name"] for r in db().execute("PRAGMA table_info(admins)").fetchall()}
+        with app.app_context():
+            from app import db
+            cols = {r["name"] for r in db().execute("PRAGMA table_info(admins)").fetchall()}
         self.assertIn("role", cols)
         self.assertIn("active", cols)
-        admin = q1("SELECT role, active FROM admins WHERE username='admin'")
+        admin = self.query("SELECT role, active FROM admins WHERE username='admin'")
         self.assertEqual(admin["role"], "super_admin")
         self.assertEqual(admin["active"], 1)
 
@@ -35,13 +45,13 @@ class StaffRBACTests(unittest.TestCase):
             "role": "examiner",
         })
         self.assertEqual(response.status_code, 200, response.get_json())
-        row = q1("SELECT username, role, active, password_hash FROM admins WHERE username='marker.one'")
+        row = self.query("SELECT username, role, active, password_hash FROM admins WHERE username='marker.one'")
         self.assertEqual(row["role"], "examiner")
         self.assertEqual(row["active"], 1)
         self.assertNotEqual(row["password_hash"], "StrongPass123!")
 
     def test_auditor_is_read_only_and_cannot_open_question_bank(self):
-        ex("UPDATE admins SET role='auditor' WHERE username='admin'")
+        self.execute("UPDATE admins SET role='auditor' WHERE username='admin'")
         self.sign_in_as()
         allowed = self.client.get("/api/admin/audit")
         denied = self.client.get("/api/admin/questions")
@@ -49,20 +59,20 @@ class StaffRBACTests(unittest.TestCase):
         self.assertEqual(denied.status_code, 403)
 
     def test_inactive_staff_session_is_rejected(self):
-        ex("UPDATE admins SET active=0 WHERE username='admin'")
+        self.execute("UPDATE admins SET active=0 WHERE username='admin'")
         self.sign_in_as()
         response = self.client.get("/api/admin/dashboard")
         self.assertEqual(response.status_code, 401)
 
     def test_staff_cannot_demote_or_deactivate_own_account(self):
         self.sign_in_as()
-        response = self.client.post("/api/admin/staff/1", json={
+        admin_id = self.query("SELECT id FROM admins WHERE username='admin'")["id"]
+        response = self.client.post(f"/api/admin/staff/{admin_id}", json={
             "role": "auditor",
             "active": False,
         })
-        # The seeded administrator is the signed-in account; self-lockout is blocked.
         self.assertEqual(response.status_code, 400)
-        row = q1("SELECT role, active FROM admins WHERE username='admin'")
+        row = self.query("SELECT role, active FROM admins WHERE username='admin'")
         self.assertEqual(row["role"], "super_admin")
         self.assertEqual(row["active"], 1)
 
