@@ -74,7 +74,13 @@ async function waitForLocalHost(logPath) {
   const deadline = Date.now() + 45000;
   let lastError = null;
   while (Date.now() < deadline) {
-    if (hostExit) throw new Error("The VICORA Host closed before it was ready. " + (hostExit.code === null ? hostExit.signal : "Exit code " + hostExit.code));
+    if (hostExit) {
+      let detail = "";
+      try { detail = fs.readFileSync(logPath, "utf8").slice(-2500); } catch {}
+      throw new Error("The VICORA Host closed before it was ready. " +
+        (hostExit.code === null ? hostExit.signal : "Exit code " + hostExit.code) +
+        (detail ? "\\n\\nHost log:\\n" + detail : ""));
+    }
     try {
       await verifyServer(address);
       return address;
@@ -116,6 +122,7 @@ async function startLocalHost() {
       env: { ...process.env, CBT_HOST_LOG: logPath }
     });
     hostProcess.on("exit", (code, signal) => { hostExit = { code, signal }; });
+    hostProcess.on("error", error => { hostExit = { code: 1, signal: error.message }; });
     hostProcess.unref();
   } finally {
     fs.closeSync(logFd);
