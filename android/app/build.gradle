@@ -44,13 +44,13 @@ android {
             dimension 'appRole'
             applicationIdSuffix '.admin'
             versionNameSuffix '-admin'
-            manifestPlaceholders = [appLabel: 'GTMC CBT Admin']
+            manifestPlaceholders = [appLabel: 'VICORA CBT Admin']
         }
         examination {
             dimension 'appRole'
             applicationIdSuffix '.exam'
             versionNameSuffix '-exam'
-            manifestPlaceholders = [appLabel: 'GTMC CBT Examination']
+            manifestPlaceholders = [appLabel: 'VICORA CBT Examination']
         }
     }
     buildTypes {
