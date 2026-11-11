@@ -24,11 +24,26 @@ class FakeServer:
         self.stopped.set()
 
 
+class FakeConnection:
+    def __init__(self):
+        self.executed = []
+    def execute(self, sql, values=()):
+        self.executed.append((sql, values))
+    def commit(self):
+        pass
+    def close(self):
+        pass
+
+
 class FakeBackend:
     app = object()
 
     def __init__(self):
         self.worker_starts = 0
+        self.connection = FakeConnection()
+
+    def raw(self):
+        return self.connection
 
     def start_background(self):
         self.worker_starts += 1
