@@ -2,7 +2,7 @@
 // Never expose admin, pairing, sync, backup, or database endpoints here.
 const { Readable } = require("node:stream");
 
-const ALLOWED_EXACT = new Set(["/api/public/info"]);
+const ALLOWED_EXACT = new Set(["/api/public/info", "/api/public/school-logo"]);
 const ALLOWED_PREFIXES = ["/api/student/"];
 const ALLOWED_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 
