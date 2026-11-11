@@ -1,13 +1,7 @@
-name: Build GTMC CBT Android APKs
+name: Build VICORA CBT Android APKs
 
 on:
   workflow_dispatch:
-    inputs:
-      publish_release:
-        description: "Publish the signed APKs to the public GTMC-CBT-Releases repository"
-        required: true
-        type: boolean
-        default: false
   pull_request:
     paths:
       - "android/**"
@@ -78,14 +72,6 @@ jobs:
           test -s "$RUNNER_TEMP/gtmc-cbt-release.jks"
           echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/gtmc-cbt-release.jks" >> "$GITHUB_ENV"
 
-      - name: Validate public release publisher secret
-        if: startsWith(github.ref, 'refs/tags/') && inputs.publish_release == true
-        env:
-          GTMC_RELEASES_TOKEN: ${{ secrets.GTMC_RELEASES_TOKEN }}
-        run: |
-          set -euo pipefail
-          test -n "$GTMC_RELEASES_TOKEN" || { echo "Missing GTMC_RELEASES_TOKEN repository secret"; exit 1; }
-
       - name: Build Admin and Examination debug APKs
         working-directory: android
         run: gradle --no-daemon assembleAdminDebug assembleExaminationDebug
@@ -138,14 +124,3 @@ jobs:
             android/app/build/outputs/apk/examination/release/app-examination-release.apk
           if-no-files-found: error
 
-      - name: Publish signed APKs to the public release repository
-        if: startsWith(github.ref, 'refs/tags/') && inputs.publish_release == true
-        uses: softprops/action-gh-release@v2
-        with:
-          repository: sheggun1/GTMC-CBT-Releases
-          token: ${{ secrets.GTMC_RELEASES_TOKEN }}
-          generate_release_notes: true
-          fail_on_unmatched_files: true
-          files: |
-            android/app/build/outputs/apk/admin/release/app-admin-release.apk
-            android/app/build/outputs/apk/examination/release/app-examination-release.apk
