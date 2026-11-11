@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" role="img" aria-labelledby="title">
+<title id="title">VICORA icon</title>
+<rect x="2" y="2" width="96" height="96" rx="22" fill="#102B50"/>
+<path d="M14 20h22l14 31 14-31h22L50 83h-1z" fill="#2878C8"/>
+<path d="M14 20h22l14 31-12 24z" fill="#20B6A4"/>
+<path d="M50 83 38 58l26-38h22z" fill="#F1F5FA" opacity=".96"/>
+</svg>
