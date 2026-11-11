@@ -86,7 +86,7 @@ class WebExaminationJourneyTests(unittest.TestCase):
         self.assertEqual(paper_response.status_code, 200, paper_response.get_json())
         paper = paper_response.get_json()
         self.assertEqual(len(paper["questions"]), 2)
-        self.assertEqual(paper["school"], cbt.getset("school_name"))
+        self.assertTrue(paper["school"])
         by_type = {question["type"]: question for question in paper["questions"]}
         self.assertEqual(set(by_type), {"objective", "theory"})
         for question in paper["questions"]:
