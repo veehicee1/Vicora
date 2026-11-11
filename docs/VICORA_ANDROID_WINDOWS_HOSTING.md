@@ -8,6 +8,18 @@ VICORA CBT supports three student entry paths to the same examination applicatio
 2. **Android phone host** — the Android Admin app runs the same Flask backend in the phone's private app storage and serves the student portal on Wi-Fi or the phone's hotspot. The phone owns a separate local database until it synchronises approved attempts to a paired Windows server.
 3. **Web host** — students use the school-provided HTTPS or LAN address in a supported browser. A web deployment must point to the intended school database.
 
+## Web examination website
+
+The browser examination is a single shared client, not a separate database or a third independent exam engine:
+
+- The school shares the browser link served by its selected host: `http(s)://school-host/` or `http(s)://school-host/home`.
+- Both browser entry points serve the same `web/student.html` client. The client calls relative `/api/student/*` routes, so login, exam lists, paper retrieval, answer saves, heartbeat, submission and published grades stay on the same origin as the active host.
+- The browser reads the school name, theme and school logo from `/api/public/info`; it does not need a separately configured school database URL.
+- Therefore a school can use the same browser examination experience whether its selected host is Windows or Android. The link must point to that host, and the host must remain reachable for the duration of the examination.
+- A public website/domain does not automatically discover or reach a phone/PC behind a school router. Off-site browser access requires the school's HTTPS gateway/reverse proxy to route the student-facing requests to the selected host. Do not expose the host's raw LAN HTTP port.
+
+**Current limitation:** browser examination itself is already host-relative, but automatic Android ↔ Windows exam-package synchronization and automatic public-domain routing to whichever host is active are not yet complete. Until then, share the selected host's own address and use the existing controlled package-transfer/result-sync workflow where required.
+
 ## First-run school identity
 
 - Android Host asks for the school's name before starting the host for the first time.
