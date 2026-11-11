@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require("electron");
+const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const path = require("path");
 const os = require("os");
 const fs = require("fs");
@@ -171,12 +171,20 @@ function createWindow() {
       contextIsolation: true, nodeIntegration: false, sandbox: true
     }
   });
-  mainWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
-  mainWindow.webContents.on("will-navigate", (event, target) => {
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     try {
-      if (connectedOrigin && new URL(target).origin !== connectedOrigin) event.preventDefault();
-    } catch { event.preventDefault(); }
+      const target = new URL(url);
+      const octets = target.hostname.split(".").map(Number);
+      const [a, b] = octets;
+      const privateLan = net.isIP(target.hostname) === 4 &&
+        (a === 10 || (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31));
+      if (target.protocol === "http:" && target.port === "8000" && privateLan) {
+        shell.openExternal(target.toString());
+      }
+    } catch {}
+    return { action: "deny" };
   });
+  mainWindow.webContents.on("will-navigate", event => event.preventDefault());
   mainWindow.loadFile(path.join(__dirname, "index.html"));
   mainWindow.on("closed", () => { mainWindow = null; });
 }
