@@ -25,7 +25,7 @@ Introduce separate staff access levels without breaking the existing administrat
 - Staff account creation, role changes, deactivation, system settings, device pairing/revocation and backup restore are Super Admin only.
 - Exam Administrators can manage exam content and schedules but cannot change system ownership or restore backups.
 - Invigilators can supervise live sessions but cannot view or edit the question-bank answer key.
-- Examiners can mark written responses but cannot alter student access codes or exam schedules.
+- Examiners can mark written responses only for examinations explicitly assigned by a Super Admin; their examination list and result reports are limited to those assignments. They cannot alter student access codes or exam schedules.
 - Auditors are read-only.
 - Students cannot access any staff API, other candidates' records, answer keys or unpublished results.
 
@@ -37,6 +37,10 @@ Introduce separate staff access levels without breaking the existing administrat
 5. Hide or disable unauthorized controls in the admin interface after backend enforcement is tested.
 6. Add regression tests for every role and sensitive endpoint.
 7. Test the migration against a copy of an existing CBT database before using it with real data.
+
+## Implementation status
+
+The initial role system is implemented in `app.py` and `web/admin.html`. The `staff_exam_assignments` table stores examiner-to-examination assignments. Staff management is available in the Super Admin dashboard. Backend permission checks and role regression tests are in place. GitHub Actions quality checks passed with 54 tests on the initial implementation commit; manual browser checks and real-database migration testing remain outstanding.
 
 ## Not included in this increment
 - Student accounts are not converted into staff accounts.
