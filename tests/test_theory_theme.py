@@ -11,7 +11,7 @@ class TheoryAndThemeTests(unittest.TestCase):
         server.app.config.update(TESTING=True)
         self.client = server.app.test_client()
         with self.client.session_transaction() as sess:
-            sess["admin"] = "test-admin"
+            sess["admin"] = "admin"
 
     def test_additive_theory_schema_is_available(self):
         db = sqlite3.connect(server.DB_PATH)
