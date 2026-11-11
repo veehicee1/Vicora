@@ -27,6 +27,9 @@ def start_server(data_dir, web_dir, host="0.0.0.0", port=8765, school_name=None)
             # A user may switch from localhost-only offline mode to LAN hosting.
             # Rebind the listener instead of incorrectly reporting a LAN host.
             _server.shutdown()
+            close = getattr(_server, "server_close", None)
+            if callable(close):
+                close()
             _server_thread.join(timeout=5)
             _server = None
             _server_thread = None
