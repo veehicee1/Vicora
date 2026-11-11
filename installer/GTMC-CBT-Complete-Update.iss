@@ -7,7 +7,7 @@ AppId={{B9E2A10A-6D77-4D3C-A45A-3E5B91C0A126}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-DefaultDirName={autopf}\GTMC CBT
+DefaultDirName={autopf}\VICORA CBT
 DefaultGroupName=VICORA CBT
 DisableProgramGroupPage=yes
 PrivilegesRequired=admin
@@ -40,32 +40,49 @@ Source: "..\dist\CBTAdmin-Diagnostic.exe"; DestDir: "{app}\Diagnostics"; Flags: 
 Source: "..\dist\CBTExamination-Diagnostic.exe"; DestDir: "{app}\Diagnostics"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\GTMC CBT\VICORA CBT Admin"; Filename: "{app}\CBTAdmin.exe"; WorkingDir: "{app}"
-Name: "{autoprograms}\GTMC CBT\VICORA CBT Examination"; Filename: "{app}\CBTExamination.exe"; WorkingDir: "{app}"
-Name: "{autoprograms}\GTMC CBT\Restore CBT Backup"; Filename: "{app}\Tools\CBTRestore.exe"; WorkingDir: "{app}\Tools"
-Name: "{autoprograms}\GTMC CBT\Diagnostics\Admin Diagnostic"; Filename: "{app}\Diagnostics\CBTAdmin-Diagnostic.exe"; WorkingDir: "{app}\Diagnostics"
-Name: "{autoprograms}\GTMC CBT\Diagnostics\Examination Diagnostic"; Filename: "{app}\Diagnostics\CBTExamination-Diagnostic.exe"; WorkingDir: "{app}\Diagnostics"
+Name: "{autoprograms}\VICORA CBT\VICORA CBT Admin"; Filename: "{app}\CBTAdmin.exe"; WorkingDir: "{app}"
+Name: "{autoprograms}\VICORA CBT\VICORA CBT Examination"; Filename: "{app}\CBTExamination.exe"; WorkingDir: "{app}"
+Name: "{autoprograms}\VICORA CBT\Restore CBT Backup"; Filename: "{app}\Tools\CBTRestore.exe"; WorkingDir: "{app}\Tools"
+Name: "{autoprograms}\VICORA CBT\Diagnostics\Admin Diagnostic"; Filename: "{app}\Diagnostics\CBTAdmin-Diagnostic.exe"; WorkingDir: "{app}\Diagnostics"
+Name: "{autoprograms}\VICORA CBT\Diagnostics\Examination Diagnostic"; Filename: "{app}\Diagnostics\CBTExamination-Diagnostic.exe"; WorkingDir: "{app}\Diagnostics"
 Name: "{commondesktop}\VICORA CBT Admin"; Filename: "{app}\CBTAdmin.exe"; WorkingDir: "{app}"
 Name: "{commondesktop}\VICORA CBT Examination"; Filename: "{app}\CBTExamination.exe"; WorkingDir: "{app}"
 
 [Code]
+var
+  ExistingInstallDir: String;
+
 function InitializeSetup(): Boolean;
 var
-  InstallDir: String;
+  InstallDir, LegacyInstallDir: String;
 begin
-  InstallDir := ExpandConstant('{autopf}\GTMC CBT');
-  if not (FileExists(InstallDir + '\CBTAdmin.exe') or FileExists(InstallDir + '\CBTExamination.exe') or DirExists(ExpandConstant('{commonappdata}\CBTSystem'))) then
+  InstallDir := ExpandConstant('{autopf}\VICORA CBT');
+  LegacyInstallDir := ExpandConstant('{autopf}\GTMC CBT');
+  ExistingInstallDir := '';
+  if FileExists(InstallDir + '\CBTAdmin.exe') or FileExists(InstallDir + '\CBTExamination.exe') then
+    ExistingInstallDir := InstallDir
+  else if FileExists(LegacyInstallDir + '\CBTAdmin.exe') or FileExists(LegacyInstallDir + '\CBTExamination.exe') then
+    ExistingInstallDir := LegacyInstallDir
+  else if DirExists(ExpandConstant('{commonappdata}\CBTSystem')) then
+    ExistingInstallDir := InstallDir;
+  if ExistingInstallDir = '' then
   begin
-    MsgBox('No existing GTMC CBT installation or school data was found. Use the separate Admin and Examination Fresh Installation files for a new installation.', mbError, MB_OK);
+    MsgBox('No existing VICORA/GTMC CBT installation or school data was found. Use the separate Admin and Examination Fresh Installation files for a new installation.', mbError, MB_OK);
     Result := False;
   end
   else
     Result := MsgBox('COMPLETE UPDATE' + #13#10 + #13#10 +
       'This installer updates BOTH Admin and Examination applications.' + #13#10 +
-      'It will close GTMC CBT applications on this computer.' + #13#10 +
+      'It will close VICORA CBT applications on this computer.' + #13#10 +
       'Continue only when no examination is in progress and all users have exited the CBT apps.' + #13#10 + #13#10 +
       'The school data folder will be backed up before application files are replaced.' + #13#10 +
       'Continue with the update?', mbConfirmation, MB_YESNO) = IDYES;
+end;
+
+procedure InitializeWizard();
+begin
+  if ExistingInstallDir <> '' then
+    WizardForm.DirEdit.Text := ExistingInstallDir;
 end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
@@ -106,7 +123,7 @@ begin
     Result := 'The automatic data backup failed (robocopy exit code ' + IntToStr(ResultCode) + '). Update cancelled. Existing application files have not been replaced.';
     exit;
   end;
-  Log('GTMC CBT pre-update data backup completed: ' + BackupDir);
+  Log('VICORA CBT pre-update data backup completed: ' + BackupDir);
 end;
 
 [Run]
