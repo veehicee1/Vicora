@@ -47,3 +47,17 @@ This branch contains the CBT product only. School management, parent portal, gen
 
 ## Important status
 This is a partial source import, not a verified complete application. Keep this branch separate from `main` until all missing files are recovered and builds/tests pass. Do not deploy from this branch.
+
+## Staff roles and permissions — implementation in progress
+
+The first RBAC implementation is now present in the development branch:
+
+- Additive database migration adds `admins.role` and `admins.active`; legacy admin accounts become active Super Admins without changing their usernames or password hashes.
+- Staff login/session responses include the assigned role; each protected request rechecks the account's active status and current role from the database.
+- Backend permission allow-lists distinguish Super Admin, Exam Administrator, Invigilator, Examiner/Marker and Auditor. Unknown admin routes remain Super Admin-only for restricted roles.
+- Invigilators can supervise sessions and use pause/resume/extend actions, but cannot reset or force-submit a candidate session.
+- Super Admin-only staff endpoints support account creation, role changes and activation/deactivation. Passwords are hashed and never returned.
+- The Admin Dashboard now has role-aware navigation and a Staff Accounts screen visible to Super Admins only.
+- Added regression tests for additive schema fields, staff creation, auditor restrictions, inactive accounts and self-lockout prevention.
+
+**Verification status:** tests have been added but have not yet been executed in this environment. The UI/API integration has not been browser-tested. Do not treat this branch as production-ready until the full regression suite and platform builds pass against a copy of the existing database.
