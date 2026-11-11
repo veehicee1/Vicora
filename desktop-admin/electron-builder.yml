@@ -14,3 +14,7 @@ win:
       arch:
         - x64
   artifactName: GTMC-CBT-Admin-${version}-Windows.${ext}
+
+extraResources:
+  - from: dist/VICORA-CBT-Server.exe
+    to: server/VICORA-CBT-Server.exe
