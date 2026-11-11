@@ -1847,6 +1847,8 @@ def monitor(eid):
 def session_action(sid):
     d = request.get_json() or {}
     act = d.get('action')
+    if session.get('admin_role') == 'invigilator' and act not in ('pause', 'resume', 'extend'):
+        return err('Invigilators may pause, resume or extend a candidate session, but cannot reset or force-submit it.', 403)
     session_row = q1('select s.*,e.status exam_status from sessions s join exams e on e.id=s.exam_id where s.id=?', (sid,))
     if not session_row:
         return err('Session not found', 404)
