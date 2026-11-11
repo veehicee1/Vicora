@@ -3,7 +3,7 @@ CBT Exam System - Python / Flask / SQLite  (100% offline, LAN based)
 Admin console : http://SERVER-IP:8000/admin   (server machine only by default)
 Students      : http://SERVER-IP:8000/
 """
-import os, sys, io, csv, re, time, random, secrets, sqlite3, socket, threading, glob, json, uuid, hashlib, hmac, urllib.request, urllib.error
+import os, sys, io, csv, re, time, random, secrets, sqlite3, socket, threading, glob, json, uuid, hashlib, hmac, base64, urllib.request, urllib.error
 from datetime import datetime
 from functools import wraps
 from flask import Flask, g, request, jsonify, session, send_file, send_from_directory
@@ -542,22 +542,26 @@ def vicora_icon():
     return send_from_directory(WEB, 'vicora-icon.svg', mimetype='image/svg+xml', max_age=86400)
 
 
+def school_logo_response(fallback):
+    logo_data = getset('school_logo_data', '')
+    logo_mime = getset('school_logo_mime', '')
+    if logo_mime not in ('image/png', 'image/jpeg', 'image/webp') or not logo_data:
+        return send_from_directory(WEB, fallback, mimetype='image/svg+xml')
+    try:
+        return send_file(io.BytesIO(base64.b64decode(logo_data, validate=True)),
+                         mimetype=logo_mime, max_age=3600)
+    except (ValueError, TypeError):
+        return send_from_directory(WEB, fallback, mimetype='image/svg+xml')
+
+
 @app.get('/school-logo')
 def school_logo():
-    filename = getset('school_logo', '')
-    allowed = {'school-logo.png': 'image/png', 'school-logo.jpg': 'image/jpeg', 'school-logo.webp': 'image/webp'}
-    if filename not in allowed or not os.path.isfile(os.path.join(DATA, filename)):
-        return send_from_directory(WEB, 'home-icon.svg', mimetype='image/svg+xml')
-    return send_file(os.path.join(DATA, filename), mimetype=allowed[filename], max_age=3600)
+    return school_logo_response('home-icon.svg')
 
 
 @app.get('/api/public/school-logo')
 def public_school_logo():
-    filename = getset('school_logo', '')
-    allowed = {'school-logo.png': 'image/png', 'school-logo.jpg': 'image/jpeg', 'school-logo.webp': 'image/webp'}
-    if filename not in allowed or not os.path.isfile(os.path.join(DATA, filename)):
-        return send_from_directory(WEB, 'vicora-icon.svg', mimetype='image/svg+xml')
-    return send_file(os.path.join(DATA, filename), mimetype=allowed[filename], max_age=3600)
+    return school_logo_response('vicora-icon.svg')
 
 
 @app.get('/api/public/info')
@@ -643,19 +647,10 @@ def a_school_logo_upload():
         ext = 'webp'
     else:
         return err('Use a valid PNG, JPG or WebP image.')
-    new_name = 'school-logo.' + ext
-    temp_path = os.path.join(DATA, new_name + '.tmp')
-    final_path = os.path.join(DATA, new_name)
-    with open(temp_path, 'wb') as f:
-        f.write(data)
-    os.replace(temp_path, final_path)
-    for old_name in ('school-logo.png', 'school-logo.jpg', 'school-logo.webp'):
-        if old_name != new_name:
-            try:
-                os.remove(os.path.join(DATA, old_name))
-            except FileNotFoundError:
-                pass
-    setset('school_logo', new_name)
+    mime = {'png': 'image/png', 'jpg': 'image/jpeg', 'webp': 'image/webp'}[ext]
+    # Keep the image in SQLite so normal database backups preserve school branding.
+    setset('school_logo_data', base64.b64encode(data).decode('ascii'))
+    setset('school_logo_mime', mime)
     audit('School interface logo updated')
     return jsonify(ok=True, school_logo_url='/school-logo')
 
