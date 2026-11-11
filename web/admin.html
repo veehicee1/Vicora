@@ -138,11 +138,14 @@ const run=async f=>{try{return await f()}catch(e){toast(e.message,1)}};
 function modal(html){$('#mbox').innerHTML=html;$('#modal').style.display='flex'}const closeModal=()=>{$('#modal').style.display='none'};
 $('#modal').addEventListener('mousedown',e=>{if(e.target.id==='modal')closeModal()});
 const opts=(a,sel,all)=>(all?`<option value="">${all}</option>`:'')+a.map(x=>`<option value="${x.id}" ${x.id==sel?'selected':''}>${esc(x.name||x.title)}</option>`).join('');
-const NAV=[['dashboard','📊 Dashboard'],['monitor','🖥 Live Monitor'],['messages','✉ Student Messages'],['exams','📝 Exams'],['questions','❓ Question Bank'],['theoryMarking','✍ Theory Marking'],['students','🎓 Students'],['classes','🏫 Classes'],['subjects','📚 Subjects'],['results','🏆 Results'],['settings','⚙ Settings & Backup'],['audit','📜 Activity Log']];
-$('#nav').innerHTML=NAV.map(([k,v])=>`<a data-p="${k}" onclick="go('${k}')">${v}</a>`).join('');
+const NAV=[['dashboard','📊 Dashboard'],['monitor','🖥 Live Monitor'],['messages','✉ Student Messages'],['exams','📝 Exams'],['questions','❓ Question Bank'],['theoryMarking','✍ Theory Marking'],['students','🎓 Students'],['classes','🏫 Classes'],['subjects','📚 Subjects'],['results','🏆 Results'],['settings','⚙ Settings & Backup'],['audit','📜 Activity Log'],['staff','👥 Staff Accounts']];
+let currentRole='super_admin';
+const ROLE_NAV={super_admin:NAV.map(x=>x[0]),exam_administrator:['dashboard','monitor','messages','exams','questions','theoryMarking','students','classes','subjects','results'],invigilator:['dashboard','monitor','messages'],examiner:['dashboard','theoryMarking','results'],auditor:['dashboard','results','audit']};
+function renderNav(){const allowed=ROLE_NAV[currentRole]||['dashboard'];$('#nav').innerHTML=NAV.filter(([k])=>allowed.includes(k)).map(([k,v])=>`<a data-p="${k}" onclick="go('${k}')">${v}</a>`).join('')}
+renderNav();
 let timer=null;
-function go(p){clearInterval(timer);timer=null;document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.dataset.p===p));location.hash=p;run(()=>pages[p]())}
-async function boot(){const m=await api('/me').catch(()=>({}));if(!m.user)return showLogin();$('#login').style.display='none';$('#side').style.display='block';$('#brand').innerHTML=esc(m.school)+'<small>Admin Console</small>';const h=location.hash.slice(1);go(h in pages?h:'dashboard')}
+function go(p){const allowed=ROLE_NAV[currentRole]||['dashboard'];if(!allowed.includes(p))p='dashboard';clearInterval(timer);timer=null;document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.dataset.p===p));location.hash=p;run(()=>pages[p]())}
+async function boot(){const m=await api('/me').catch(()=>({}));if(!m.user)return showLogin();currentRole=m.role||'super_admin';renderNav();$('#login').style.display='none';$('#side').style.display='block';$('#brand').innerHTML=esc(m.school)+'<small>VICORA · '+esc(m.role_name||'Super Admin')+'</small>';const h=location.hash.slice(1);go(h in pages?h:'dashboard')}
 function showLogin(){$('#side').style.display='none';$('#main').innerHTML='';$('#login').style.display='block'}
 async function doLogin(){try{await post('/login',{username:$('#lu').value,password:$('#lp').value});boot()}catch(e){$('#lerr').textContent=e.message}}
 const logout=async()=>{await post('/logout');showLogin()};
@@ -165,6 +168,11 @@ function importDialog(kind,title,{classes=[],subjects=[]}={},done){
 
 const pages={
 async dashboard(){
+ if(currentRole!=='super_admin'){
+  const d=await api('/dashboard');
+  $('#main').innerHTML=`<h2>Welcome · ${esc(ROLE_NAV[currentRole]?'VICORA '+(currentRole==='exam_administrator'?'Exam Administrator':currentRole==='invigilator'?'Invigilator':currentRole==='examiner'?'Examiner / Marker':'Auditor'):'Staff')}</h2><p class="mu">Your dashboard is limited to the functions assigned to your staff role.</p><div class="cards"><div class="card"><span>Students</span><b>${d.students}</b></div><div class="card"><span>Examinations</span><b>${d.exams}</b></div><div class="card"><span>Live exams</span><b>${d.live}</b></div><div class="card"><span>Question bank</span><b>${currentRole==='exam_administrator'?d.questions:'—'}</b></div></div>`;
+  return;
+ }
  const [d,si,exams,classes]=await Promise.all([api('/dashboard'),api('/server-info'),api('/exams'),api('/classes')]);
  const mx=Math.max(1,...d.per_subject.map(s=>s.n));
  const urls=si.secure_reverse_proxy?['Use the school HTTPS address configured for the reverse proxy']:si.ips.length?si.ips.map(i=>'http://'+i+':'+si.port+'/'):['(Connect the server to the LAN to see its address)'];
@@ -254,6 +262,15 @@ async results(){const ex=await api('/exams');if(!ex.length){$('#main').innerHTML
   <div class="scroll"><table><thead><tr><th>Rank</th><th>RegNo</th><th>Name</th><th>Class</th><th>Score</th><th>%</th><th>Grade</th><th>Remark</th><th>Tab leaves</th></tr></thead><tbody>${r.rows.map(x=>`<tr><td>${x.rank}</td><td>${esc(x.reg_no)}</td><td>${esc(x.name)}</td><td>${esc(x.cls)}</td><td>${x.score}/${x.total}</td><td>${x.pct}</td><td><b>${x.grade}</b></td><td style="color:var(${x.pct>=r.exam.pass_mark?'--ok':'--er'})">${x.pct>=r.exam.pass_mark?'PASS':'FAIL'}</td><td>${x.tab_switches||''}</td></tr>`).join('')||'<tr><td colspan=9 class="mu">No submissions yet.</td></tr>'}</tbody></table></div>`});
  $('#re').onchange=load;load()},
 
+async staff(){
+ const roles=[['super_admin','Super Admin'],['exam_administrator','Exam Administrator'],['invigilator','Invigilator'],['examiner','Examiner / Marker'],['auditor','Auditor']];
+ const rows=await api('/staff');
+ $('#main').innerHTML=`<h2>Staff Accounts</h2><p class="mu">Create separate staff logins and assign only the access each person needs. Existing administrator accounts remain Super Admins.</p>
+ <div class="panel"><h3>Create staff account</h3><div class="f2"><div><label>Username</label><input id="staffUser" maxlength="80" placeholder="e.g. exam.officer"></div><div><label>Temporary password (minimum 8 characters)</label><input id="staffPass" type="password" autocomplete="new-password"></div><div><label>Role</label><select id="staffRole">${roles.filter(r=>r[0]!=='super_admin').map(r=>`<option value="${r[0]}">${r[1]}</option>`).join('')}</select></div></div><p><button class="pr" id="staffCreate">＋ Create account</button> <span class="mu" id="staffStatus"></span></p></div>
+ <h3>Existing accounts</h3><div class="scroll"><table><thead><tr><th>Username</th><th>Role</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows.rows.map(r=>`<tr><td><b>${esc(r.username)}</b></td><td><select id="staffRole_${r.id}">${roles.map(x=>`<option value="${x[0]}" ${x[0]===r.role?'selected':''}>${x[1]}</option>`).join('')}</select></td><td><select id="staffActive_${r.id}"><option value="1" ${r.active?'selected':''}>Active</option><option value="0" ${!r.active?'selected':''}>Inactive</option></select></td><td><button class="sm" onclick="saveStaff(${r.id})">Save changes</button></td></tr>`).join('')}</tbody></table></div><p class="mu">For security, staff passwords are never displayed. Each person should change their password after their first sign-in.</p>`;
+ $('#staffCreate').onclick=()=>run(async()=>{const username=$('#staffUser').value.trim(),password=$('#staffPass').value,role=$('#staffRole').value;await post('/staff',{username,password,role});toast('Staff account created');pages.staff()});
+ window.saveStaff=(id)=>run(async()=>{await post('/staff/'+id,{role:$('#staffRole_'+id).value,active:$('#staffActive_'+id).value==='1'});toast('Staff permissions updated');pages.staff()});
+},
 async settings(){const [s,b,si]=await Promise.all([api('/settings'),api('/backups'),api('/server-info')]);
  const localUrls=si.secure_reverse_proxy?[]:si.ips?.length?si.ips.map(ip=>`http://${ip}:${si.port}/`):[];
  const proxyReady=!!si.secure_reverse_proxy;
