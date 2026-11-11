@@ -14,7 +14,7 @@ _server_thread = None
 _worker_started = False
 
 
-def start_server(data_dir, web_dir, host="0.0.0.0", port=8765):
+def start_server(data_dir, web_dir, host="0.0.0.0", port=8765, school_name=None):
     """Start (or reuse) the Android-local CBT host and return its address."""
     global _server, _server_thread, _worker_started
 
@@ -34,6 +34,8 @@ def start_server(data_dir, web_dir, host="0.0.0.0", port=8765):
         os.environ["CBT_PORT"] = str(int(port))
         os.environ["CBT_COOKIE_SECURE"] = "0"
         os.environ["CBT_TRUST_PROXY"] = "0"
+        if school_name and str(school_name).strip():
+            os.environ["CBT_INITIAL_SCHOOL_NAME"] = " ".join(str(school_name).split())[:120]
 
         cbt = importlib.import_module("app")
         if not _worker_started:
