@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>CBT Exam</title>
+<link rel="manifest" href="/home/manifest.webmanifest">
+<meta name="theme-color" content="#0756a8">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="GTMC Home CBT">
+<link rel="apple-touch-icon" href="/home/icon.svg">
+<style>
+:root{--bg:#eef2f7;--pn:#fff;--tx:#1b2430;--mu:#667286;--bd:#d9e0ea;--pr:#1f4e79;--ok:#1e8e4e;--wa:#e0a100;--er:#c62f2f}
+*{box-sizing:border-box}html,body{margin:0;height:100%}body{font:17px/1.5 "Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--tx);user-select:none;-webkit-user-select:none}
+.v{display:none;min-height:100%}.v.on{display:block}.center{max-width:430px;margin:9vh auto;background:var(--pn);padding:28px;border-radius:14px;border:1px solid var(--bd);box-shadow:0 6px 24px #0001}
+h1{margin:0 0 4px;font-size:22px;color:var(--pr)}h2{margin:0 0 8px}p.mu,.mu{color:var(--mu)}label{display:block;font-size:14px;color:var(--mu);margin:14px 0 4px}
+input{width:100%;font:inherit;padding:11px 13px;border:1px solid var(--bd);border-radius:9px;user-select:text;-webkit-user-select:text}
+button{font:inherit;border:1px solid var(--bd);background:var(--pn);padding:10px 20px;border-radius:9px;cursor:pointer;color:var(--tx)}button.pr{background:var(--pr);color:#fff;border-color:var(--pr)}button:disabled{opacity:.5}
+.full{width:100%;margin-top:18px}.err{color:var(--er);margin-top:12px;min-height:22px}
+.ex{display:block;width:100%;text-align:left;margin:10px 0;padding:14px}.ex small{display:block;color:var(--mu)}
+#top{display:flex;align-items:center;gap:14px;background:var(--pr);color:#fff;padding:10px 18px;position:sticky;top:0;z-index:5}#top .sp{flex:1}
+#timer{font:700 22px Consolas,monospace;background:#0003;padding:4px 14px;border-radius:8px}
+#saveStatus{font-size:12px;white-space:nowrap;color:#e8f4ff}#studentTag{font-size:13px;font-weight:650;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.theory-tools,.draw-panel{border:1px solid var(--bd);border-radius:12px;padding:12px;margin:12px 0;background:var(--pn)}.theory-tools textarea{width:100%;min-height:140px;padding:12px;border:1px solid var(--bd);border-radius:9px;font:17px/1.6 "Segoe UI",Arial;user-select:text;-webkit-user-select:text}.mathkeys{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}.mathkeys button{padding:5px 10px;min-height:34px}.draw-panel canvas{display:block;width:100%;height:auto;min-height:160px;border:1px solid var(--bd);border-radius:8px;background-color:#fff;background-image:linear-gradient(#dfe8f1 1px,transparent 1px),linear-gradient(90deg,#dfe8f1 1px,transparent 1px);background-size:24px 24px;touch-action:none}.draw-panel .bar{display:flex;align-items:center;gap:8px}
+#calcBox{display:none;position:fixed;z-index:80;right:18px;top:78px;width:min(340px,calc(100vw - 24px));background:#fff;color:#17324d;border:1px solid #cbd9e8;border-radius:14px;padding:14px;box-shadow:0 18px 55px #0004}
+#calcBox input{width:100%;font:22px Consolas,monospace;text-align:right;margin:8px 0;padding:10px;color:#17324d;background:#f7faff}
+#calcKeys{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}#calcKeys button{padding:8px 3px;min-height:38px}#calcKeys .fn{background:#eaf3fc}#gradePanel{display:none;margin-top:14px;text-align:left}#gradePanel table{width:100%;border-collapse:collapse}#gradePanel td,#gradePanel th{padding:8px;border-bottom:1px solid #dce6f0;text-align:left}
+#messagePanel{display:none;margin-top:14px;text-align:left}.msgItem{padding:12px;border:1px solid #dce6f0;border-radius:10px;margin:8px 0;background:#f8fbff}
+#pauseNotice{display:none;position:fixed;inset:0;background:#061f3bd9;z-index:70;place-items:center;padding:20px;color:#16324d}#pauseNotice>div{background:#fff;border-radius:16px;padding:26px;max-width:440px;text-align:center}#timer.low{background:var(--er);animation:bl 1s infinite}@keyframes bl{50%{opacity:.55}}
+#wrap{display:grid;grid-template-columns:1fr 270px;gap:16px;padding:16px;max-width:1250px;margin:auto}@media(max-width:850px){#wrap{grid-template-columns:1fr}}
+.qp{background:var(--pn);border:1px solid var(--bd);border-radius:12px;padding:22px}.qn{color:var(--mu);font-size:14px;margin-bottom:6px}.qt{font-size:20px;margin-bottom:16px;white-space:pre-wrap}
+.opt{display:flex;gap:12px;align-items:flex-start;padding:13px 15px;margin:9px 0;border:2px solid var(--bd);border-radius:10px;cursor:pointer}.opt:hover{border-color:#8fb0d4}.opt.sel{border-color:var(--pr);background:#1f4e7916}
+.opt b{flex:none;width:30px;height:30px;border-radius:50%;background:var(--bd);display:grid;place-items:center;font-size:15px}.opt.sel b{background:var(--pr);color:#fff}
+.nav{display:flex;gap:10px;margin-top:20px;flex-wrap:wrap}.nav .sp{flex:1}
+.side{background:var(--pn);border:1px solid var(--bd);border-radius:12px;padding:14px;align-self:start;position:sticky;top:64px}
+.pal{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}.pal button{padding:8px 0;font-size:15px}.pal .ans{background:var(--ok);color:#fff;border-color:var(--ok)}.pal .flag{border:3px solid var(--wa)}.pal .cur{outline:3px solid var(--pr);outline-offset:1px}
+.leg{font-size:12px;color:var(--mu);margin:10px 0}.leg i{display:inline-block;width:11px;height:11px;border-radius:3px;margin:0 4px 0 8px;vertical-align:middle}
+#ov{position:fixed;inset:0;background:#000d;display:none;place-items:center;z-index:50;padding:20px}#ov>div{background:#fff;padding:28px;border-radius:14px;max-width:460px;text-align:center}
+#net{position:fixed;left:0;right:0;bottom:0;background:var(--er);color:#fff;text-align:center;padding:7px;display:none;z-index:60}
+.big{font-size:54px;color:var(--pr);font-weight:700}
+
+/* GTMC Examination visual refinement — student-focused, responsive and touch-friendly */
+:root{--bg:#f3f7fc;--pn:#fff;--tx:#14263d;--mu:#61738a;--bd:#d8e3ef;--pr:#0756a8;--ok:#16834a;--wa:#b77908;--er:#c43d43}
+body{font-family:Inter,"Segoe UI",system-ui,Arial,sans-serif;background:linear-gradient(145deg,#f4f8fd,#eaf1f9);letter-spacing:.005em}
+.center{border-radius:18px;box-shadow:0 16px 44px #14395c12;padding:clamp(22px,4vw,34px)}
+h1{font-size:clamp(22px,3vw,28px);font-weight:750;letter-spacing:-.025em}
+button{min-height:44px;border-radius:10px;font-weight:600;transition:transform .12s ease,border-color .12s ease,box-shadow .12s ease}
+button:hover{border-color:var(--pr)}
+button:active{transform:translateY(1px)}
+button.pr{box-shadow:0 5px 14px #0756a826}
+input{min-height:48px;border-radius:11px}
+input:focus{outline:3px solid #2677c926;border-color:var(--pr)}
+#top{background:linear-gradient(100deg,#073d78,#0756a8);box-shadow:0 4px 18px #0a315326;padding:12px clamp(12px,2vw,24px)}
+#timer{font-size:clamp(19px,2.5vw,24px);font-variant-numeric:tabular-nums}
+#wrap{gap:18px;padding:clamp(10px,2vw,22px)}
+.qp,.side{border-radius:15px;box-shadow:0 6px 22px #163b6010}
+.qp{padding:clamp(16px,2.5vw,26px)}
+.qt{font-size:clamp(19px,2vw,23px);line-height:1.55;font-weight:550}
+.opt{min-height:54px;align-items:center;border-radius:12px;padding:14px 16px;transition:border-color .12s ease,background .12s ease}
+.opt b{width:34px;height:34px}
+.opt.sel{background:#0756a810;box-shadow:inset 0 0 0 1px #0756a81c}
+.side{top:76px}
+.pal{gap:8px}
+.pal button{min-height:42px;border-radius:9px;padding:7px 0}
+.pal .cur{outline-offset:2px}
+#ov>div{border-radius:16px;box-shadow:0 18px 54px #0004}
+#net{font-weight:650;padding:10px 12px}
+.big{letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+@media(max-width:850px){#wrap{grid-template-columns:1fr}.side{position:static;order:-1}.pal{grid-template-columns:repeat(8,minmax(0,1fr))}#top{gap:8px;flex-wrap:wrap}#xs{display:none}}
+@media(max-width:520px){.center{margin:4vh 12px;padding:22px}.pal{grid-template-columns:repeat(6,minmax(0,1fr))}.qt{font-size:19px}.opt{padding:12px;gap:10px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
+
+
+/* GTMC premium student experience — calm, legible, touch-first */
+:root{--bg:#f2f7fd;--pn:#fff;--tx:#132b45;--mu:#627991;--bd:#d9e5f1;--pr:#0756a8;--ok:#16834a;--wa:#b77908;--er:#c43d43}
+html{scroll-behavior:smooth}
+body{background:radial-gradient(ellipse at 85% 0%,#dcecff 0,transparent 42%),linear-gradient(145deg,#f6f9fd,#edf4fb);color:var(--tx);font-family:Inter,"Segoe UI",system-ui,sans-serif}
+.center{border:1px solid #e0e9f3;background:rgba(255,255,255,.97);box-shadow:0 22px 64px #12385d17}
+#v-login .center{position:relative;padding-top:34px}
+#school{display:flex;align-items:center;gap:14px;min-height:78px;font-size:clamp(21px,3vw,28px);line-height:1.15;color:#0a3767}
+#school:before{content:"";display:block;flex:0 0 72px;height:72px;border-radius:16px;background:#fff url('/home/icon.svg') center/contain no-repeat;box-shadow:0 4px 18px #12385d16}
+label{font-weight:650;color:#435d78}
+input{border:1px solid #d6e2ef;background:#fbfdff}
+button{border:1px solid #d7e3ef;background:#fff;color:#193b5d;box-shadow:0 2px 5px #12385d08}
+button.pr{background:linear-gradient(110deg,#0756a8,#176fc0);border-color:#0756a8;color:#fff;box-shadow:0 6px 18px #0756a82b}
+button:focus-visible,.opt:focus-visible{outline:3px solid #3b8bd2;outline-offset:3px}
+#top{background:linear-gradient(105deg,#062c53,#0756a8 70%,#176fc0);box-shadow:0 5px 20px #082b5030}
+#top:before{content:"";display:block;flex:0 0 38px;height:38px;border-radius:9px;background:#fff url('/home/icon.svg') center/contain no-repeat}
+#wrap{align-items:start}
+.qp,.side{border:1px solid #e0e9f3;box-shadow:0 10px 30px #12385d10;background:#fff}
+.qn{font-weight:750;letter-spacing:.035em;text-transform:uppercase;color:#58718a}
+.qt{color:#152f4a}
+.opt{background:#fbfdff;border-color:#dce6f0;min-height:58px}
+.opt:hover{background:#f3f8fe;border-color:#83add7}
+.opt.sel{background:#eaf4ff;border-color:#0756a8}
+.opt b{background:#e6eef7;color:#21496d}
+.opt.sel b{background:#0756a8;color:#fff}
+.pal button{background:#f8fbff;border-color:#dbe6f1;color:#284866}
+.pal .ans{background:#16834a;color:#fff;border-color:#16834a}
+.pal .flag{border-color:#b77908}
+.pal .cur{outline:3px solid #0756a8}
+#timer{box-shadow:inset 0 0 0 1px #ffffff22}
+#ov>div{color:#152f4a}
+#net{box-shadow:0 -3px 15px #0002}
+@media(max-width:850px){
+ #wrap{padding:10px;gap:11px}
+ .side{order:0;position:static}
+ #top{position:sticky;gap:8px;padding:9px 11px}
+ #top:before{flex-basis:32px;height:32px}
+ #xt{font-size:14px;max-width:34vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ #xs{font-size:12px}
+ #timer{font-size:19px;padding:4px 9px}
+ .qp{padding:16px}
+}
+@media(max-width:520px){
+ .center{margin:3vh 10px;padding:20px}
+ #school{gap:10px;font-size:21px}
+ #school:before{flex-basis:58px;height:58px;border-radius:13px}
+ #wrap{padding:8px}
+ .side{padding:11px}
+ .pal{grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+ .pal button{min-height:39px;padding:5px 0;font-size:13px}
+ .qt{font-size:19px}
+ .opt{min-height:54px;padding:11px}
+ #top{gap:6px}
+ #xt{max-width:30vw}
+ #xs{display:none}
+ #timer{font-size:18px}
+ #top button{padding:7px 10px;min-height:38px;font-size:14px}
+}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+
+</style></head><body>
+<div id="v-login" class="v on"><div class="center"><h1 id="school">CBT Examination</h1><p class="mu">Enter your details to begin.</p>
+<label>Registration number</label><input id="reg" autocomplete="off"><label>Access code</label><input id="code" autocomplete="off" style="text-transform:uppercase" onkeydown="if(event.key==='Enter')login()">
+<button class="pr full" onclick="login()">Continue</button><div class="err" id="lerr"></div></div></div>
+
+<div id="v-exams" class="v"><div class="center"><h2 id="hello"></h2><p class="mu" id="hmeta"></p><div class="bar" style="display:flex;gap:8px"><button onclick="showGrades()">My Grades</button><button onclick="showMessages()">Messages <span id="msgCount"></span></button></div><div id="exlist"></div><div id="gradePanel"></div><div id="messagePanel"></div><button class="full" onclick="logoutUI()">Back</button><div class="err" id="eerr"></div></div></div>
+
+<div id="v-intro" class="v"><div class="center" style="max-width:640px"><h1 id="it"></h1><p class="mu" id="im"></p><div id="ii" style="white-space:pre-wrap;margin:14px 0"></div>
+<ul class="mu"><li>Your answers are saved automatically.</li><li>The timer runs on the server; refreshing or a power cut will not reset it.</li><li>Do not leave the exam screen. Leaving is recorded and reported to the invigilator.</li></ul>
+<button class="pr full" id="startBtn" onclick="start()">Start exam</button><button class="full" onclick="show('v-exams')">Back</button><div class="err" id="serr"></div></div></div>
+
+<div id="v-exam" class="v"><div id="top"><b id="xt"></b><span class="sp"></span><span id="studentTag"></span><span id="saveStatus">Saved</span><button onclick="toggleCalc()">Calculator</button><span id="timer">--:--</span><button class="pr" style="background:#fff;color:var(--pr)" onclick="confirmSubmit()">Submit</button></div>
+<div id="wrap"><div class="qp"><div class="qn" id="qn"></div><div class="qt" id="qt"></div><div id="qo"></div>
+<div class="nav"><button onclick="step(-1)" id="bp">‹ Previous</button><button id="bf" onclick="flag()">⚑ Flag for review</button><span class="sp"></span><button class="pr" onclick="step(1)" id="bn">Next ›</button></div></div>
+<div class="side"><b>Questions</b><div class="pal" id="pal" style="margin-top:8px"></div><div class="leg"><i style="background:var(--ok)"></i>Answered<i style="border:3px solid var(--wa)"></i>Flagged<i style="background:#fff;border:1px solid var(--bd)"></i>Blank</div><div id="cnt" class="mu"></div></div></div></div>
+
+<div id="v-done" class="v"><div class="center" style="text-align:center"><h1>Exam submitted</h1><p class="mu">Your answers have been saved. You may now leave the computer.</p><div id="score"></div><button class="full" onclick="finish()">Finish</button></div></div>
+
+<div id="calcBox"><div style="display:flex;align-items:center;gap:8px"><b style="flex:1">Examination calculator</b><button onclick="toggleCalc()">Close</button></div><input id="calcDisplay" value="" aria-label="Calculator display"><div id="calcKeys"></div><p class="mu" style="font-size:11px;margin:8px 0 0">Scientific functions use radians. Calculator activity is local to this device.</p></div><div id="pauseNotice"><div><h2>Examination paused</h2><p>Your answers are saved. Please wait for the invigilator to resume the examination.</p><b id="pauseTime"></b></div></div><div id="ov"><div id="ovb"></div></div><div id="net">Connection problem. Pending answers are kept in this browser session and will retry when connected. Do not close this page while answers are pending.</div>
+<script>
+const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const S={creds:null,student:null,exams:[],token:sessionStorage.cbtToken||'',paper:null,idx:0,ans:{},remaining:0,pending:{},live:false,paused:false,messages:[],messagePrompted:false,cameraStream:null,cameraReady:false,proctorPending:[]};
+const dev=localStorage.cbtDev||(localStorage.cbtDev=Math.random().toString(36).slice(2)+Date.now().toString(36));
+function recoveryKey(){const reg=S.student?.reg_no,exam=S.paper?.exam_id||S.cur?.id;return reg&&exam?'gtmc-cbt-recovery:'+reg+':'+exam:''}
+function pendingKey(){const k=recoveryKey();return k?k+':pending':''}
+function persistPending(){try{const k=pendingKey();if(!k)return;if(Object.keys(S.pending).length)localStorage.setItem(k,JSON.stringify(S.pending));else localStorage.removeItem(k)}catch(e){}}
+function persistPaper(){try{const k=recoveryKey();if(k&&S.paper)localStorage.setItem(k+':paper',JSON.stringify({paper:S.paper,remaining:S.remaining,savedAt:Date.now()}))}catch(e){}}
+function restorePending(){
+ try{const raw=localStorage.getItem(pendingKey());if(!raw)return;const saved=JSON.parse(raw);
+  for(const [id,b] of Object.entries(saved)){if(!S.paper.questions.some(q=>String(q.id)===String(id)))continue;
+   if(!['','A','B','C','D'].includes(b.choice)||![0,1].includes(Number(b.flagged)))continue;
+   S.pending[id]={qid:b.qid,choice:b.choice,response_text:b.response_text||'',response_drawing:b.response_drawing||'',flagged:Number(b.flagged)};
+   S.ans[id]={...(S.ans[id]||{}),choice:b.choice,response_text:b.response_text||'',response_drawing:b.response_drawing||'',flagged:Number(b.flagged)};
+  }
+ }catch(e){S.pending={}}
+}
+const show=id=>{document.querySelectorAll('.v').forEach(v=>v.classList.toggle('on',v.id===id))};
+async function api(p,body,method){const h={'Content-Type':'application/json'};if(S.token)h['X-Token']=S.token;
+ const r=await fetch('/api/student'+p,{method:method||(body===undefined?'GET':'POST'),headers:h,body:body===undefined?undefined:JSON.stringify(body)});
+ const j=await r.json().catch(()=>({}));if(r.status===401&&S.token&&p!=='/login'&&p!=='/begin'){sessionStorage.removeItem('cbtToken');S.token='';throw {auth:1,message:j.error}}
+ if(!r.ok)throw {message:j.error||'Error '+r.status,status:r.status};return j}
+fetch('/api/public/info').then(r=>r.json()).then(j=>{$('#school').textContent=j.school;const t=j.theme||{},root=document.documentElement;[['--pr',t.primary],['--bg',t.background],['--pn',t.surface],['--tx',t.text]].forEach(([k,v])=>{if(v)root.style.setProperty(k,v)});if(t.mode==='dark'){root.style.setProperty('--mu','#a6b4c5');root.style.setProperty('--bd','#344456')} }).catch(()=>{});
+
+async function login(){$('#lerr').textContent='';try{S.creds={reg_no:$('#reg').value.trim(),code:$('#code').value.trim()};const j=await api('/login',S.creds);S.exams=j.exams;
+ S.student=j.student;$('#hello').textContent='Welcome, '+j.student.name;$('#hmeta').textContent=j.student.reg_no+' · '+j.student.cls;pollMessages();
+ $('#exlist').innerHTML=j.exams.length?j.exams.map((e,i)=>`<button class="ex" ${e.state==='done'?'disabled':''} onclick="pick(${i})"><b>${esc(e.title)}</b><small>${esc(e.subject)} · ${e.duration_min} min · ${e.num_questions} questions · ${e.state==='done'?'Already submitted':e.state==='resume'?'Continue where you stopped':'Not started'}</small></button>`).join(''):'<p class="mu">No exam is open for you right now. Please wait for the invigilator.</p>';
+ if(j.exams.length===1&&j.exams[0].state!=='done')pick(0);else show('v-exams')}catch(e){$('#lerr').textContent=e.message}}
+function pick(i){S.cur=S.exams[i];$('#it').textContent=S.cur.title;$('#im').textContent=`${S.cur.subject} · ${S.cur.duration_min} minutes · ${S.cur.num_questions} questions`;$('#ii').textContent=S.cur.instructions||'';$('#startBtn').textContent=S.cur.state==='resume'?'Continue exam':'Start exam';$('#serr').textContent='';show('v-intro')}
+async function prepareProctor(){S.cameraReady=false;S.proctorPending=[];const policy=S.cur?.camera_policy||'off';if(policy==='off')return true;
+ const notice='GTMC Proctor Mode is enabled for this examination. The camera is used to confirm camera availability and record camera/browser interruption events for authorised school administrators to review. This version does not upload or store camera images or continuous video. Events are not automatic proof of misconduct.';
+ if(policy==='optional'&&!confirm(notice+'\\n\\nEnable your camera? Choose Cancel to continue without camera monitoring.')){S.proctorPending.push('camera_declined');return true;}
+ if(policy==='required'&&!confirm(notice+'\\n\\nCamera permission is required to start this examination. Select OK to continue.')){ $('#serr').textContent='Camera permission is required for this examination.';return false; }
+ try{if(!window.isSecureContext)throw new Error('Camera monitoring requires a trusted HTTPS connection. The plain HTTP phone hotspot link cannot provide camera access.');if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error('Camera access is not supported in this browser.');S.cameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});S.cameraReady=true;S.proctorPending.push('camera_started');const track=S.cameraStream.getVideoTracks()[0];if(track)track.addEventListener('ended',()=>{S.cameraReady=false;proctorEvent('camera_interrupted')});return true;}
+ catch(e){S.cameraReady=false;S.proctorPending.push('camera_permission_denied');if(policy==='required'){$('#serr').textContent='Camera access was not granted or is unavailable. Allow camera permission in your browser, then try again.';return false;}return true;}}
+function newProctorRequestId(){return (window.crypto&&crypto.randomUUID)?crypto.randomUUID():('evt-'+Date.now()+'-'+Math.random().toString(36).slice(2));}
+async function proctorEvent(type){if(!S.token||!S.cur||S.cur.camera_policy==='off')return;try{await api('/proctor-event',{request_id:newProctorRequestId(),event_type:type,client_ts:Date.now(),details:{camera_ready:!!S.cameraReady}})}catch(e){}}
+async function flushProctorPending(){const events=S.proctorPending.splice(0);for(const event of events)await proctorEvent(event);if(S.cameraReady)await proctorEvent('preflight_passed')}
+async function stopProctor(){if(S.cameraStream){await proctorEvent('camera_stopped');S.cameraStream.getTracks().forEach(t=>t.stop());S.cameraStream=null;S.cameraReady=false;}}
+async function start(){$('#serr').textContent='';try{const ready=await prepareProctor();if(!ready)return;const j=await api('/begin',{...S.creds,exam_id:S.cur.id,device:dev,camera_preflight:S.cameraReady});S.token=j.token;sessionStorage.cbtToken=j.token;await flushProctorPending();try{await document.documentElement.requestFullscreen()}catch(e){}await load()}catch(e){if(S.cameraStream){S.cameraStream.getTracks().forEach(t=>t.stop());S.cameraStream=null;S.cameraReady=false;}$('#serr').textContent=e.message}}
+async function load(){try{
+ let p;
+ try{p=await api('/paper')}catch(netErr){
+  if(netErr.auth)throw netErr;
+  const recovery=recoveryKey();const cached=JSON.parse(recovery?localStorage.getItem(recovery+':paper')||'null':'null');
+  if(!cached||!cached.paper||!S.token)throw netErr;
+  p=cached.paper;
+  const elapsed=Math.max(0,Math.floor((Date.now()-(cached.savedAt||Date.now()))/1000));
+  p.remaining=Math.max(0,Number(cached.remaining||p.remaining||0)-elapsed);
+  $('#net').style.display='block';
+ }
+ if(p.done)return done(p);
+ if(p.student)S.student=p.student;
+ if(p.paused){S.paper=p;S.remaining=p.remaining;$('#xt').textContent=p.title||'Examination';$('#studentTag').textContent=`${S.student?.name||''} · ${S.student?.reg_no||''}`;show('v-exam');S.live=true;setPause(true,p.remaining);startLoops();return}
+ S.paper=p;S.ans=p.answers||{};S.remaining=p.remaining;S.idx=0;
+ restorePending();persistPaper();
+ $('#xt').textContent=p.title;$('#studentTag').textContent=`${S.student?.name||''} · ${S.student?.reg_no||''}`;buildPal();render();paintTimer();show('v-exam');S.live=true;S.paused=false;setPause(false);setSaveStatus(Object.keys(S.pending).length?'Waiting to sync':'Saved');startLoops()
+ }catch(e){if(e.auth)show('v-login');else $('#lerr').textContent=e.message}}
+function render(){const q=S.paper.questions[S.idx],a=S.ans[q.id]||{};$('#qn').textContent=`Question ${S.idx+1} of ${S.paper.questions.length}`;$('#qt').textContent=q.text;
+ if(q.type==='theory'){
+  const rows=q.answer_space==='short'?3:q.answer_space==='large'||q.answer_space==='lined'?12:7;
+  $('#qo').innerHTML=`<div class="theory-tools"><b>Theory answer · ${q.marks} marks</b><div class="mathkeys">${['²','³','√()','frac()','π','×','÷','±','≤','≥','θ'].map(k=>`<button type="button" onclick="insertMath('${k}')">${k}</button>`).join('')}</div><textarea id="theoryAnswer" rows="${rows}" placeholder="Write your answer here...">${esc(a.response_text||'')}</textarea><small class="mu">Math tip: use the buttons for powers, roots, fractions and symbols. You can also type normal explanations.</small></div><div class="draw-panel"><div class="bar"><b>Working / graph / diagram area</b><span class="sp"></span><button type="button" onclick="clearDrawing()">Clear drawing</button></div><canvas id="answerCanvas" width="900" height="280"></canvas><small class="mu">Draw graphs, axes, shapes or working with your mouse or touch.</small></div>`;
+  $('#theoryAnswer').oninput=e=>{const obj=S.ans[q.id]=S.ans[q.id]||{};obj.response_text=e.target.value;save(q.id)};
+  initDrawing(q.id,a.response_drawing||'');
+ }else{
+  $('#qo').innerHTML=q.options.map((o,i)=>`<div class="opt ${a.choice===o.k?'sel':''}" onclick="choose('${o.k}')"><b>${'ABCD'[i]}</b><span>${esc(o.t)}</span></div>`).join('');
+ }
+ $('#bp').disabled=S.idx===0;$('#bn').disabled=S.idx===S.paper.questions.length-1;$('#bf').textContent=a.flagged?'⚑ Unflag':'⚑ Flag for review';buildPal()}
+function insertMath(token){const el=$('#theoryAnswer');if(!el)return;const insert=token==='frac()'?'\\frac{}{}':token==='√()'?'\\sqrt{}':token==='²'?'^2':token==='³'?'^3':token;const a=el.selectionStart,b=el.selectionEnd;el.setRangeText(insert,a,b,'end');el.focus();el.dispatchEvent(new Event('input'))}
+function initDrawing(qid,raw){const canvas=$('#answerCanvas');if(!canvas)return;const ctx=canvas.getContext('2d');let strokes=[];try{strokes=JSON.parse(raw||'[]')}catch(e){strokes=[]}function redraw(){ctx.clearRect(0,0,canvas.width,canvas.height);ctx.strokeStyle='#244b70';ctx.lineWidth=3;ctx.lineCap='round';for(const stroke of strokes){if(!stroke.length)continue;ctx.beginPath();stroke.forEach((p,i)=>{if(i)ctx.lineTo(p[0]*canvas.width,p[1]*canvas.height);else ctx.moveTo(p[0]*canvas.width,p[1]*canvas.height)});ctx.stroke()}}redraw();let active=null;canvas.onpointerdown=e=>{const r=canvas.getBoundingClientRect();active=[];strokes.push(active);active.push([(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height]);canvas.setPointerCapture(e.pointerId);redraw()};canvas.onpointermove=e=>{if(!active)return;const r=canvas.getBoundingClientRect();active.push([(e.clientX-r.left)/r.width,(e.clientY-r.top)/r.height]);redraw()};const finish=()=>{if(!active)return;active=null;const obj=S.ans[qid]=S.ans[qid]||{};obj.response_drawing=JSON.stringify(strokes);save(qid)};canvas.onpointerup=finish;canvas.onpointercancel=finish}
+function clearDrawing(){const q=S.paper.questions[S.idx],obj=S.ans[q.id]=S.ans[q.id]||{};obj.response_drawing='[]';save(q.id);render()}
+function buildPal(){const qs=S.paper.questions;$('#pal').innerHTML=qs.map((q,i)=>{const a=S.ans[q.id]||{};return`<button class="${a.choice||a.response_text||a.response_drawing&&a.response_drawing!=='[]'?'ans':''} ${a.flagged?'flag':''} ${i===S.idx?'cur':''}" onclick="S.idx=${i};render()">${i+1}</button>`}).join('');
+ const n=qs.filter(q=>{const a=S.ans[q.id]||{};return !!(a.choice||a.response_text||a.response_drawing&&a.response_drawing!=='[]')}).length;$('#cnt').textContent=`${n} answered · ${qs.length-n} blank`}
+function step(d){S.idx=Math.max(0,Math.min(S.paper.questions.length-1,S.idx+d));render()}
+function choose(k){const q=S.paper.questions[S.idx],a=S.ans[q.id]=S.ans[q.id]||{};a.choice=a.choice===k?'':k;save(q.id);render()}
+function flag(){const q=S.paper.questions[S.idx],a=S.ans[q.id]=S.ans[q.id]||{};a.flagged=a.flagged?0:1;save(q.id);render()}
+function setSaveStatus(value){const el=$('#saveStatus');if(el)el.textContent=value}
+async function save(qid){const a=S.ans[qid];S.pending[qid]={qid,choice:a.choice||'',response_text:a.response_text||'',response_drawing:a.response_drawing||'',flagged:a.flagged?1:0};persistPending();persistPaper();setSaveStatus('Saving…');flush()}
+let flushing=false;async function flush(){if(flushing)return false;flushing=true;try{
+ for(const qid of Object.keys(S.pending)){const b=S.pending[qid];const r=await api('/answer',b);if(r.done){done(r);return true}if(r.paused){setPause(true,r.remaining);setSaveStatus('Saved locally · paused');return false}
+  S.remaining=r.remaining;if(S.pending[qid]===b)delete S.pending[qid];persistPending();persistPaper()
+ }
+ $('#net').style.display='none';setSaveStatus(Object.keys(S.pending).length?'Waiting to sync':'Saved');return Object.keys(S.pending).length===0
+ }catch(e){if(e.auth){S.live=false;show('v-login');alert('Your session ended. Please sign in again.')}else $('#net').style.display='block';return false
+ }finally{flushing=false}}
+let tick=null,hb=null,rf=null,msgTimer=null;
+function setPause(on,remaining){S.paused=!!on;$('#pauseNotice').style.display=on?'grid':'none';if(remaining!=null)S.remaining=remaining;if(on){setSaveStatus('Saved · examination paused')}else if(S.live){setSaveStatus(Object.keys(S.pending).length?'Waiting to sync':'Saved')}}
+function startLoops(){clearInterval(tick);clearInterval(hb);clearInterval(rf);clearInterval(msgTimer);tick=setInterval(()=>{if(!S.live||S.paused)return;S.remaining--;paintTimer();if(S.remaining<=0)autoSubmit()},1000);
+ hb=setInterval(async()=>{if(!S.live)return;try{const r=await api('/heartbeat',{});if(r.done)return done(r);setPause(!!r.paused,r.remaining);if(!r.paused){if(!S.paper?.questions){setPause(false,r.remaining);await load();return}S.remaining=r.remaining;persistPaper();$('#net').style.display='none'}}catch(e){if(e.auth){S.live=false;show('v-login')}else $('#net').style.display='block'}},5000);
+ rf=setInterval(()=>{if(Object.keys(S.pending).length&&!S.paused)flush()},2500);msgTimer=setInterval(pollMessages,12000);pollMessages()}
+
+const calcButtons=['7','8','9','/','4','5','6','*','1','2','3','-','0','.','=','+','sin(','cos(','tan(','sqrt(','log(','ln(','^','(',')','pi','e','abs(','C','⌫'];
+function toggleCalc(){const el=$('#calcBox');el.style.display=el.style.display==='block'?'none':'block';if(el.style.display==='block'&&!$('#calcKeys').children.length)buildCalc()}
+function buildCalc(){$('#calcKeys').innerHTML=calcButtons.map(k=>'<button class="'+(['sin(','cos(','tan(','sqrt(','log(','ln(','^','pi','e','abs('].includes(k)?'fn':'')+'" onclick="calcKey(\''+k+'\')">'+k+'</button>').join('')}
+function calcKey(k){const d=$('#calcDisplay');if(k==='C')d.value='';else if(k==='⌫')d.value=d.value.slice(0,-1);else if(k==='='){try{d.value=String(calcParse(d.value))}catch(e){d.value='Error'}}else d.value+=k}
+function calcParse(src){const t=src.match(/(?:\d+\.?\d*|\.\d+|[a-z]+|[()+\-*\/^,])/gi)||[];if(t.join('')!==src.replace(/\s+/g,''))throw Error('Invalid');let i=0;const peek=()=>t[i],eat=x=>{if(peek()===x){i++;return true}return false};function expr(){let v=term();while(peek()==='+'||peek()==='-'){const op=t[i++],b=term();v=op==='+'?v+b:v-b}return v}function term(){let v=power();while(peek()==='*'||peek()==='/'){const op=t[i++],b=power();v=op==='*'?v*b:v/b}return v}function power(){let v=atom();if(eat('^'))v=Math.pow(v,power());return v}function atom(){if(eat('+'))return atom();if(eat('-'))return -atom();if(eat('(')){const v=expr();if(!eat(')'))throw Error(')');return v}const x=peek();if(!x)throw Error('value');if(/^\d/.test(x)||x[0]==='.'){i++;return Number(x)}if(/^[a-z]+$/i.test(x)){i++;if(x==='pi')return Math.PI;if(x==='e')return Math.E;if(!eat('('))throw Error('(');const v=expr();if(!eat(')'))throw Error(')');const f={sin:Math.sin,cos:Math.cos,tan:Math.tan,sqrt:Math.sqrt,log:Math.log10,ln:Math.log,abs:Math.abs}[x];if(!f)throw Error('function');return f(v)}throw Error('token')}const out=expr();if(i!==t.length||!Number.isFinite(out))throw Error('expression');return Number(out.toFixed(10))}
+
+function paintTimer(){const r=Math.max(0,S.remaining),m=Math.floor(r/60),s=r%60,t=$('#timer');t.textContent=String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');t.classList.toggle('low',r<=300)}
+async function autoSubmit(){S.live=false;await doSubmit()}
+function confirmSubmit(){const n=S.paper.questions.filter(q=>{const a=S.ans[q.id]||{};return q.type==='theory'?!(a.response_text||a.response_drawing&&a.response_drawing!=='[]'):!a.choice}).length;const f=S.paper.questions.filter(q=>(S.ans[q.id]||{}).flagged).length;
+ ov(`<h2>Submit exam?</h2><p>${n?`<b style="color:var(--er)">${n} question(s) are unanswered.</b>`:'All questions are answered.'}${f?`<br>${f} flagged for review.`:''}</p><p class="mu">You cannot change answers after submitting.</p><button onclick="ov()">Go back</button> <button class="pr" onclick="doSubmit()">Yes, submit</button>`)}
+async function doSubmit(){ov('<h2>Checking saved answers…</h2>');try{
+ const synced=await flush();
+ if(!S.token)return;
+ if(!synced){ov('<h2>Answers are waiting to sync</h2><p class="mu">Your unsent answers are kept in this browser session. Reconnect to the school server, then retry submission. Do not close this page while answers are pending.</p><button onclick="ov();">Continue exam</button> <button class="pr" onclick="doSubmit()">Retry sync</button>');return}
+ const r=await api('/submit',{});if(r.paused){setPause(true,r.remaining);return}done(r)
+ }catch(e){if(e.auth){show('v-login');ov()}else ov(`<h2>Could not submit</h2><p class="mu">${esc(e.message)}</p><button onclick="doSubmit()">Try again</button>`)}}
+function done(r){S.live=false;stopProctor();clearInterval(tick);clearInterval(hb);clearInterval(rf);clearInterval(msgTimer);setPause(false);ov();const pk=pendingKey(),rk=recoveryKey();if(pk)localStorage.removeItem(pk);if(rk)localStorage.removeItem(rk+':paper');sessionStorage.removeItem('cbtToken');S.pending={};S.token='';if(document.fullscreenElement)document.exitFullscreen().catch(()=>{});
+ $('#score').innerHTML=r.total!=null?`<p class="big">${r.score} / ${r.total}</p><p>${r.pct}%</p>`:'';show('v-done')}
+
+async function showGrades(){try{const r=await api('/grades',S.creds);const box=$('#gradePanel');box.style.display='block';$('#messagePanel').style.display='none';box.innerHTML='<h3>My published grades</h3>'+(r.rows.length?'<table><thead><tr><th>Examination</th><th>Subject</th><th>Score</th><th>%</th><th>Grade</th></tr></thead><tbody>'+r.rows.map(x=>'<tr><td>'+esc(x.exam)+'</td><td>'+esc(x.subject)+'</td><td>'+x.score+'/'+x.total+'</td><td>'+x.percent+'%</td><td><b>'+x.grade+'</b></td></tr>').join('')+'</tbody></table>':'<p class="mu">No grades have been published for your account yet.</p>')}catch(e){$('#gradePanel').innerHTML='<p class="err">'+esc(e.message)+'</p>';$('#gradePanel').style.display='block'}}
+async function showMessages(){const box=$('#messagePanel');box.style.display='block';$('#gradePanel').style.display='none';await pollMessages(true);if(!S.messages.length)box.innerHTML='<p class="mu">You have no new messages.</p>'}
+async function pollMessages(showPanel=false){if(!S.creds)return;try{const r=await api('/inbox',S.creds);S.messages=r.rows||[];$('#msgCount').textContent=S.messages.length?'('+S.messages.length+')':'';if(S.messages.length){const ids=S.messages.map(m=>m.id);const html=S.messages.map(m=>'<div class="msgItem"><b>'+(m.emergency?'⚠ URGENT · ':'')+esc(m.title)+'</b><p>'+esc(m.body)+'</p><small class="mu">'+esc(m.sender||'Admin')+' · '+new Date(m.created_ts*1000).toLocaleString()+'</small></div>').join('');if(S.live&&!S.messagePrompted){S.messagePrompted=true;ov('<h2>Message from Admin</h2>'+html+'<button class="pr" onclick="ackMessages()">I have read this</button>')}else if(showPanel){$('#messagePanel').innerHTML=html+'<button class="pr" onclick="ackMessages()">Mark as read</button>'}}}catch(e){}}
+async function ackMessages(){const ids=S.messages.map(m=>m.id);if(ids.length)await api('/inbox/read',{...S.creds,ids});S.messages=[];S.messagePrompted=false;$('#msgCount').textContent='';ov();if($('#messagePanel').style.display!=='none')showMessages()}
+
+function finish(){S.creds=null;S.student=null;$('#reg').value=$('#code').value='';show('v-login')}
+function logoutUI(){S.creds=null;show('v-login')}
+function ov(html){const o=$('#ov');if(!html){o.style.display='none';return}$('#ovb').innerHTML=html;o.style.display='grid'}
+// ---- exam integrity
+const report=()=>{if(S.live)api('/event',{}).catch(()=>{})};
+document.addEventListener('visibilitychange',()=>{if(S.live&&document.hidden){report();proctorEvent('page_hidden');ov('<h2>⚠ Warning</h2><p>You left the exam screen. This has been recorded and reported to the invigilator.</p><button class="pr" onclick="ov();goFull()">Return to exam</button>')}else if(S.live&&!document.hidden){proctorEvent('page_visible')}});
+window.addEventListener('blur',()=>{if(S.live&&!document.hidden)report()});
+document.addEventListener('fullscreenchange',()=>{if(S.live&&!document.fullscreenElement){report();proctorEvent('fullscreen_exited');ov('<h2>Full screen required</h2><p>Return to full screen to continue your exam.</p><button class="pr" onclick="goFull()">Return to full screen</button>')}});
+function goFull(){ov();document.documentElement.requestFullscreen().catch(()=>{})}
+['contextmenu','copy','cut','paste','dragstart','selectstart'].forEach(ev=>document.addEventListener(ev,e=>{if(S.live||ev==='contextmenu'){if(!/INPUT|TEXTAREA/.test(e.target.tagName))e.preventDefault()}}));
+document.addEventListener('keydown',e=>{if(!S.live)return;if(e.target&&/INPUT|TEXTAREA/.test(e.target.tagName)&&!e.ctrlKey&&!e.altKey&&!e.metaKey)return;const k=e.key.toLowerCase();
+ if(e.key==='F12'||(e.ctrlKey&&['c','v','x','u','s','p','a','i','j'].includes(k))||(e.ctrlKey&&e.shiftKey)||e.key==='PrintScreen'){e.preventDefault();return}
+ if(e.ctrlKey||e.altKey||e.metaKey)return;if('abcd'.includes(k)&&k.length===1){const q=S.paper.questions[S.idx],i='abcd'.indexOf(k);if(q.options[i])choose(q.options[i].k)}else if(e.key==='ArrowRight')step(1);else if(e.key==='ArrowLeft')step(-1)});
+window.addEventListener('beforeunload',e=>{if(S.live){persistPending();persistPaper();e.preventDefault();e.returnValue=''}});
+if(S.token)load();   // resume after refresh
+</script>
+<script>
+/* Register only for the dedicated home-exam URL; keep Android/LAN entry points unchanged. */
+if ('serviceWorker' in navigator && /^\/home\/?$/.test(location.pathname)) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/home/sw.js', { scope: '/home/' }).catch(() => {
+      /* PWA installation is optional; the browser page remains usable. */
+    });
+  });
+}
+</script>
+</body></html>
