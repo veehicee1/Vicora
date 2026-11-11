@@ -532,13 +532,22 @@ def admin_page():
     return send_from_directory(WEB, 'admin.html')
 
 
+@app.get('/school-logo')
+def school_logo():
+    filename = getset('school_logo', '')
+    allowed = {'school-logo.png': 'image/png', 'school-logo.jpg': 'image/jpeg', 'school-logo.webp': 'image/webp'}
+    if filename not in allowed or not os.path.isfile(os.path.join(DATA, filename)):
+        return send_from_directory(WEB, 'home-icon.svg', mimetype='image/svg+xml')
+    return send_file(os.path.join(DATA, filename), mimetype=allowed[filename], max_age=3600)
+
+
 @app.get('/api/public/info')
 def public_info():
     try:
         theme = json.loads(getset('school_theme', '{}') or '{}')
     except (TypeError, ValueError):
         theme = {}
-    return jsonify(school=getset('school_name'), theme=theme)
+    return jsonify(school=getset('school_name'), theme=theme, school_logo_url='/school-logo')
 
 
 # ---------------------------------------------------------------- admin: auth & settings
@@ -592,7 +601,44 @@ def a_settings():
     except (TypeError, ValueError):
         theme = {}
     return jsonify(school_name=getset('school_name'), allow_remote_admin=getset('allow_remote_admin') == '1',
-                   theme=theme)
+                   theme=theme, school_logo_url='/school-logo')
+
+
+@app.post('/api/admin/school-logo')
+@admin
+def a_school_logo_upload():
+    upload = request.files.get('logo')
+    if not upload or not upload.filename:
+        return err('Choose a school logo image first.')
+    if request.content_length and request.content_length > 2 * 1024 * 1024 + 65536:
+        return err('Logo file must be 2 MB or smaller.')
+    filename = upload.filename.lower()
+    data = upload.read(2 * 1024 * 1024 + 1)
+    if len(data) > 2 * 1024 * 1024:
+        return err('Logo file must be 2 MB or smaller.')
+    if filename.endswith('.png') and data.startswith(bytes([137, 80, 78, 71, 13, 10, 26, 10])):
+        ext = 'png'
+    elif filename.endswith(('.jpg', '.jpeg')) and data.startswith(bytes([255, 216, 255])):
+        ext = 'jpg'
+    elif filename.endswith('.webp') and len(data) >= 12 and data[:4] == b'RIFF' and data[8:12] == b'WEBP':
+        ext = 'webp'
+    else:
+        return err('Use a valid PNG, JPG or WebP image.')
+    new_name = 'school-logo.' + ext
+    temp_path = os.path.join(DATA, new_name + '.tmp')
+    final_path = os.path.join(DATA, new_name)
+    with open(temp_path, 'wb') as f:
+        f.write(data)
+    os.replace(temp_path, final_path)
+    for old_name in ('school-logo.png', 'school-logo.jpg', 'school-logo.webp'):
+        if old_name != new_name:
+            try:
+                os.remove(os.path.join(DATA, old_name))
+            except FileNotFoundError:
+                pass
+    setset('school_logo', new_name)
+    audit('School interface logo updated')
+    return jsonify(ok=True, school_logo_url='/school-logo')
 
 
 @app.post('/api/admin/settings')
