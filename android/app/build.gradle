@@ -20,7 +20,7 @@ android {
         buildConfig true
     }
     defaultConfig {
-        applicationId 'org.gtmc.cbt'
+        applicationId 'com.veehicee.vicora'
         minSdk 24
         targetSdk 35
         versionCode ciVersionCode
