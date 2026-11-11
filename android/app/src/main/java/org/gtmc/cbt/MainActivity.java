@@ -160,7 +160,7 @@ public class MainActivity extends Activity {
             scroll.addView(choices);
 
             AlertDialog dialog = new AlertDialog.Builder(this)
-                .setTitle("GTMC CBT Admin")
+                .setTitle("VICORA CBT Admin")
                 .setView(scroll)
                 .setNegativeButton("Exit", (d, which) -> { stopHostingService(); finish(); })
                 .create();
