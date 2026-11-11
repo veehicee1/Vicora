@@ -1,0 +1,16 @@
+appId: org.gtmc.cbt.admin
+productName: GTMC CBT Admin
+asar: true
+extraMetadata:
+  main: desktop-admin/main.cjs
+directories:
+  output: dist-admin-electron
+files:
+  - desktop-admin/**/*
+  - package.json
+win:
+  target:
+    - target: portable
+      arch:
+        - x64
+  artifactName: GTMC-CBT-Admin-${version}-Windows.${ext}
