@@ -132,17 +132,6 @@ jobs:
             if (!(Test-Path $setup)) { throw "Installer was not produced: $setup" }
             if ((Get-Item $setup).Length -lt 1048576) { throw "Installer is unexpectedly small: $setup" }
           }
-      - name: Upload VICORA Windows host and installers
-        uses: actions/upload-artifact@v4
-        with:
-          name: VICORA-CBT-Windows-Installers
-          path: |
-            dist/VICORA-CBT-Server.exe
-            dist-installer/VICORA-CBT-Admin-Fresh-Installation-Windows.exe
-            dist-installer/VICORA-CBT-Examination-Fresh-Installation-Windows.exe
-            dist-installer/VICORA-CBT-Complete-Update-Windows.exe
-          if-no-files-found: error
-          retention-days: 90
       - name: Verify installer packages are not compressed
         shell: pwsh
         run: |
@@ -157,3 +146,14 @@ jobs:
               throw "Compression must be disabled in $script"
             }
           }
+      - name: Upload VICORA Windows host and installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: VICORA-CBT-Windows-Installers
+          path: |
+            dist/VICORA-CBT-Server.exe
+            dist-installer/VICORA-CBT-Admin-Fresh-Installation-Windows.exe
+            dist-installer/VICORA-CBT-Examination-Fresh-Installation-Windows.exe
+            dist-installer/VICORA-CBT-Complete-Update-Windows.exe
+          if-no-files-found: error
+          retention-days: 90
