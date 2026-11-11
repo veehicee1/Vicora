@@ -6,7 +6,7 @@ const net = require("net");
 const { spawn } = require("child_process");
 
 let mainWindow = null;
-let connectedOrigin = null;
+let adminWindow = null;
 let hostProcess = null;
 let hostExit = null;
 
@@ -137,14 +137,31 @@ async function startLocalHost() {
 }
 
 function openAdmin(address) {
-  connectedOrigin = new URL(address).origin;
-  return mainWindow.loadURL(new URL("admin", address).toString());
+  const origin = new URL(address).origin;
+  if (adminWindow && !adminWindow.isDestroyed()) {
+    adminWindow.focus();
+    return adminWindow.loadURL(new URL("admin", address).toString());
+  }
+  adminWindow = new BrowserWindow({
+    width: 1240, height: 900, minWidth: 900, minHeight: 650,
+    title: "VICORA CBT Administration",
+    autoHideMenuBar: true, backgroundColor: "#f3f7fc",
+    webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true }
+  });
+  adminWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+  adminWindow.webContents.on("will-navigate", (event, target) => {
+    try {
+      if (new URL(target).origin !== origin) event.preventDefault();
+    } catch { event.preventDefault(); }
+  });
+  adminWindow.on("closed", () => { adminWindow = null; });
+  return adminWindow.loadURL(new URL("admin", address).toString());
 }
 
 function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1240, height: 900, minWidth: 900, minHeight: 650,
-    title: "VICORA CBT Administration",
+    title: "VICORA CBT Host & Connection",
     autoHideMenuBar: true, backgroundColor: "#f3f7fc",
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
@@ -158,7 +175,7 @@ function createWindow() {
     } catch { event.preventDefault(); }
   });
   mainWindow.loadFile(path.join(__dirname, "index.html"));
-  mainWindow.on("closed", () => { mainWindow = null; connectedOrigin = null; });
+  mainWindow.on("closed", () => { mainWindow = null; });
 }
 
 ipcMain.handle("vicora-admin:host", async () => {
