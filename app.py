@@ -400,167 +400,6 @@ def admin(f):
     return w
 
 
-def final_info():
-    s = q1('select score,total from sessions where id=?', (g.ses['id'],))
-    pending_manual = q1('''select 1 from session_questions sq join questions q on q.id=sq.question_id
-        left join theory_marks tm on tm.session_id=sq.session_id and tm.question_id=q.id
-        where sq.session_id=? and q.question_type='theory' and q.marking_mode='manual' and tm.mark is null limit 1''',
-        (g.ses['id'],))
-    if g.exam['show_score'] and s and not pending_manual:
-        pct = round(s['score'] / s['total'] * 100, 1) if s['total'] else 0
-        return dict(score=s['score'], total=s['total'], pct=pct)
-    return {}
-
-
-def sauth(f):
-    @wraps(f)
-    def w(*a, **k):
-        tok = request.headers.get('X-Token', '')
-        s = q1("select * from sessions where token=? and token is not null and token<>''", (tok,)) if tok else None
-        if not s:
-            return err('Session expired. Please log in again.', 401)
-        e = q1('select * from exams where id=?', (s['exam_id'],))
-        g.ses, g.exam = s, e
-        if s['status'] == 'submitted':
-            return jsonify(done=True, **final_info())
-        if e['status'] == 'paused' or (s['paused_at'] or 0):
-            g.ses, g.exam = s, e
-            st = q1('select name,reg_no from students where id=?', (s['student_id'],))
-            return jsonify(paused=True, remaining=time_left(s, e['duration_min']), student=st, title=e['title'], exam_id=e['id'])
-        if e['status'] != 'live' or time_left(s, e['duration_min']) <= 0:
-            finalize(db(), s['id'])
-            g.ses = q1('select * from sessions where id=?', (s['id'],))
-            return jsonify(done=True, **final_info())
-        ex('update sessions set last_seen=? where id=?', (int(time.time()), s['id']))
-        return f(*a, **k)
-    return w
-
-
-@app.get('/api/student/paper')
-@sauth
-def s_paper():
-    rows = qa('''select sq.pos, q.id, q.text, q.a, q.b, q.c, q.d, q.question_type,
-        q.answer_space, q.marks, sq.opt_order from session_questions sq
-        join questions q on q.id=sq.question_id where sq.session_id=? order by sq.pos''', (g.ses['id'],))
-    qs = [dict(id=r['id'], pos=r['pos'], text=r['text'], type=r['question_type'] or 'objective',
-               answer_space=r['answer_space'] or 'medium', marks=r['marks'],
-               options=[dict(k=k, t=r[k.lower()]) for k in (r['opt_order'] or '') if r[k.lower()]]) for r in rows]
-    ans = {r['question_id']: dict(choice=r['choice'], response_text=r['response_text'] or '',
-             response_drawing=r['response_drawing'] or '', flagged=r['flagged'])
-           for r in qa('select * from answers where session_id=?', (g.ses['id'],))}
-    st = q1('select s.name,s.reg_no,c.name cls from students s join classes c on c.id=s.class_id where s.id=?', (g.ses['student_id'],))
-    return jsonify(title=g.exam['title'], exam_id=g.exam['id'], remaining=time_left(g.ses, g.exam['duration_min']), questions=qs, answers=ans,
-                   student=st, school=getset('school_name'))
-
-
-@app.post('/api/student/answer')
-@sauth
-def s_answer():
-    d = request.get_json(silent=True) or {}
-    qid, choice = d.get('qid'), (d.get('choice') or '').upper()
-    response_text = str(d.get('response_text') or '')[:30000]
-    response_drawing = str(d.get('response_drawing') or '')[:100000]
-    q = q1('select q.question_type from session_questions sq join questions q on q.id=sq.question_id where sq.session_id=? and sq.question_id=?',
-           (g.ses['id'], qid))
-    if not q:
-        return err('Bad question')
-    if q['question_type'] != 'theory' and choice not in ('', 'A', 'B', 'C', 'D'):
-        return err('Bad choice')
-    if q['question_type'] == 'theory':
-        choice = ''
-    ex('''insert into answers(session_id,question_id,choice,response_text,response_drawing,flagged,ts) values(?,?,?,?,?,?,?)
-          on conflict(session_id,question_id) do update set choice=excluded.choice,
-          response_text=excluded.response_text, response_drawing=excluded.response_drawing,
-          flagged=excluded.flagged, ts=excluded.ts''',
-       (g.ses['id'], qid, choice, response_text, response_drawing, 1 if d.get('flagged') else 0, int(time.time())))
-    return jsonify(ok=True, remaining=time_left(g.ses, g.exam['duration_min']))
-
-
-@app.post('/api/student/heartbeat')
-@sauth
-def s_heartbeat():
-    return jsonify(ok=True, remaining=time_left(g.ses, g.exam['duration_min']))
-
-
-@app.post('/api/student/proctor-event')
-@sauth
-def s_proctor_event():
-    if g.exam.get('camera_policy', 'off') == 'off':
-        return err('Proctor Mode is off for this examination.', 409)
-    d = request.get_json(silent=True) or {}
-    event_type = str(d.get('event_type') or '')
-    allowed = {'camera_declined', 'camera_permission_denied', 'camera_started',
-               'camera_unavailable', 'camera_interrupted', 'camera_stopped',
-               'page_hidden', 'page_visible', 'fullscreen_exited',
-               'preflight_passed', 'preflight_failed'}
-    if event_type not in allowed:
-        return err('Unsupported Proctor Mode event.')
-    request_id = str(d.get('request_id') or '')[:80]
-    if not request_id:
-        return err('A unique event request_id is required.')
-    details = d.get('details') if isinstance(d.get('details'), dict) else {}
-    safe_details = json.dumps(details, ensure_ascii=False)[:2000]
-    try:
-        client_ts = max(0, min(int(d.get('client_ts') or 0), int(time.time()) + 300))
-    except (TypeError, ValueError):
-        client_ts = 0
-    db().execute('''insert or ignore into proctor_events
-        (session_id,request_id,event_type,server_ts,client_ts,details)
-        values(?,?,?,?,?,?)''',
-        (g.ses['id'], request_id, event_type, int(time.time()), client_ts, safe_details))
-    db().commit()
-    return jsonify(ok=True, accepted=True)
-
-
-@app.post('/api/student/event')
-@sauth
-def s_event():
-    ex('update sessions set tab_switches=tab_switches+1 where id=?', (g.ses['id'],))
-    return jsonify(ok=True)
-
-
-@app.post('/api/student/submit')
-@sauth
-def s_submit():
-    finalize(db(), g.ses['id'])
-    return jsonify(done=True, **final_info())
-
-
-# ---------------------------------------------------------------- background worker & server
-def worker():
-    last_bk = 0
-    while True:
-        try:
-            c = raw()
-            now = int(time.time())
-            for r in c.execute('''select s.id from sessions s join exams e on e.id=s.exam_id where s.status='in_progress'
-                                  and (e.status!='live' or ?-s.start_ts>=e.duration_min*60+s.extra_sec)''', (now,)).fetchall():
-                finalize(c, r['id'])
-            live = c.execute("select 1 from exams where status='live'").fetchone()
-            c.close()
-            if live and now - last_bk > 600:
-                do_backup('auto')
-                last_bk = now
-        except Exception as e:  # never let the worker die
-            print('worker error:', e)
-        time.sleep(5)
-
-
-def start_background():
-    threading.Thread(target=worker, daemon=True).start()
-
-
-def serve(host=None, port=None):
-    host = host or SERVER_HOST
-    port = int(port or SERVER_PORT)
-    try:
-        from waitress import serve as wserve
-    except ImportError:
-        app.run(host=host, port=port, threaded=True)
-        return
-    wserve(app, host=host, port=port, threads=32)
-
-
 # ---------------------------------------------------------------- file reading (xlsx / csv / docx)
 ALIAS = {}
 for canon, names in {
@@ -2485,6 +2324,30 @@ def final_info():
         pct = round(s['score'] / s['total'] * 100, 1) if s['total'] else 0
         return dict(score=s['score'], total=s['total'], pct=pct)
     return {}
+
+
+def sauth(f):
+    @wraps(f)
+    def w(*a, **k):
+        tok = request.headers.get('X-Token', '')
+        s = q1("select * from sessions where token=? and token is not null and token<>''", (tok,)) if tok else None
+        if not s:
+            return err('Session expired. Please log in again.', 401)
+        e = q1('select * from exams where id=?', (s['exam_id'],))
+        g.ses, g.exam = s, e
+        if s['status'] == 'submitted':
+            return jsonify(done=True, **final_info())
+        if e['status'] == 'paused' or (s['paused_at'] or 0):
+            g.ses, g.exam = s, e
+            st = q1('select name,reg_no from students where id=?', (s['student_id'],))
+            return jsonify(paused=True, remaining=time_left(s, e['duration_min']), student=st, title=e['title'], exam_id=e['id'])
+        if e['status'] != 'live' or time_left(s, e['duration_min']) <= 0:
+            finalize(db(), s['id'])
+            g.ses = q1('select * from sessions where id=?', (s['id'],))
+            return jsonify(done=True, **final_info())
+        ex('update sessions set last_seen=? where id=?', (int(time.time()), s['id']))
+        return f(*a, **k)
+    return w
 
 
 @app.get('/api/student/paper')
