@@ -1,7 +1,7 @@
 # GTMC CBT Cloud Synchronisation Design
 
 ## Status
-Design only. No application code, database, live records, or deployment settings have been changed by this document.
+Partially implemented on the VICORA CBT development branch. Android Host has a durable result outbox, HTTPS device pairing, retry/backoff, idempotent attempt identifiers and Windows-side acknowledgement/conflict handling. Windows Admin exposes pairing, device status/revocation and conflict review. Android-to-Windows result transfer is implemented for exams imported from a Windows Phone package. General bidirectional replication and automatic exam-package transfer are not implemented.
 
 ## Goals
 - Allow authorised Admin devices to access the same GTMC CBT school data over the internet.
@@ -17,7 +17,9 @@ Design only. No application code, database, live records, or deployment settings
 - Admin and student web clients call the Flask API under `/api/admin` and `/api/student`.
 - Android Standalone/Host mode stores its own data under the app's private `gtmc-cbt-data` directory.
 - Existing local backup uses SQLite's backup API and stores files in the local `backups` directory.
-- There is no verified cloud sync or Google Drive backup implementation at present.
+- Android Host result synchronisation to a paired Windows server is implemented for explicitly imported exam packages. It is not a general cloud database sync service.
+- Exam package transfer from Windows to Android currently uses a manually transferred JSON file.
+- No Google Drive backup integration is implemented by this plan.
 
 ## Proposed architecture
 1. **Local engine:** retain SQLite and all existing Flask routes for offline and LAN operation.
