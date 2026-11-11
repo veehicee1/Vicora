@@ -27,6 +27,7 @@ class WindowsHostBootstrapTests(unittest.TestCase):
                 self.assertEqual(os.environ["CBT_HOST"], "0.0.0.0")
                 self.assertEqual(os.environ["CBT_PORT"], "8000")
                 self.assertEqual(os.environ["CBT_TRUST_PROXY"], "0")
+                self.assertEqual(os.environ["CBT_TRUSTED_PROXY_IPS"], "127.0.0.1,::1")
 
     def test_missing_bundled_web_assets_fails_safely(self):
         with tempfile.TemporaryDirectory() as temp:
