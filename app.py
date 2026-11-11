@@ -892,6 +892,22 @@ def staff_exam_save(staff_id):
     return jsonify(ok=True, assigned=len(exam_ids))
 
 
+@app.post('/api/admin/staff/<int:staff_id>/password')
+@admin
+def staff_password_reset(staff_id):
+    target = q1('SELECT id, username FROM admins WHERE id=?', (staff_id,))
+    if not target:
+        return err('Staff account not found.', 404)
+    d = request.get_json(silent=True) or {}
+    password = str(d.get('password') or '')
+    if len(password) < 8:
+        return err('New staff password must be at least 8 characters.')
+    ex('UPDATE admins SET password_hash=? WHERE id=?',
+       (generate_password_hash(password), staff_id))
+    audit('Reset staff password: ' + target['username'])
+    return jsonify(ok=True)
+
+
 @app.post('/api/admin/staff/<int:staff_id>')
 @admin
 def staff_update(staff_id):
