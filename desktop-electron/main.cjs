@@ -66,7 +66,7 @@ async function verifyServer(address) {
     throw new Error("The address responded, but it is not the GTMC CBT server.");
   }
   if (payload.ok !== true || payload.service !== "gtmc-cbt") {
-    throw new Error("This address is not reporting a ready GTMC CBT server.");
+    throw new Error("This address is not reporting a ready VICORA CBT server.");
   }
 }
 
@@ -76,7 +76,7 @@ function createWindow() {
     height: 860,
     minWidth: 850,
     minHeight: 620,
-    title: "GTMC CBT Examination",
+    title: "VICORA CBT Examination",
     autoHideMenuBar: true,
     backgroundColor: "#f3f7fc",
     webPreferences: {
