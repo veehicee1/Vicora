@@ -53,6 +53,8 @@ class AndroidServerBootstrapTests(unittest.TestCase):
     def setUp(self):
         android_server._server = None
         android_server._server_thread = None
+        android_server._server_host = None
+        android_server._server_port = None
         android_server._worker_started = False
         self.temp = tempfile.TemporaryDirectory()
         self.data_dir = os.path.join(self.temp.name, "private-data")
@@ -68,6 +70,8 @@ class AndroidServerBootstrapTests(unittest.TestCase):
             android_server._server_thread.join(timeout=2)
         android_server._server = None
         android_server._server_thread = None
+        android_server._server_host = None
+        android_server._server_port = None
         android_server._worker_started = False
         self.temp.cleanup()
 
@@ -93,6 +97,19 @@ class AndroidServerBootstrapTests(unittest.TestCase):
             self.assertEqual(self.backend.worker_starts, 1)
             make_server.assert_called_once()
 
+    def test_switching_from_offline_loopback_to_host_mode_rebinds_lan(self):
+        second_server = FakeServer()
+        with patch.dict(os.environ, {}, clear=False), \
+             patch("werkzeug.serving.make_server", side_effect=[self.server, second_server]) as make_server, \
+             patch.object(importlib, "import_module", return_value=self.backend):
+            offline = android_server.start_server(self.data_dir, self.web_dir, "127.0.0.1", 8765)
+            self.assertEqual(offline["host"], "127.0.0.1")
+            hosted = android_server.start_server(self.data_dir, self.web_dir, "0.0.0.0", 8765)
+            self.assertEqual(hosted["host"], "0.0.0.0")
+            self.assertFalse(hosted["already_running"])
+            self.assertTrue(self.server.stopped.is_set())
+            self.assertEqual(make_server.call_count, 2)
+            self.assertEqual(android_server._server_host, "0.0.0.0")
     def test_missing_web_assets_fails_before_starting_backend(self):
         missing = os.path.join(self.temp.name, "missing-web")
         with patch.object(importlib, "import_module") as importer:
