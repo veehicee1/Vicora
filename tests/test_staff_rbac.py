@@ -41,6 +41,21 @@ class StaffRBACTests(unittest.TestCase):
         self.assertEqual(admin["role"], "super_admin")
         self.assertEqual(admin["active"], 1)
 
+    def test_super_admin_can_reset_staff_password_without_exposing_hash(self):
+        self.sign_in_as()
+        created = self.client.post("/api/admin/staff", json={
+            "username": "password.reset", "password": "InitialPass123!", "role": "invigilator"
+        })
+        self.assertEqual(created.status_code, 200, created.get_json())
+        staff_id = self.query("SELECT id FROM admins WHERE username='password.reset'")["id"]
+        response = self.client.post(f"/api/admin/staff/{staff_id}/password",
+                                    json={"password": "ChangedPass456!"})
+        self.assertEqual(response.status_code, 200, response.get_json())
+        row = self.query("SELECT password_hash FROM admins WHERE id=?", (staff_id,))
+        from werkzeug.security import check_password_hash
+        self.assertTrue(check_password_hash(row["password_hash"], "ChangedPass456!"))
+        self.assertNotIn("password_hash", response.get_json())
+
     def test_legacy_admin_migration_preserves_username_and_password_hash(self):
         import sqlite3
         import app as cbt
