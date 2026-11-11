@@ -78,7 +78,7 @@ public class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
-        if (getActionBar() != null) getActionBar().setTitle(isAdminApp() ? "GTMC CBT Admin" : "GTMC CBT Examination");
+        if (getActionBar() != null) getActionBar().setTitle(isAdminApp() ? "VICORA CBT Admin" : "VICORA CBT Examination");
         webView = new WebView(this);
         webView.setLayoutParams(new ViewGroup.LayoutParams(-1, -1));
         webView.getSettings().setJavaScriptEnabled(true);
@@ -178,7 +178,7 @@ public class MainActivity extends Activity {
             dialog.setCancelable(false);
             dialog.show();
         } else {
-            new AlertDialog.Builder(this).setTitle("GTMC CBT Examination")
+            new AlertDialog.Builder(this).setTitle("VICORA CBT Examination")
                 .setMessage("Connect to the school's central server, or use a separate offline copy on this device.")
                 .setPositiveButton("Connect to School Server", (d,w) -> enterServerAddress())
                 .setNegativeButton("Standalone offline", (d,w) -> startStandalone())
@@ -187,11 +187,41 @@ public class MainActivity extends Activity {
     }
     private void startStandalone() {
         if (!"host".equals(currentMode)) currentMode = "standalone";
-        if ("host".equals(currentMode)) getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        else getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         final String requestedMode = currentMode;
+        String schoolName = getPreferences(0).getString("school_name", "");
+        if ("host".equals(requestedMode) && schoolName.trim().isEmpty()) {
+            EditText school = new EditText(this);
+            school.setSingleLine(true);
+            school.setHint("Enter the full school name");
+            school.setTextSize(17);
+            new AlertDialog.Builder(this)
+                .setTitle("Set up VICORA CBT Host")
+                .setMessage("Enter the school's name. It will appear on the examination login page and school reports.")
+                .setView(school)
+                .setCancelable(false)
+                .setPositiveButton("Save and Start", (dialog, which) -> {
+                    String value = school.getText().toString().trim().replaceAll("\\s+", " ");
+                    if (value.isEmpty()) {
+                        Toast.makeText(this, "School name is required.", Toast.LENGTH_LONG).show();
+                        startStandalone();
+                        return;
+                    }
+                    value = value.length() > 120 ? value.substring(0, 120) : value;
+                    getPreferences(0).edit().putString("school_name", value).apply();
+                    startStandaloneWithSchoolName(requestedMode, value);
+                })
+                .setNegativeButton("Cancel", (dialog, which) -> chooseMode())
+                .show();
+            return;
+        }
+        startStandaloneWithSchoolName(requestedMode, schoolName);
+    }
+
+    private void startStandaloneWithSchoolName(String requestedMode, String schoolName) {
+        if ("host".equals(requestedMode)) getWindow().addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        else getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         Toast.makeText(this, "host".equals(requestedMode)
-            ? "Starting Wi-Fi / hotspot hosting…"
+            ? "Starting VICORA Wi-Fi / hotspot host…"
             : "Starting offline CBT…", Toast.LENGTH_SHORT).show();
         new Thread(() -> {
             try {
@@ -200,7 +230,9 @@ public class MainActivity extends Activity {
                 Python.getInstance().getModule("android_server").callAttr("start_server",
                     getFilesDir().getAbsolutePath() + "/gtmc-cbt-data",
                     new File(getFilesDir(), "web").getAbsolutePath(),
-                    "host".equals(requestedMode) ? "0.0.0.0" : "127.0.0.1");
+                    "host".equals(requestedMode) ? "0.0.0.0" : "127.0.0.1",
+                    8765,
+                    schoolName == null ? "" : schoolName);
                 runOnUiThread(() -> {
                     currentMode = requestedMode;
                     getPreferences(0).edit().putString("mode",requestedMode).apply();
@@ -209,7 +241,7 @@ public class MainActivity extends Activity {
                     if ("host".equals(requestedMode)) showStudentAccess();
                 });
             } catch (Exception ex) {
-                runOnUiThread(() -> new AlertDialog.Builder(this).setTitle("Could not start offline CBT")
+                runOnUiThread(() -> new AlertDialog.Builder(this).setTitle("Could not start VICORA CBT")
                     .setMessage(ex.getMessage() == null ? "Unknown startup error" : ex.getMessage())
                     .setPositiveButton("Retry",(d,w)->startStandalone()).setNegativeButton("Close",(d,w)->finish()).show());
             }
@@ -289,7 +321,7 @@ public class MainActivity extends Activity {
             for (String ip : addresses) message.append("\n\nhttp://").append(ip).append(":8765/");
         }
         message.append("\n\nInternet is not required. Keep the Admin app open throughout the examination.");
-        new AlertDialog.Builder(this).setTitle("GTMC Student Exam Link")
+        new AlertDialog.Builder(this).setTitle("VICORA Student Exam Link")
             .setMessage(message.toString())
             .setPositiveButton("Open Hotspot Settings", (dialog, which) -> openHotspotSettings())
             .setNegativeButton("Done", null)
@@ -318,7 +350,7 @@ public class MainActivity extends Activity {
         form.addView(code);
         new AlertDialog.Builder(this)
             .setTitle("Pair Android Host")
-            .setMessage("Enter the HTTPS address of your Windows CBT Server and the one-time code generated in Admin Settings. Pairing does not upload exam results yet.")
+            .setMessage("Enter the HTTPS address of your Windows CBT Server and the one-time code generated in Admin Settings. Completed exam results will be transferred securely to the paired Windows host.")
             .setView(form)
             .setPositiveButton("Pair", (dialog, which) -> {
                 String serverUrl = server.getText().toString().trim();
