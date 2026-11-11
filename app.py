@@ -1381,7 +1381,7 @@ def _build_android_host_package(exam_id):
     ex('update exams set sync_revision_hash=? where id=?', (revision_hash, exam_id))
     exam['sync_revision_hash'] = revision_hash
     class_uuid_by_id = {row['id']: row['sync_uuid'] for row in classes}
-    return {
+    package = {
         'schema_version': 1,
         'school_name': getset('school_name'),
         'exported_at': int(time.time()),
@@ -1397,6 +1397,12 @@ def _build_android_host_package(exam_id):
                  'show_score','pass_mark','instructions','objective_count','theory_count','camera_policy','sync_revision_hash')},
         'class_sync_uuids': [row['sync_uuid'] for row in classes],
     }
+    roster = [{'sync_uuid': row['sync_uuid'], 'reg_no': row['reg_no'], 'name': row['name'],
+               'class_sync_uuid': class_uuid_by_id.get(row['class_id'], ''),
+               'access_code': row['access_code']} for row in students]
+    roster_json = json.dumps(roster, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+    package['roster_revision_hash'] = hashlib.sha256(roster_json.encode('utf-8')).hexdigest()
+    return package
 
 
 @app.post('/api/android-host/sync-pull')
@@ -1419,13 +1425,13 @@ def android_host_sync_pull():
         if not package:
             continue
         exam = package['exam']
-        if known.get(exam['sync_uuid']) == exam['sync_revision_hash']:
+        if known.get(exam['sync_uuid']) == (exam['sync_revision_hash'] + '.' + package['roster_revision_hash']):
             continue
         packages.append(package)
         if len(packages) >= 5:
             break
     return jsonify(ok=True, school=getset('school_name'), packages=packages,
-                   more_available=len(rows) >= 50)
+                   more_available=len(packages) >= 5)
 
 def _record_android_sync_conflict(payload, device_id, reason):
     try:
