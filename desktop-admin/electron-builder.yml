@@ -1,5 +1,5 @@
-appId: org.gtmc.cbt.admin
-productName: GTMC CBT Admin
+appId: com.veehicee.vicora.cbt.admin
+productName: VICORA CBT Admin
 asar: true
 extraMetadata:
   main: desktop-admin/main.cjs
@@ -13,7 +13,7 @@ win:
     - target: portable
       arch:
         - x64
-  artifactName: GTMC-CBT-Admin-${version}-Windows.${ext}
+  artifactName: VICORA-CBT-Admin-${version}-Windows.${ext}
 
 extraResources:
   - from: dist/VICORA-CBT-Server.exe
