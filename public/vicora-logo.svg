@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 100" role="img" aria-labelledby="title desc">
+<title id="title">VICORA</title><desc id="desc">VICORA geometric V symbol and wordmark</desc>
+<g transform="translate(8 7)">
+<path d="M8 8h25l24 49L81 8h25L57 86h-1z" fill="#2878C8"/>
+<path d="M8 8h25l24 49-13 26z" fill="#20B6A4"/>
+<path d="M57 86 44 60 81 8h25z" fill="#102B50" opacity=".96"/>
+</g>
+<text x="132" y="67" font-family="Arial,Helvetica,sans-serif" font-size="53" font-weight="800" letter-spacing="2.5" fill="#102B50">VICORA</text>
+<path d="M134 79h224" stroke="#20B6A4" stroke-width="4" stroke-linecap="round"/>
+</svg>

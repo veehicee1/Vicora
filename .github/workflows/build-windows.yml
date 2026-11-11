@@ -1,10 +1,11 @@
-name: Build GTMC CBT Offline Installers
+name: Build VICORA CBT Windows Host and Installers
 
 on:
   workflow_dispatch:
   pull_request:
     paths:
       - "app.py"
+      - "windows_host.py"
       - "restore_backup.py"
       - "diagnostics.py"
       - "main.py"
@@ -22,6 +23,8 @@ on:
       - "installer/**"
       - ".github/workflows/build-windows.yml"
   push:
+    branches:
+      - feature/cbt-core-import
     tags:
       - "v*"
 
@@ -65,7 +68,7 @@ jobs:
           ) | Out-Null
           if ($errors.Count -gt 0) { $errors | Format-List | Out-String | Write-Error }
       - name: Validate Python source
-        run: python -m compileall -q app.py diagnostics.py restore_backup.py
+        run: python -m compileall -q app.py windows_host.py diagnostics.py restore_backup.py
       - name: Run server safety regression tests
         run: python -m unittest discover -s tests -v
       - name: Smoke-test Flask application import
@@ -76,6 +79,12 @@ jobs:
       - name: Build diagnostic and restore utilities
         shell: cmd
         run: build.bat
+      - name: Build standalone VICORA Windows Host server
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name VICORA-CBT-Server --add-data "web;web" --collect-all flask --collect-all werkzeug --collect-all waitress --collect-all openpyxl --collect-all docx windows_host.py
+          if (!(Test-Path "dist/VICORA-CBT-Server.exe")) { throw "VICORA Windows Host executable was not produced" }
+          if ((Get-Item "dist/VICORA-CBT-Server.exe").Length -lt 1048576) { throw "VICORA Windows Host executable is unexpectedly small" }
       - name: Build Electron Examination app with bundled Chromium
         run: npm run dist:win
       - name: Build Electron Admin app with bundled Chromium
@@ -84,11 +93,12 @@ jobs:
         shell: pwsh
         run: |
           $files = @(
-            "dist-electron/GTMC-CBT-Examination-1.0.0-Windows.exe",
-            "dist-admin-electron/GTMC-CBT-Admin-1.0.0-Windows.exe",
+            "dist-electron/VICORA-CBT-Examination-1.0.0-Windows.exe",
+            "dist-admin-electron/VICORA-CBT-Admin-1.0.0-Windows.exe",
             "dist/CBTAdmin-Diagnostic.exe",
             "dist/CBTExamination-Diagnostic.exe",
-            "dist/CBTRestore.exe"
+            "dist/CBTRestore.exe",
+            "dist/VICORA-CBT-Server.exe"
           )
           foreach ($file in $files) {
             if (!(Test-Path $file)) { throw "$file was not produced" }
@@ -114,9 +124,9 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw "Installer build failed: $script" }
           }
           $setups = @(
-            "dist-installer/GTMC-CBT-Admin-Fresh-Installation-Windows.exe",
-            "dist-installer/GTMC-CBT-Examination-Fresh-Installation-Windows.exe",
-            "dist-installer/GTMC-CBT-Complete-Update-Windows.exe"
+            "dist-installer/VICORA-CBT-Admin-Fresh-Installation-Windows.exe",
+            "dist-installer/VICORA-CBT-Examination-Fresh-Installation-Windows.exe",
+            "dist-installer/VICORA-CBT-Complete-Update-Windows.exe"
           )
           foreach ($setup in $setups) {
             if (!(Test-Path $setup)) { throw "Installer was not produced: $setup" }
@@ -136,3 +146,14 @@ jobs:
               throw "Compression must be disabled in $script"
             }
           }
+      - name: Upload VICORA Windows host and installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: VICORA-CBT-Windows-Installers
+          path: |
+            dist/VICORA-CBT-Server.exe
+            dist-installer/VICORA-CBT-Admin-Fresh-Installation-Windows.exe
+            dist-installer/VICORA-CBT-Examination-Fresh-Installation-Windows.exe
+            dist-installer/VICORA-CBT-Complete-Update-Windows.exe
+          if-no-files-found: error
+          retention-days: 90

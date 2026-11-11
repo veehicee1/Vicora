@@ -1,7 +1,6 @@
 "use strict";
-
 const { contextBridge, ipcRenderer } = require("electron");
 
-contextBridge.exposeInMainWorld("gtmcDesktop", {
+contextBridge.exposeInMainWorld("vicoraDesktop", {
   connect: (address) => ipcRenderer.invoke("gtmc:connect", address)
 });

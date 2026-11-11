@@ -1,11 +1,11 @@
-name: GTMC CBT Quality Checks
+name: VICORA CBT Quality Checks
 
 on:
   workflow_dispatch:
   pull_request:
-    branches: ["main"]
+    branches: ["main", "feature/cbt-core-import"]
   push:
-    branches: ["main"]
+    branches: ["main", "feature/cbt-core-import"]
 
 permissions:
   contents: read

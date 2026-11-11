@@ -1,6 +1,6 @@
-#define MyAppName "GTMC CBT Complete Update"
+#define MyAppName "VICORA CBT Complete Update"
 #define MyAppVersion "2.0.0"
-#define MyAppPublisher "Greater Tomorrow Model College"
+#define MyAppPublisher "Veehicee Telecommunications and Services"
 
 [Setup]
 AppId={{B9E2A10A-6D77-4D3C-A45A-3E5B91C0A126}
@@ -8,13 +8,13 @@ AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 DefaultDirName={autopf}\GTMC CBT
-DefaultGroupName=GTMC CBT
+DefaultGroupName=VICORA CBT
 DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
 OutputDir=..\dist-installer
-OutputBaseFilename=GTMC-CBT-Complete-Update-Windows
+OutputBaseFilename=VICORA-CBT-Complete-Update-Windows
 Compression=none
 SolidCompression=no
 WizardStyle=modern
@@ -27,24 +27,26 @@ SetupLogging=yes
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Dirs]
+Name: "{commonappdata}\\CBTSystem"; Permissions: users-modify
+Name: "{commonappdata}\\CBTSystem\\backups"; Permissions: users-modify
 Name: "{app}\Diagnostics"
 Name: "{app}\Tools"
 
 [Files]
-Source: "..\dist-admin-electron\GTMC-CBT-Admin-1.0.0-Windows.exe"; DestDir: "{app}"; DestName: "CBTAdmin.exe"; Flags: ignoreversion
-Source: "..\dist-electron\GTMC-CBT-Examination-1.0.0-Windows.exe"; DestDir: "{app}"; DestName: "CBTExamination.exe"; Flags: ignoreversion
+Source: "..\dist-admin-electron\VICORA-CBT-Admin-1.0.0-Windows.exe"; DestDir: "{app}"; DestName: "CBTAdmin.exe"; Flags: ignoreversion
+Source: "..\dist-electron\VICORA-CBT-Examination-1.0.0-Windows.exe"; DestDir: "{app}"; DestName: "CBTExamination.exe"; Flags: ignoreversion
 Source: "..\dist\CBTRestore.exe"; DestDir: "{app}\Tools"; Flags: ignoreversion
 Source: "..\dist\CBTAdmin-Diagnostic.exe"; DestDir: "{app}\Diagnostics"; Flags: ignoreversion
 Source: "..\dist\CBTExamination-Diagnostic.exe"; DestDir: "{app}\Diagnostics"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\GTMC CBT\GTMC CBT Admin"; Filename: "{app}\CBTAdmin.exe"; WorkingDir: "{app}"
-Name: "{autoprograms}\GTMC CBT\GTMC CBT Examination"; Filename: "{app}\CBTExamination.exe"; WorkingDir: "{app}"
+Name: "{autoprograms}\GTMC CBT\VICORA CBT Admin"; Filename: "{app}\CBTAdmin.exe"; WorkingDir: "{app}"
+Name: "{autoprograms}\GTMC CBT\VICORA CBT Examination"; Filename: "{app}\CBTExamination.exe"; WorkingDir: "{app}"
 Name: "{autoprograms}\GTMC CBT\Restore CBT Backup"; Filename: "{app}\Tools\CBTRestore.exe"; WorkingDir: "{app}\Tools"
 Name: "{autoprograms}\GTMC CBT\Diagnostics\Admin Diagnostic"; Filename: "{app}\Diagnostics\CBTAdmin-Diagnostic.exe"; WorkingDir: "{app}\Diagnostics"
 Name: "{autoprograms}\GTMC CBT\Diagnostics\Examination Diagnostic"; Filename: "{app}\Diagnostics\CBTExamination-Diagnostic.exe"; WorkingDir: "{app}\Diagnostics"
-Name: "{commondesktop}\GTMC CBT Admin"; Filename: "{app}\CBTAdmin.exe"; WorkingDir: "{app}"
-Name: "{commondesktop}\GTMC CBT Examination"; Filename: "{app}\CBTExamination.exe"; WorkingDir: "{app}"
+Name: "{commondesktop}\VICORA CBT Admin"; Filename: "{app}\CBTAdmin.exe"; WorkingDir: "{app}"
+Name: "{commondesktop}\VICORA CBT Examination"; Filename: "{app}\CBTExamination.exe"; WorkingDir: "{app}"
 
 [Code]
 function InitializeSetup(): Boolean;
@@ -106,6 +108,9 @@ begin
   end;
   Log('GTMC CBT pre-update data backup completed: ' + BackupDir);
 end;
+
+[Run]
+Filename: "{sys}\netsh.exe"; Parameters: "advfirewall firewall add rule name=""VICORA CBT School Host"" dir=in action=allow protocol=TCP localport=8000 profile=private"; Flags: runhidden; StatusMsg: "Allowing student devices to reach the school host on the private network..."
 
 [UninstallDelete]
 ; Never delete the school database, backups, or user settings.

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VICORA CBT Admin</title>
+<style>
+:root{font-family:Segoe UI,Arial,sans-serif;color:#142b46;background:#f1f5fa}
+*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px}
+main{width:min(720px,100%);background:#fff;border:1px solid #dbe5f0;border-radius:22px;padding:36px;box-shadow:0 18px 60px #102b5014}
+.logo{font-size:30px;font-weight:800;letter-spacing:2px;color:#102b50}.logo span{color:#20b6a4}
+h1{font-size:25px;margin:26px 0 8px}.muted{color:#60748c;line-height:1.6}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:26px 0}
+button{border:0;border-radius:12px;padding:16px;font-size:15px;font-weight:700;cursor:pointer}
+.primary{background:#102b50;color:#fff}.secondary{background:#e8f0f8;color:#102b50}
+label{display:block;font-weight:700;margin:20px 0 8px}input{width:100%;padding:14px;border:1px solid #c9d7e6;border-radius:10px;font-size:15px}
+.status{margin-top:18px;padding:12px;border-radius:10px;background:#f1f5fa;color:#38516c;white-space:pre-wrap;line-height:1.5}
+.links{margin-top:16px;display:grid;gap:8px}.links a{color:#0756a8;word-break:break-all}
+@media(max-width:600px){main{padding:24px}.actions{grid-template-columns:1fr}}
+</style></head>
+<body><main>
+<div class="logo">VICORA<span>.</span></div>
+<p class="muted">CBT Administration · Veehicee Telecommunications and Services</p>
+<h1>Connect your school examination system</h1>
+<p class="muted">Use this computer as the school's host, or connect to an existing Windows, Android or secure web host. The school database remains on the selected host.</p>
+<div class="actions">
+<button class="primary" id="host">Host on this Windows PC</button>
+<button class="secondary" id="connect">Connect to school host</button>
+</div>
+<label for="address">School host address</label>
+<input id="address" placeholder="http://192.168.1.20:8000/">
+<div class="status" id="status">Choose how this computer should connect.</div>
+<div class="links" id="links"></div>
+</main>
+<script>
+const statusBox=document.getElementById("status");
+const linksBox=document.getElementById("links");
+document.getElementById("host").addEventListener("click",async()=>{
+  statusBox.textContent="Starting the VICORA Windows Host. On first setup, enter the school's name in the setup window. Please wait…";
+  linksBox.replaceChildren();
+  const result=await window.vicoraAdminDesktop.host();
+  if(!result.ok){statusBox.textContent=result.message;return;}
+  statusBox.textContent=result.alreadyRunning?"Connected to the existing VICORA school host.":"VICORA Windows Host is running. The Admin portal is opening.";
+  (result.studentLinks||[]).forEach(url=>{const a=document.createElement("a");a.href=url;a.textContent="Student examination link: "+url;linksBox.appendChild(a);});
+});
+document.getElementById("connect").addEventListener("click",async()=>{
+  statusBox.textContent="Checking the school host…";
+  linksBox.replaceChildren();
+  const result=await window.vicoraAdminDesktop.connect(document.getElementById("address").value);
+  statusBox.textContent=result.ok?"Connected. Opening the Admin portal.":result.message;
+});
+</script></body></html>

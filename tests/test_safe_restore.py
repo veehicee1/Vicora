@@ -113,7 +113,7 @@ class SafeRestoreTests(unittest.TestCase):
         shutil.copyfile(self.selected, self.backups / filename)
         gtmc.BK = str(self.backups)
         with self.client.session_transaction() as session:
-            session["admin"] = "restore-test-admin"
+            session["admin"] = "admin"
         response = self.client.get(
             f"/api/admin/backups/{filename}",
             environ_overrides={"REMOTE_ADDR": "127.0.0.1"},

@@ -3,7 +3,7 @@ CBT Exam System - Python / Flask / SQLite  (100% offline, LAN based)
 Admin console : http://SERVER-IP:8000/admin   (server machine only by default)
 Students      : http://SERVER-IP:8000/
 """
-import os, sys, io, csv, re, time, random, secrets, sqlite3, socket, threading, glob, json, uuid, hashlib, hmac, urllib.request, urllib.error
+import os, sys, io, csv, re, time, random, secrets, sqlite3, socket, threading, glob, json, uuid, hashlib, hmac, base64, urllib.request, urllib.error
 from datetime import datetime
 from functools import wraps
 from flask import Flask, g, request, jsonify, session, send_file, send_from_directory
@@ -26,7 +26,8 @@ os.makedirs(BK, exist_ok=True)
 DB_PATH = os.path.join(DATA, 'cbt.db')
 
 SCHEMA = """
-CREATE TABLE IF NOT EXISTS admins(id INTEGER PRIMARY KEY, username TEXT UNIQUE, password_hash TEXT);
+CREATE TABLE IF NOT EXISTS admins(id INTEGER PRIMARY KEY, username TEXT UNIQUE, password_hash TEXT, role TEXT NOT NULL DEFAULT 'super_admin', active INTEGER NOT NULL DEFAULT 1);
+CREATE TABLE IF NOT EXISTS staff_exam_assignments(staff_id INTEGER NOT NULL REFERENCES admins(id) ON DELETE CASCADE, exam_id INTEGER NOT NULL REFERENCES exams(id) ON DELETE CASCADE, assigned_by TEXT, assigned_ts INTEGER, PRIMARY KEY(staff_id, exam_id));
 CREATE TABLE IF NOT EXISTS classes(id INTEGER PRIMARY KEY, name TEXT UNIQUE NOT NULL, sync_uuid TEXT);
 CREATE TABLE IF NOT EXISTS subjects(id INTEGER PRIMARY KEY, name TEXT UNIQUE NOT NULL, sync_uuid TEXT);
 CREATE TABLE IF NOT EXISTS students(id INTEGER PRIMARY KEY, reg_no TEXT UNIQUE NOT NULL, name TEXT NOT NULL,
@@ -98,6 +99,15 @@ def init_db():
     c = raw()
     c.execute('PRAGMA journal_mode=WAL')
     c.executescript(SCHEMA)
+    # Additive staff RBAC migration: existing administrators retain their credentials
+    # and become Super Admins; no examination or student records are rewritten.
+    admin_cols = {r['name'] for r in c.execute('PRAGMA table_info(admins)').fetchall()}
+    if 'role' not in admin_cols:
+        c.execute("ALTER TABLE admins ADD COLUMN role TEXT NOT NULL DEFAULT 'super_admin'")
+    if 'active' not in admin_cols:
+        c.execute('ALTER TABLE admins ADD COLUMN active INTEGER NOT NULL DEFAULT 1')
+    c.execute("UPDATE admins SET role='super_admin' WHERE role IS NULL OR role=''")
+    c.execute('UPDATE admins SET active=1 WHERE active IS NULL')
     # Stable cross-device identities are additive; existing integer IDs remain unchanged.
     for table in ('classes', 'subjects', 'students', 'questions', 'exams'):
         cols = {r['name'] for r in c.execute(f'PRAGMA table_info({table})').fetchall()}
@@ -148,7 +158,7 @@ def init_db():
     if not c.execute('select 1 from admins').fetchone():
         c.execute('insert into admins(username,password_hash) values(?,?)', ('admin', generate_password_hash('admin123')))
         c.execute("insert or replace into settings values('default_pw','1')")
-    defaults = {'secret': secrets.token_hex(32), 'school_name': 'CBT Examination Centre', 'allow_remote_admin': '0'}
+    defaults = {'secret': secrets.token_hex(32), 'school_name': os.environ.get('CBT_INITIAL_SCHOOL_NAME', 'CBT Examination Centre').strip()[:120] or 'CBT Examination Centre', 'allow_remote_admin': '0'}
     for k, v in defaults.items():
         c.execute('insert or ignore into settings values(?,?)', (k, v))
     c.commit()
@@ -178,6 +188,27 @@ if TRUST_PROXY:
     if SERVER_HOST not in ('127.0.0.1', 'localhost', '::1'):
         raise RuntimeError('CBT_TRUST_PROXY=1 requires CBT_HOST to be loopback-only (127.0.0.1).')
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
+# A local HTTPS tunnel/reverse proxy may forward to this LAN host over loopback.
+# Trust only the scheme header from explicitly listed proxy source IPs; never
+# trust forwarded client IP/host headers or allow remote Admin through this path.
+class TrustedLocalProxyScheme:
+    def __init__(self, application, trusted_ips):
+        self.application = application
+        self.trusted_ips = frozenset(ip.strip() for ip in trusted_ips if ip.strip())
+
+    def __call__(self, environ, start_response):
+        remote = environ.get('REMOTE_ADDR', '')
+        forwarded_proto = environ.get('HTTP_X_FORWARDED_PROTO', '')
+        proto = forwarded_proto.split(',')[0].strip().lower()
+        if remote in self.trusted_ips and proto == 'https':
+            environ['wsgi.url_scheme'] = 'https'
+        return self.application(environ, start_response)
+
+
+TRUSTED_SCHEME_PROXY_IPS = os.environ.get('CBT_TRUSTED_PROXY_IPS', '').split(',')
+if TRUSTED_SCHEME_PROXY_IPS:
+    app.wsgi_app = TrustedLocalProxyScheme(app.wsgi_app, TRUSTED_SCHEME_PROXY_IPS)
 
 app.config.update(
     SESSION_COOKIE_SAMESITE='Lax',
@@ -304,11 +335,88 @@ def nocache(r):
     return r
 
 
+ROLE_NAMES = {
+    'super_admin': 'Super Admin',
+    'exam_administrator': 'Exam Administrator',
+    'invigilator': 'Invigilator',
+    'examiner': 'Examiner / Marker',
+    'auditor': 'Auditor',
+}
+
+def staff_permission(role, path, method):
+    """Server-side allow-list. Unknown admin routes remain Super Admin only."""
+    if role == 'super_admin':
+        return True
+    if path == '/api/admin/password':
+        return True
+    if role == 'exam_administrator':
+        blocked = (
+            path.startswith('/api/admin/staff') or path.startswith('/api/admin/settings')
+            or path.startswith('/api/admin/school-logo') or path.startswith('/api/admin/server-info')
+            or path.startswith('/api/admin/android-host') or path.startswith('/api/admin/backups')
+            or path == '/api/admin/audit'
+        )
+        return path.startswith('/api/admin/') and not blocked
+    if role == 'invigilator':
+        allowed = (
+            method == 'GET' and (
+                path == '/api/admin/exams' or path == '/api/admin/classes'
+                or path == '/api/admin/students/lookup' or path == '/api/admin/dashboard'
+                or path.startswith('/api/admin/monitor/')
+                or path.startswith('/api/admin/proctor/')
+                or path.startswith('/api/admin/export/monitor/')
+                or path == '/api/admin/messages'
+            )
+            or path.startswith('/api/admin/sessions/')
+            or path.startswith('/api/admin/messages') and method == 'POST'
+            or path.startswith('/api/admin/exams/') and path.endswith('/extend') and method == 'POST'
+        )
+        return allowed
+    if role == 'examiner':
+        return (
+            method == 'GET' and path == '/api/admin/exams'
+            or path == '/api/admin/dashboard'
+            or path.startswith('/api/admin/theory/')
+            or path.startswith('/api/admin/results/')
+            or path.startswith('/api/admin/export/results/')
+        )
+    if role == 'auditor':
+        return (
+            method == 'GET' and (
+                path == '/api/admin/exams' or path == '/api/admin/dashboard' or path == '/api/admin/audit'
+                or path.startswith('/api/admin/results/')
+                or path.startswith('/api/admin/export/results/')
+                or path.startswith('/api/admin/export/monitor/')
+            )
+        )
+    return False
+
+
+def examiner_has_exam(username, exam_id):
+    staff = q1('SELECT id FROM admins WHERE username=? AND active=1', (username,))
+    if not staff:
+        return False
+    return bool(q1('SELECT 1 ok FROM staff_exam_assignments WHERE staff_id=? AND exam_id=?', (staff['id'], exam_id)))
+
+
 def admin(f):
     @wraps(f)
     def w(*a, **k):
-        if not session.get('admin'):
+        username = session.get('admin')
+        if not username:
             return err('Not logged in', 401)
+        staff = q1('SELECT username, role, active FROM admins WHERE username=?', (username,))
+        if not staff or not staff['active']:
+            session.clear()
+            return err('Staff account is inactive or unavailable. Sign in again.', 401)
+        role = staff['role'] if staff['role'] in ROLE_NAMES else 'super_admin'
+        session['admin_role'] = role
+        if not staff_permission(role, request.path, request.method):
+            return err('Your staff role does not have permission for this action.', 403)
+        if role == 'examiner':
+            assigned_route = re.search(r'/api/admin/(?:theory|results|export/results)/(\d+)$', request.path)
+            if assigned_route and not examiner_has_exam(username, int(assigned_route.group(1))):
+                return err('This examination has not been assigned to your marker account.', 403)
         return f(*a, **k)
     return w
 
@@ -542,13 +650,26 @@ def vicora_icon():
     return send_from_directory(WEB, 'vicora-icon.svg', mimetype='image/svg+xml', max_age=86400)
 
 
+def school_logo_response(fallback):
+    logo_data = getset('school_logo_data', '')
+    logo_mime = getset('school_logo_mime', '')
+    if logo_mime not in ('image/png', 'image/jpeg', 'image/webp') or not logo_data:
+        return send_from_directory(WEB, fallback, mimetype='image/svg+xml')
+    try:
+        return send_file(io.BytesIO(base64.b64decode(logo_data, validate=True)),
+                         mimetype=logo_mime, max_age=3600)
+    except (ValueError, TypeError):
+        return send_from_directory(WEB, fallback, mimetype='image/svg+xml')
+
+
 @app.get('/school-logo')
 def school_logo():
-    filename = getset('school_logo', '')
-    allowed = {'school-logo.png': 'image/png', 'school-logo.jpg': 'image/jpeg', 'school-logo.webp': 'image/webp'}
-    if filename not in allowed or not os.path.isfile(os.path.join(DATA, filename)):
-        return send_from_directory(WEB, 'home-icon.svg', mimetype='image/svg+xml')
-    return send_file(os.path.join(DATA, filename), mimetype=allowed[filename], max_age=3600)
+    return school_logo_response('home-icon.svg')
+
+
+@app.get('/api/public/school-logo')
+def public_school_logo():
+    return school_logo_response('vicora-icon.svg')
 
 
 @app.get('/api/public/info')
@@ -557,7 +678,7 @@ def public_info():
         theme = json.loads(getset('school_theme', '{}') or '{}')
     except (TypeError, ValueError):
         theme = {}
-    return jsonify(school=getset('school_name'), theme=theme, school_logo_url='/school-logo')
+    return jsonify(school=getset('school_name'), theme=theme, school_logo_url='/api/public/school-logo')
 
 
 # ---------------------------------------------------------------- admin: auth & settings
@@ -568,13 +689,14 @@ def a_login():
     if throttled(key):
         return err('Too many attempts. Wait 5 minutes.', 429)
     r = q1('select * from admins where username=?', (d.get('username', '').strip(),))
-    if not r or not check_password_hash(r['password_hash'], d.get('password', '')):
+    if not r or not r['active'] or not check_password_hash(r['password_hash'], d.get('password', '')):
         add_fail(key)
         return err('Wrong username or password', 401)
     session.permanent = True
     session['admin'] = r['username']
-    audit('Admin logged in')
-    return jsonify(ok=True, user=r['username'])
+    session['admin_role'] = r['role']
+    audit('Staff logged in: ' + r['username'] + ' (' + ROLE_NAMES.get(r['role'], r['role']) + ')')
+    return jsonify(ok=True, user=r['username'], role=r['role'], role_name=ROLE_NAMES.get(r['role'], r['role']))
 
 
 @app.post('/api/admin/logout')
@@ -585,7 +707,12 @@ def a_logout():
 
 @app.get('/api/admin/me')
 def a_me():
-    return jsonify(user=session.get('admin'), school=getset('school_name'))
+    username = session.get('admin')
+    staff = q1('SELECT username, role, active FROM admins WHERE username=?', (username,)) if username else None
+    if not staff or not staff['active']:
+        session.clear()
+        return jsonify(user=None, role=None, school=getset('school_name'))
+    return jsonify(user=staff['username'], role=staff['role'], role_name=ROLE_NAMES.get(staff['role'], staff['role']), school=getset('school_name'))
 
 
 @app.post('/api/admin/password')
@@ -611,7 +738,7 @@ def a_settings():
     except (TypeError, ValueError):
         theme = {}
     return jsonify(school_name=getset('school_name'), allow_remote_admin=getset('allow_remote_admin') == '1',
-                   theme=theme, school_logo_url='/school-logo')
+                   theme=theme, school_logo_url='/api/public/school-logo')
 
 
 @app.post('/api/admin/school-logo')
@@ -634,21 +761,12 @@ def a_school_logo_upload():
         ext = 'webp'
     else:
         return err('Use a valid PNG, JPG or WebP image.')
-    new_name = 'school-logo.' + ext
-    temp_path = os.path.join(DATA, new_name + '.tmp')
-    final_path = os.path.join(DATA, new_name)
-    with open(temp_path, 'wb') as f:
-        f.write(data)
-    os.replace(temp_path, final_path)
-    for old_name in ('school-logo.png', 'school-logo.jpg', 'school-logo.webp'):
-        if old_name != new_name:
-            try:
-                os.remove(os.path.join(DATA, old_name))
-            except FileNotFoundError:
-                pass
-    setset('school_logo', new_name)
+    mime = {'png': 'image/png', 'jpg': 'image/jpeg', 'webp': 'image/webp'}[ext]
+    # Keep the image in SQLite so normal database backups preserve school branding.
+    setset('school_logo_data', base64.b64encode(data).decode('ascii'))
+    setset('school_logo_mime', mime)
     audit('School interface logo updated')
-    return jsonify(ok=True, school_logo_url='/school-logo')
+    return jsonify(ok=True, school_logo_url='/api/public/school-logo')
 
 
 @app.post('/api/admin/settings')
@@ -725,6 +843,113 @@ def dashboard():
 def audit_list():
     return jsonify([dict(r, when=fmt_ts(r['ts'])) for r in qa('select * from audit order by id desc limit 300')])
 
+
+
+# ---------------------------------------------------------------- admin: staff accounts (Super Admin only)
+@app.get('/api/admin/staff')
+@admin
+def staff_list():
+    rows = qa('SELECT id, username, role, active FROM admins ORDER BY username')
+    return jsonify(rows=[dict(r, role_name=ROLE_NAMES.get(r['role'], r['role'])) for r in rows])
+
+
+@app.post('/api/admin/staff')
+@admin
+def staff_create():
+    d = request.get_json(silent=True) or {}
+    username = str(d.get('username') or '').strip()
+    password = str(d.get('password') or '')
+    role = str(d.get('role') or 'exam_administrator')
+    if not re.fullmatch(r'[A-Za-z0-9_.@-]{3,80}', username):
+        return err('Username must be 3-80 characters and use letters, numbers, dot, underscore, @ or hyphen.')
+    if len(password) < 8:
+        return err('New staff password must be at least 8 characters.')
+    if role not in ROLE_NAMES:
+        return err('Choose a valid staff role.')
+    if q1('SELECT id FROM admins WHERE lower(username)=lower(?)', (username,)):
+        return err('That username already exists.')
+    ex('INSERT INTO admins(username,password_hash,role,active) VALUES(?,?,?,1)',
+       (username, generate_password_hash(password), role))
+    audit('Created staff account: ' + username + ' (' + ROLE_NAMES[role] + ')')
+    return jsonify(ok=True)
+
+
+@app.get('/api/admin/staff/<int:staff_id>/exams')
+@admin
+def staff_exam_list(staff_id):
+    target = q1('SELECT id, role FROM admins WHERE id=?', (staff_id,))
+    if not target:
+        return err('Staff account not found.', 404)
+    if target['role'] != 'examiner':
+        return jsonify(exam_ids=[])
+    rows = qa('SELECT exam_id FROM staff_exam_assignments WHERE staff_id=? ORDER BY exam_id', (staff_id,))
+    return jsonify(exam_ids=[r['exam_id'] for r in rows])
+
+
+@app.post('/api/admin/staff/<int:staff_id>/exams')
+@admin
+def staff_exam_save(staff_id):
+    target = q1('SELECT id, username, role FROM admins WHERE id=?', (staff_id,))
+    if not target:
+        return err('Staff account not found.', 404)
+    if target['role'] != 'examiner':
+        return err('Only Examiner / Marker accounts can be assigned examinations.')
+    d = request.get_json(silent=True) or {}
+    raw_ids = d.get('exam_ids') or []
+    if not isinstance(raw_ids, list):
+        return err('Exam assignments must be a list.')
+    try:
+        exam_ids = sorted(set(int(x) for x in raw_ids))
+    except (TypeError, ValueError):
+        return err('Invalid examination selection.')
+    for exam_id in exam_ids:
+        if not q1('SELECT id FROM exams WHERE id=?', (exam_id,)):
+            return err('One or more selected examinations no longer exist.')
+    ex('DELETE FROM staff_exam_assignments WHERE staff_id=?', (staff_id,))
+    for exam_id in exam_ids:
+        ex('INSERT INTO staff_exam_assignments(staff_id,exam_id,assigned_by,assigned_ts) VALUES(?,?,?,?)',
+           (staff_id, exam_id, session.get('admin'), int(time.time())))
+    audit('Updated exam assignments for marker: ' + target['username'])
+    return jsonify(ok=True, assigned=len(exam_ids))
+
+
+@app.post('/api/admin/staff/<int:staff_id>/password')
+@admin
+def staff_password_reset(staff_id):
+    target = q1('SELECT id, username FROM admins WHERE id=?', (staff_id,))
+    if not target:
+        return err('Staff account not found.', 404)
+    d = request.get_json(silent=True) or {}
+    password = str(d.get('password') or '')
+    if len(password) < 8:
+        return err('New staff password must be at least 8 characters.')
+    ex('UPDATE admins SET password_hash=? WHERE id=?',
+       (generate_password_hash(password), staff_id))
+    audit('Reset staff password: ' + target['username'])
+    return jsonify(ok=True)
+
+
+@app.post('/api/admin/staff/<int:staff_id>')
+@admin
+def staff_update(staff_id):
+    d = request.get_json(silent=True) or {}
+    target = q1('SELECT id, username, role, active FROM admins WHERE id=?', (staff_id,))
+    if not target:
+        return err('Staff account not found.', 404)
+    role = d.get('role', target['role'])
+    active = d.get('active', target['active'])
+    if role not in ROLE_NAMES or active not in (0, 1, True, False):
+        return err('Invalid role or account status.')
+    active = 1 if active else 0
+    if target['username'] == session.get('admin') and (role != target['role'] or not active):
+        return err('You cannot change your own role or deactivate your own account.')
+    if target['role'] == 'super_admin' and (role != 'super_admin' or not active):
+        remaining = q1("SELECT COUNT(*) n FROM admins WHERE role='super_admin' AND active=1 AND id<>?", (staff_id,))
+        if not remaining or remaining['n'] < 1:
+            return err('At least one active Super Admin account must remain.')
+    ex('UPDATE admins SET role=?, active=? WHERE id=?', (role, active, staff_id))
+    audit('Updated staff account: ' + target['username'] + ' (' + ROLE_NAMES[role] + ', ' + ('active' if active else 'inactive') + ')')
+    return jsonify(ok=True)
 
 # ---------------------------------------------------------------- admin: classes & subjects
 def simple_crud(table, label):
@@ -1012,12 +1237,17 @@ def export_questions():
 @app.get('/api/admin/exams')
 @admin
 def exams_list():
-    return jsonify(qa('''select e.*, s.name subject,
+    rows = qa('''select e.*, s.name subject,
       (select group_concat(c.name, ', ') from exam_classes ec join classes c on c.id=ec.class_id where ec.exam_id=e.id) classes,
       (select count(*) from sessions where exam_id=e.id) sessions,
       (select count(*) from sessions where exam_id=e.id and status='submitted') submitted,
       (select count(*) from questions where subject_id=e.subject_id) pool
-      from exams e join subjects s on s.id=e.subject_id order by e.id desc'''))
+      from exams e join subjects s on s.id=e.subject_id order by e.id desc''')
+    if session.get('admin_role') == 'examiner':
+        staff = q1('SELECT id FROM admins WHERE username=?', (session.get('admin'),))
+        assigned = {r['exam_id'] for r in qa('SELECT exam_id FROM staff_exam_assignments WHERE staff_id=?', (staff['id'],))} if staff else set()
+        rows = [r for r in rows if r['id'] in assigned]
+    return jsonify(rows)
 
 
 @app.post('/api/admin/exams')
@@ -1266,7 +1496,7 @@ def android_host_sync_status():
                     from android_host_devices order by created_ts desc''')
     receipts = q1('select count(*) n,max(synced_ts) last_sync from android_sync_receipts') or {'n': 0, 'last_sync': 0}
     conflicts = qa('''select id,attempt_uuid,device_id,exam_sync_uuid,student_sync_uuid,reason,
-                      created_ts,review_state from android_sync_conflicts order by created_ts desc limit 200''')
+                      created_ts,review_state,review_note,reviewed_by,reviewed_ts from android_sync_conflicts order by created_ts desc limit 200''')
     return jsonify(devices=devices, synced_count=receipts['n'], last_sync=receipts['last_sync'],
                    conflicts=conflicts)
 
@@ -1715,6 +1945,8 @@ def monitor(eid):
 def session_action(sid):
     d = request.get_json() or {}
     act = d.get('action')
+    if session.get('admin_role') == 'invigilator' and act not in ('pause', 'resume', 'extend'):
+        return err('Invigilators may pause, resume or extend a candidate session, but cannot reset or force-submit it.', 403)
     session_row = q1('select s.*,e.status exam_status from sessions s join exams e on e.id=s.exam_id where s.id=?', (sid,))
     if not session_row:
         return err('Session not found', 404)
@@ -1767,6 +1999,8 @@ def theory_mark():
         where s.id=? and q.id=? and q.question_type='theory' and s.status='submitted' ''', (sid,qid))
     if not q:
         return err('Submitted theory response not found', 404)
+    if session.get('admin_role') == 'examiner' and not examiner_has_exam(session.get('admin'), q['exam_id']):
+        return err('This examination has not been assigned to your marker account.', 403)
     if mark < 0 or mark > float(q['marks']):
         return err(f'Mark must be between 0 and {q["marks"]}')
     response = (q['response_text'] or '').strip()
@@ -2117,6 +2351,18 @@ def s_begin():
     return jsonify(token=token)
 
 
+def final_info():
+    s = q1('select score,total from sessions where id=?', (g.ses['id'],))
+    pending_manual = q1('''select 1 from session_questions sq join questions q on q.id=sq.question_id
+        left join theory_marks tm on tm.session_id=sq.session_id and tm.question_id=q.id
+        where sq.session_id=? and q.question_type='theory' and q.marking_mode='manual' and tm.mark is null limit 1''',
+        (g.ses['id'],))
+    if g.exam['show_score'] and s and not pending_manual:
+        pct = round(s['score'] / s['total'] * 100, 1) if s['total'] else 0
+        return dict(score=s['score'], total=s['total'], pct=pct)
+    return {}
+
+
 def sauth(f):
     @wraps(f)
     def w(*a, **k):
@@ -2139,18 +2385,6 @@ def sauth(f):
         ex('update sessions set last_seen=? where id=?', (int(time.time()), s['id']))
         return f(*a, **k)
     return w
-
-
-def final_info():
-    s = q1('select score,total from sessions where id=?', (g.ses['id'],))
-    pending_manual = q1('''select 1 from session_questions sq join questions q on q.id=sq.question_id
-        left join theory_marks tm on tm.session_id=sq.session_id and tm.question_id=q.id
-        where sq.session_id=? and q.question_type='theory' and q.marking_mode='manual' and tm.mark is null limit 1''',
-        (g.ses['id'],))
-    if g.exam['show_score'] and s and not pending_manual:
-        pct = round(s['score'] / s['total'] * 100, 1) if s['total'] else 0
-        return dict(score=s['score'], total=s['total'], pct=pct)
-    return {}
 
 
 @app.get('/api/student/paper')

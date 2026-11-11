@@ -1,8 +1,8 @@
 {
-  "name": "gtmc-cbt-examination-desktop",
+  "name": "vicora-cbt-examination-desktop",
   "version": "1.0.0",
   "private": true,
-  "description": "Standalone GTMC CBT desktop clients",
+  "description": "VICORA CBT desktop examination client",
   "main": "desktop-electron/main.cjs",
   "scripts": {
     "check": "node --check desktop-electron/main.cjs && node --check desktop-electron/preload.cjs",
@@ -15,8 +15,8 @@
     "electron-builder": "26.18.1"
   },
   "build": {
-    "appId": "org.gtmc.cbt.examination",
-    "productName": "GTMC CBT Examination",
+    "appId": "com.veehicee.vicora.cbt.examination",
+    "productName": "VICORA CBT Examination",
     "asar": true,
     "directories": {
       "output": "dist-electron"
@@ -32,7 +32,7 @@
           "arch": ["x64"]
         }
       ],
-      "artifactName": "GTMC-CBT-Examination-${version}-Windows.${ext}"
+      "artifactName": "VICORA-CBT-Examination-${version}-Windows.${ext}"
     }
   }
 }

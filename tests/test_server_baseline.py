@@ -16,6 +16,16 @@ class ServerBaselineTests(unittest.TestCase):
     def setUp(self):
         app.config.update(TESTING=True, WTF_CSRF_ENABLED=False)
         self.client = app.test_client()
+        # Restore a predictable active Super Admin fixture even after backup/restore tests.
+        import app as cbt
+        with cbt.app.app_context():
+            admin = cbt.q1("SELECT id FROM admins WHERE username='admin'")
+            if admin:
+                cbt.ex("UPDATE admins SET role='super_admin', active=1 WHERE username='admin'")
+            else:
+                from werkzeug.security import generate_password_hash
+                cbt.ex("INSERT INTO admins(username,password_hash,role,active) VALUES(?,?,?,1)",
+                       ("admin", generate_password_hash("test-only-password"), "super_admin"))
 
 
 
@@ -137,7 +147,7 @@ class ServerBaselineTests(unittest.TestCase):
 
     def test_remote_admin_is_blocked_by_default(self):
         with self.client.session_transaction() as sess:
-            sess["admin"] = "test-admin"
+            sess["admin"] = "admin"
         response = self.client.get(
             "/api/admin/dashboard",
             environ_overrides={"REMOTE_ADDR": "192.0.2.25"},
@@ -146,7 +156,7 @@ class ServerBaselineTests(unittest.TestCase):
 
     def test_remote_admin_cannot_be_enabled_without_https_proxy(self):
         with self.client.session_transaction() as sess:
-            sess["admin"] = "test-admin"
+            sess["admin"] = "admin"
         response = self.client.post(
             "/api/admin/settings",
             json={"school_name": "GTMC", "allow_remote_admin": True},
@@ -157,7 +167,7 @@ class ServerBaselineTests(unittest.TestCase):
 
     def test_loopback_admin_can_reach_dashboard_after_login(self):
         with self.client.session_transaction() as sess:
-            sess["admin"] = "test-admin"
+            sess["admin"] = "admin"
         response = self.client.get(
             "/api/admin/dashboard",
             environ_overrides={"REMOTE_ADDR": "127.0.0.1"},
@@ -222,7 +232,7 @@ class ServerBaselineTests(unittest.TestCase):
         c.close()
         self.assertEqual(count, 1)
         with self.client.session_transaction() as sess:
-            sess["admin"] = "proctor-reviewer"
+            sess["admin"] = "admin"
         listing = self.client.get(f"/api/admin/proctor/{fixture['exam_id']}")
         self.assertEqual(listing.status_code, 200)
         event_id = listing.get_json()["rows"][0]["id"]
@@ -248,7 +258,7 @@ class ServerBaselineTests(unittest.TestCase):
     def test_android_host_package_export_and_import_are_repeatable(self):
         fixture = self._proctor_fixture("optional")
         with self.client.session_transaction() as sess:
-            sess["admin"] = "package-admin"
+            sess["admin"] = "admin"
         exported = self.client.get(f"/api/admin/remote-host/package/{fixture['exam_id']}")
         self.assertEqual(exported.status_code, 200)
         self.assertIn("attachment", exported.headers.get("Content-Disposition", ""))
@@ -284,7 +294,7 @@ class ServerBaselineTests(unittest.TestCase):
         import hashlib
         import uuid
         with self.client.session_transaction() as sess:
-            sess["admin"] = "test-admin"
+            sess["admin"] = "admin"
         generated = self.client.post("/api/admin/android-host/pairing-code")
         self.assertEqual(generated.status_code, 200, generated.get_json())
         code = generated.get_json()["pairing_code"]
