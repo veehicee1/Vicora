@@ -40,7 +40,7 @@ Introduce separate staff access levels without breaking the existing administrat
 
 ## Implementation status
 
-The initial role system is implemented in `app.py` and `web/admin.html`. The `staff_exam_assignments` table stores examiner-to-examination assignments. Staff management is available in the Super Admin dashboard. Backend permission checks and role regression tests are in place. GitHub Actions quality checks passed with 54 tests on the initial implementation commit; manual browser checks and real-database migration testing remain outstanding.
+The initial role system is implemented in `app.py` and `web/admin.html`. The `staff_exam_assignments` table stores examiner-to-examination assignments. Staff management is available in the Super Admin dashboard, including staff password resets. Backend permission checks and role regression tests are in place. GitHub Actions quality checks passed with 56 tests on the initial implementation commit; manual browser checks and real-database migration testing remain outstanding.
 
 ## Not included in this increment
 - Student accounts are not converted into staff accounts.
