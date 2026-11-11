@@ -7,6 +7,7 @@ const { spawn } = require("child_process");
 
 let mainWindow = null;
 let adminWindow = null;
+let adminWindowOrigin = null;
 let hostProcess = null;
 let hostExit = null;
 
@@ -139,6 +140,7 @@ async function startLocalHost() {
 function openAdmin(address) {
   const origin = new URL(address).origin;
   if (adminWindow && !adminWindow.isDestroyed()) {
+    adminWindowOrigin = origin;
     adminWindow.focus();
     return adminWindow.loadURL(new URL("admin", address).toString());
   }
@@ -151,10 +153,11 @@ function openAdmin(address) {
   adminWindow.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   adminWindow.webContents.on("will-navigate", (event, target) => {
     try {
-      if (new URL(target).origin !== origin) event.preventDefault();
+      if (new URL(target).origin !== adminWindowOrigin) event.preventDefault();
     } catch { event.preventDefault(); }
   });
-  adminWindow.on("closed", () => { adminWindow = null; });
+  adminWindowOrigin = origin;
+  adminWindow.on("closed", () => { adminWindow = null; adminWindowOrigin = null; });
   return adminWindow.loadURL(new URL("admin", address).toString());
 }
 
