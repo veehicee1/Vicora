@@ -98,12 +98,11 @@ def main():
         from waitress import serve
         addresses = local_addresses()
         logging.info("VICORA CBT Host starting for %s on %s:%s", school_name, "0.0.0.0", 8000)
-        print("VICORA CBT Host is running for: " + school_name, flush=True)
-        print("Admin: http://127.0.0.1:8000/admin", flush=True)
-        print("Student access links:", flush=True)
+        logging.info("VICORA CBT Host is running for: %s", school_name)
+        logging.info("Admin: http://127.0.0.1:8000/admin")
         for address in addresses:
-            print("  http://" + address + ":8000/", flush=True)
-        print("Keep this host computer powered on and connected to the school network.", flush=True)
+            logging.info("Student access link: http://%s:8000/", address)
+        logging.info("Keep this host computer powered on and connected to the school network.")
         serve(cbt.app, host="0.0.0.0", port=8000, threads=64, channel_timeout=120)
     except SystemExit:
         raise
