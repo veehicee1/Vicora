@@ -5,7 +5,7 @@ on:
   pull_request:
     branches: ["main", "feature/cbt-core-import"]
   push:
-    branches: ["main"]
+    branches: ["main", "feature/cbt-core-import"]
 
 permissions:
   contents: read
