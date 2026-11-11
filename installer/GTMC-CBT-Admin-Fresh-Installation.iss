@@ -56,5 +56,8 @@ begin
     Result := True;
 end;
 
+[Run]
+Filename: "{sys}\\netsh.exe"; Parameters: "advfirewall firewall add rule name=""VICORA CBT School Host"" dir=in action=allow protocol=TCP localport=8000 profile=private"; Flags: runhidden; StatusMsg: "Allowing student devices to reach the school host on the private network..."
+
 [UninstallDelete]
 ; Do not delete shared school data, backups, or user settings.
