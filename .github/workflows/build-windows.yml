@@ -78,6 +78,12 @@ jobs:
       - name: Build diagnostic and restore utilities
         shell: cmd
         run: build.bat
+      - name: Build standalone VICORA Windows Host server
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name VICORA-CBT-Server --add-data "web;web" --collect-all flask --collect-all werkzeug --collect-all waitress --collect-all openpyxl --collect-all docx windows_host.py
+          if (!(Test-Path "dist/VICORA-CBT-Server.exe")) { throw "VICORA Windows Host executable was not produced" }
+          if ((Get-Item "dist/VICORA-CBT-Server.exe").Length -lt 1048576) { throw "VICORA Windows Host executable is unexpectedly small" }
       - name: Build Electron Examination app with bundled Chromium
         run: npm run dist:win
       - name: Build Electron Admin app with bundled Chromium
@@ -90,7 +96,8 @@ jobs:
             "dist-admin-electron/GTMC-CBT-Admin-1.0.0-Windows.exe",
             "dist/CBTAdmin-Diagnostic.exe",
             "dist/CBTExamination-Diagnostic.exe",
-            "dist/CBTRestore.exe"
+            "dist/CBTRestore.exe",
+            "dist/VICORA-CBT-Server.exe"
           )
           foreach ($file in $files) {
             if (!(Test-Path $file)) { throw "$file was not produced" }
