@@ -10,6 +10,8 @@ on:
       - "web/**"
       - ".github/workflows/build-android.yml"
   push:
+    branches:
+      - feature/cbt-core-import
     tags:
       - "v*"
 
