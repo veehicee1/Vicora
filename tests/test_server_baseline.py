@@ -16,6 +16,16 @@ class ServerBaselineTests(unittest.TestCase):
     def setUp(self):
         app.config.update(TESTING=True, WTF_CSRF_ENABLED=False)
         self.client = app.test_client()
+        # Restore a predictable active Super Admin fixture even after backup/restore tests.
+        import app as cbt
+        with cbt.app.app_context():
+            admin = cbt.q1("SELECT id FROM admins WHERE username='admin'")
+            if admin:
+                cbt.ex("UPDATE admins SET role='super_admin', active=1 WHERE username='admin'")
+            else:
+                from werkzeug.security import generate_password_hash
+                cbt.ex("INSERT INTO admins(username,password_hash,role,active) VALUES(?,?,?,1)",
+                       ("admin", generate_password_hash("test-only-password"), "super_admin"))
 
 
 
