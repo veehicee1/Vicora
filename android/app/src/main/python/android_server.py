@@ -38,6 +38,15 @@ def start_server(data_dir, web_dir, host="0.0.0.0", port=8765, school_name=None)
             os.environ["CBT_INITIAL_SCHOOL_NAME"] = " ".join(str(school_name).split())[:120]
 
         cbt = importlib.import_module("app")
+        if school_name and str(school_name).strip():
+            conn = cbt.raw()
+            conn.execute(
+                "UPDATE settings SET value=? WHERE key='school_name' AND "
+                "value IN ('', 'CBT Examination Centre')",
+                (" ".join(str(school_name).split())[:120],),
+            )
+            conn.commit()
+            conn.close()
         if not _worker_started:
             cbt.start_background()
             _worker_started = True
