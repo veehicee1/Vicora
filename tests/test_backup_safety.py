@@ -18,7 +18,7 @@ class BackupSafetyTests(unittest.TestCase):
         gtmc.app.config.update(TESTING=True, WTF_CSRF_ENABLED=False)
         self.client = gtmc.app.test_client()
         with self.client.session_transaction() as sess:
-            sess["admin"] = "backup-test-admin"
+            sess["admin"] = "admin"
 
     def _seed_test_record(self):
         conn = gtmc.raw()
