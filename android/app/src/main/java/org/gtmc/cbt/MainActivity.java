@@ -299,7 +299,8 @@ public class MainActivity extends Activity {
                 Enumeration<java.net.InetAddress> values = network.getInetAddresses();
                 while (values.hasMoreElements()) {
                     java.net.InetAddress address = values.nextElement();
-                    if (address instanceof Inet4Address && !address.isLoopbackAddress() && !address.isLinkLocalAddress()) {
+                    if (address instanceof Inet4Address && address.isSiteLocalAddress()
+                            && !address.isLoopbackAddress() && !address.isLinkLocalAddress()) {
                         String value = address.getHostAddress();
                         if (!addresses.contains(value)) addresses.add(value);
                     }
