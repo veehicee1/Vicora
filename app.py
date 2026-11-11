@@ -1430,10 +1430,14 @@ def android_host_sync_pull():
         if known.get(exam['sync_uuid']) == (exam['sync_revision_hash'] + '.' + package['roster_revision_hash']):
             continue
         packages.append(package)
-        if len(packages) >= 5:
+        if len(packages) >= 1:
             break
+    if packages:
+        encoded_size = len(json.dumps(packages, ensure_ascii=False, separators=(',', ':')).encode('utf-8'))
+        if encoded_size > 18 * 1024 * 1024:
+            return err('An approved examination package is larger than the automatic sync limit. Reduce its candidate/question package size or use the secure manual transfer.', 413)
     return jsonify(ok=True, school=getset('school_name'), packages=packages,
-                   more_available=len(packages) >= 5)
+                   more_available=len(packages) >= 1)
 
 def _record_android_sync_conflict(payload, device_id, reason):
     try:
