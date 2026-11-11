@@ -31,7 +31,7 @@ Name: "{app}\Diagnostics"
 Name: "{app}\Tools"
 
 [Files]
-Source: "..\dist-admin-electron\GTMC-CBT-Admin-1.0.0-Windows.exe"; DestDir: "{app}"; DestName: "CBTAdmin.exe"; Flags: ignoreversion
+Source: "..\dist-admin-electron\VICORA-CBT-Admin-1.0.0-Windows.exe"; DestDir: "{app}"; DestName: "CBTAdmin.exe"; Flags: ignoreversion
 Source: "..\dist\CBTAdmin-Diagnostic.exe"; DestDir: "{app}\Diagnostics"; Flags: ignoreversion
 Source: "..\dist\CBTRestore.exe"; DestDir: "{app}\Tools"; Flags: ignoreversion
 
