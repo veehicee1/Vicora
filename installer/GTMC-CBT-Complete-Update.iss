@@ -38,13 +38,13 @@ Source: "..\dist\CBTAdmin-Diagnostic.exe"; DestDir: "{app}\Diagnostics"; Flags: 
 Source: "..\dist\CBTExamination-Diagnostic.exe"; DestDir: "{app}\Diagnostics"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\GTMC CBT\GTMC CBT Admin"; Filename: "{app}\CBTAdmin.exe"; WorkingDir: "{app}"
-Name: "{autoprograms}\GTMC CBT\GTMC CBT Examination"; Filename: "{app}\CBTExamination.exe"; WorkingDir: "{app}"
+Name: "{autoprograms}\GTMC CBT\VICORA CBT Admin"; Filename: "{app}\CBTAdmin.exe"; WorkingDir: "{app}"
+Name: "{autoprograms}\GTMC CBT\VICORA CBT Examination"; Filename: "{app}\CBTExamination.exe"; WorkingDir: "{app}"
 Name: "{autoprograms}\GTMC CBT\Restore CBT Backup"; Filename: "{app}\Tools\CBTRestore.exe"; WorkingDir: "{app}\Tools"
 Name: "{autoprograms}\GTMC CBT\Diagnostics\Admin Diagnostic"; Filename: "{app}\Diagnostics\CBTAdmin-Diagnostic.exe"; WorkingDir: "{app}\Diagnostics"
 Name: "{autoprograms}\GTMC CBT\Diagnostics\Examination Diagnostic"; Filename: "{app}\Diagnostics\CBTExamination-Diagnostic.exe"; WorkingDir: "{app}\Diagnostics"
-Name: "{commondesktop}\GTMC CBT Admin"; Filename: "{app}\CBTAdmin.exe"; WorkingDir: "{app}"
-Name: "{commondesktop}\GTMC CBT Examination"; Filename: "{app}\CBTExamination.exe"; WorkingDir: "{app}"
+Name: "{commondesktop}\VICORA CBT Admin"; Filename: "{app}\CBTAdmin.exe"; WorkingDir: "{app}"
+Name: "{commondesktop}\VICORA CBT Examination"; Filename: "{app}\CBTExamination.exe"; WorkingDir: "{app}"
 
 [Code]
 function InitializeSetup(): Boolean;
