@@ -29,8 +29,8 @@ This branch contains the CBT product only. School management, parent portal, gen
 - No release was published, no APK was built, and no production deployment was made.
 - No secrets or signing keys were copied or exposed.
 
-## Outstanding before build verification
-1. Import the original binary `gtmc-logo.jpg` asset. It is referenced by the server and Android asset-copy task; it was not possible to add it using the text-file upload route.
+## Outstanding before release readiness
+1. Recover the original binary `gtmc-logo.jpg` asset. It is referenced by the server and Android asset-copy task; it was not possible to add it using the text-file upload route. Its absence may leave the logo missing and must be resolved before release; compilation has not yet been tested.
 2. Check the source repository for any additional Android resources and static assets not yet recovered.
 3. Confirm all Windows/Electron and Android source dependencies are present.
 4. Run Python regression tests, JavaScript syntax checks, and Android debug build.
