@@ -58,6 +58,34 @@ class StaffRBACTests(unittest.TestCase):
         self.assertEqual(allowed.status_code, 200)
         self.assertEqual(denied.status_code, 403)
 
+    def test_invigilator_can_monitor_but_cannot_manage_questions_or_pause_exam(self):
+        self.execute("UPDATE admins SET role='invigilator' WHERE username='admin'")
+        self.sign_in_as()
+        monitor = self.client.get("/api/admin/monitor/1")
+        questions = self.client.get("/api/admin/questions")
+        pause_exam = self.client.post("/api/admin/exams/1/status", json={"status": "paused"})
+        self.assertNotEqual(monitor.status_code, 403)
+        self.assertEqual(questions.status_code, 403)
+        self.assertEqual(pause_exam.status_code, 403)
+
+    def test_examiner_can_open_theory_marking_but_not_question_bank(self):
+        self.execute("UPDATE admins SET role='examiner' WHERE username='admin'")
+        self.sign_in_as()
+        theory = self.client.get("/api/admin/theory/1")
+        questions = self.client.get("/api/admin/questions")
+        self.assertNotEqual(theory.status_code, 403)
+        self.assertEqual(questions.status_code, 403)
+
+    def test_exam_administrator_cannot_manage_staff_or_backups(self):
+        self.execute("UPDATE admins SET role='exam_administrator' WHERE username='admin'")
+        self.sign_in_as()
+        students = self.client.get("/api/admin/students")
+        staff = self.client.get("/api/admin/staff")
+        backups = self.client.get("/api/admin/backups")
+        self.assertNotEqual(students.status_code, 403)
+        self.assertEqual(staff.status_code, 403)
+        self.assertEqual(backups.status_code, 403)
+
     def test_inactive_staff_session_is_rejected(self):
         self.execute("UPDATE admins SET active=0 WHERE username='admin'")
         self.sign_in_as()
