@@ -1422,22 +1422,26 @@ def android_host_sync_pull():
                  where android_host_sync_enabled=1 and sync_uuid is not null
                  order by id desc limit 50''')
     packages = []
+    more_available = False
+    max_response_bytes = 18 * 1024 * 1024
     for row in rows:
         package = _build_android_host_package(row['id'])
         if not package:
             continue
         exam = package['exam']
-        if known.get(exam['sync_uuid']) == (exam['sync_revision_hash'] + '.' + package['roster_revision_hash']):
+        revision_token = exam['sync_revision_hash'] + '.' + package['roster_revision_hash']
+        if known.get(exam['sync_uuid']) == revision_token:
             continue
-        packages.append(package)
-        if len(packages) >= 1:
+        candidate = packages + [package]
+        encoded_size = len(json.dumps(candidate, ensure_ascii=False, separators=(',', ':')).encode('utf-8'))
+        if encoded_size > max_response_bytes:
+            if not packages:
+                return err('An approved examination package is larger than the automatic sync limit. Reduce its candidate/question package size or use the secure manual transfer.', 413)
+            more_available = True
             break
-    if packages:
-        encoded_size = len(json.dumps(packages, ensure_ascii=False, separators=(',', ':')).encode('utf-8'))
-        if encoded_size > 18 * 1024 * 1024:
-            return err('An approved examination package is larger than the automatic sync limit. Reduce its candidate/question package size or use the secure manual transfer.', 413)
+        packages.append(package)
     return jsonify(ok=True, school=getset('school_name'), packages=packages,
-                   more_available=len(packages) >= 1)
+                   more_available=more_available)
 
 def _record_android_sync_conflict(payload, device_id, reason):
     try:
