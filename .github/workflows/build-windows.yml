@@ -1,5 +1,9 @@
 name: Build VICORA CBT Windows Host and Installers
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 on:
   workflow_dispatch:
   pull_request:
