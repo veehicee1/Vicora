@@ -1475,7 +1475,7 @@ def android_host_sync_status():
                     from android_host_devices order by created_ts desc''')
     receipts = q1('select count(*) n,max(synced_ts) last_sync from android_sync_receipts') or {'n': 0, 'last_sync': 0}
     conflicts = qa('''select id,attempt_uuid,device_id,exam_sync_uuid,student_sync_uuid,reason,
-                      created_ts,review_state from android_sync_conflicts order by created_ts desc limit 200''')
+                      created_ts,review_state,review_note,reviewed_by,reviewed_ts from android_sync_conflicts order by created_ts desc limit 200''')
     return jsonify(devices=devices, synced_count=receipts['n'], last_sync=receipts['last_sync'],
                    conflicts=conflicts)
 
