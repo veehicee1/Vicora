@@ -1407,6 +1407,8 @@ def _build_android_host_package(exam_id):
 
 @app.post('/api/android-host/sync-pull')
 def android_host_sync_pull():
+    if not request.is_secure and request.remote_addr not in ('127.0.0.1', '::1', 'localhost'):
+        return err('Android Host synchronisation requires HTTPS.', 400)
     payload = request.get_json(silent=True) or {}
     if not isinstance(payload, dict) or len(request.get_data(cache=True) or b'') > 128 * 1024:
         return err('Invalid Android Host sync request.', 400)
@@ -1448,6 +1450,8 @@ def _record_android_sync_conflict(payload, device_id, reason):
 
 @app.post('/api/android-host/sync-results')
 def android_host_sync_results():
+    if not request.is_secure and request.remote_addr not in ('127.0.0.1', '::1', 'localhost'):
+        return err('Android Host synchronisation requires HTTPS.', 400)
     payload = request.get_json(silent=True)
     if not isinstance(payload, dict):
         return err('Invalid result synchronisation payload.')
