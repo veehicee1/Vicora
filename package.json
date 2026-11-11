@@ -1,0 +1,38 @@
+{
+  "name": "gtmc-cbt-examination-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Standalone GTMC CBT desktop clients",
+  "main": "desktop-electron/main.cjs",
+  "scripts": {
+    "check": "node --check desktop-electron/main.cjs && node --check desktop-electron/preload.cjs",
+    "check:admin": "node --check desktop-admin/main.cjs && node --check desktop-admin/preload.cjs",
+    "dist:win": "electron-builder --win portable --x64",
+    "dist:admin:win": "electron-builder --config desktop-admin/electron-builder.yml --win portable --x64"
+  },
+  "devDependencies": {
+    "electron": "45.2.3",
+    "electron-builder": "26.18.1"
+  },
+  "build": {
+    "appId": "org.gtmc.cbt.examination",
+    "productName": "GTMC CBT Examination",
+    "asar": true,
+    "directories": {
+      "output": "dist-electron"
+    },
+    "files": [
+      "desktop-electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "artifactName": "GTMC-CBT-Examination-${version}-Windows.${ext}"
+    }
+  }
+}
