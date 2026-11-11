@@ -75,7 +75,7 @@ th{z-index:1}
 body{background:radial-gradient(ellipse at 85% -10%,#dcecff 0,transparent 38%),var(--bg);color:var(--tx);font-family:Inter,"Segoe UI",system-ui,sans-serif}
 aside{background:linear-gradient(180deg,#082f58 0%,#061f3b 100%);box-shadow:8px 0 32px #082b5018;padding:18px 0}
 aside h1{display:flex;align-items:center;min-height:58px;margin:0 14px 18px;padding:8px 8px 8px 58px;position:relative;font-size:15px;line-height:1.25}
-aside h1:before{content:"";position:absolute;left:6px;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:12px;background:#fff url('/gtmc-logo.jpg') center/contain no-repeat;box-shadow:0 3px 12px #0002}
+aside h1:before{content:"";position:absolute;left:6px;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:12px;background:#fff var(--school-logo,url('/home/icon.svg')) center/contain no-repeat;box-shadow:0 3px 12px #0002}
 aside h1 small{font-size:11px;letter-spacing:.09em;text-transform:uppercase;margin-top:5px;color:#a9c9e8}
 nav a{display:flex;align-items:center;min-height:43px;margin:3px 10px;padding:10px 13px;border-radius:10px;color:#d8e8f8;font-weight:550;transition:background .18s ease,transform .18s ease}
 nav a:hover{background:#ffffff16;transform:translateX(2px)}
@@ -99,7 +99,7 @@ td{color:#29425c}
 #modal>div{border:1px solid #e0e9f3;border-radius:18px;box-shadow:0 22px 70px #061f3b45}
 #toast{border-radius:12px;box-shadow:0 10px 30px #061f3b35}
 #login{border:1px solid #dfe9f3;background:#fff;box-shadow:0 22px 65px #0a31531b;padding:26px}
-#login:before{content:"";display:block;width:76px;height:76px;margin:0 auto 14px;border-radius:18px;background:#fff url('/gtmc-logo.jpg') center/contain no-repeat;box-shadow:0 4px 18px #12385d18}
+#login:before{content:"";display:block;width:76px;height:76px;margin:0 auto 14px;border-radius:18px;background:#fff var(--school-logo,url('/home/icon.svg')) center/contain no-repeat;box-shadow:0 4px 18px #12385d18}
 .dash-head{align-items:center}
 .quick-actions button{background:linear-gradient(180deg,#fff,#f7faff);border-color:#dce7f2}
 .badge{font-weight:700}
@@ -127,6 +127,7 @@ td{color:#29425c}
 <aside id="side" style="display:none"><h1 id="brand">CBT Console<small>Admin</small></h1><nav id="nav"></nav></aside>
 <main id="main"></main><div id="modal"><div id="mbox"></div></div><div id="toast"></div>
 <script>
+fetch('/api/public/info').then(r=>r.json()).then(j=>{if(j.school_logo_url)document.documentElement.style.setProperty('--school-logo','url("'+j.school_logo_url+'?v='+Date.now()+'")')}).catch(()=>{});
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const toast=(m,bad)=>{const t=$('#toast');t.textContent=m;t.style.background=bad?'#c62f2f':'#222';t.style.display='block';clearTimeout(t._h);t._h=setTimeout(()=>t.style.display='none',4200)};
 async function api(p,o={}){const fd=o.body instanceof FormData;const r=await fetch('/api/admin'+p,{credentials:'same-origin',...o,headers:o.body&&!fd?{'Content-Type':'application/json'}:{}});
@@ -262,6 +263,7 @@ async settings(){const [s,b,si]=await Promise.all([api('/settings'),api('/backup
  <p><b>HTTPS reverse proxy:</b> <span class="badge ${proxyReady?'ok':'wa'}">${proxyReady?'Configured':'Not configured'}</span></p>
  <p><b>Remote Admin:</b> <span class="badge ${si.remote_admin_enabled?'ok':'wa'}">${si.remote_admin_enabled?'Enabled':'Disabled'}</span></p>
  <p class="mu">${esc(si.connection_hint||'Remote access needs a publicly reachable ISP address, school-controlled DNS and HTTPS. A phone hotspot may use CGNAT and block incoming connections.')}</p></div>
+ <div class="panel"><h3>School identity</h3><p class="mu">Set the school's display name below and upload its own logo. The school logo appears on the Admin sign-in, dashboard and student examination screens. VICORA remains the CBT platform identity.</p><div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap"><img id="schoolLogoPreview" src="/school-logo" alt="School logo preview" style="width:84px;height:84px;object-fit:contain;background:var(--bg);border:1px solid var(--bd);border-radius:12px;padding:6px"><div style="min-width:220px;flex:1"><label>Upload school logo (PNG, JPG or WebP · maximum 2 MB)</label><input id="schoolLogoFile" type="file" accept="image/png,image/jpeg,image/webp" style="width:100%"><p><button class="pr" id="schoolLogoUpload">Upload school logo</button> <span id="schoolLogoStatus" class="mu"></span></p></div></div></div>
  <div class="panel"><h3>School-wide appearance (Admin only)</h3>
  <p class="mu">Only an administrator can change these settings. The selected appearance is applied to the Admin and student screens across the school.</p>
  <div class="f2">
@@ -293,7 +295,8 @@ const themeDefaults={blue:{primary:'#0756a8',background:'#f3f7fc',surface:'#ffff
  $('#themeMode').onchange=()=>{if($('#themeMode').value==='dark'){const d={background:'#101923',surface:'#192635',text:'#e7edf5',sidebar:'#09121c'};Object.entries(d).forEach(([k,v])=>themeInput(k).value=v)}else if($('#themePreset').value==='blue'){const d=themeDefaults.blue;Object.entries(d).forEach(([k,v])=>themeInput(k).value=v)}paintTheme(readTheme())};
  $('#themePreview').onclick=()=>{paintTheme(readTheme());$('#themeStatus').textContent='Preview only — not saved'};$('#themeReset').onclick=()=>{const t={...themeDefaults.blue,mode:'light',preset:'blue'};$('#themePreset').value='blue';$('#themeMode').value='light';Object.entries(t).forEach(([k,v])=>{if(themeInput(k))themeInput(k).value=v});paintTheme(t);$('#themeStatus').textContent='Default preview — save to apply school-wide'};
  $('#themeSave').onclick=()=>run(async()=>{const theme=readTheme();await post('/settings',{school_name:$('#gs').value,allow_remote_admin:$('#gr').checked,theme});localStorage.setItem('gtmc-school-theme',JSON.stringify(theme));$('#themeStatus').textContent='Saved for the whole school';toast('School-wide theme saved')});
- $('#gsv').onclick=()=>run(async()=>{await post('/settings',{school_name:$('#gs').value,allow_remote_admin:$('#gr').checked,theme:readTheme()});toast('Saved');pages.settings()});
+ $('#gsv').onclick=()=>run(async()=>{await post('/settings',{school_name:$('#gs').value,allow_remote_admin:$('#gr').checked,theme:readTheme()});toast('School name and settings saved');pages.settings()});
+ $('#schoolLogoUpload').onclick=()=>run(async()=>{const f=$('#schoolLogoFile').files[0];if(!f)throw new Error('Choose a logo image first');const fd=new FormData();fd.append('logo',f);const r=await api('/school-logo',{method:'POST',body:fd});const url=r.school_logo_url+'?v='+Date.now();$('#schoolLogoPreview').src=url;document.documentElement.style.setProperty('--school-logo','url("'+url+'")');$('#schoolLogoStatus').textContent='Logo saved';toast('School logo updated')});
  $('#ppw').onclick=()=>run(async()=>{await post('/password',{old:$('#po').value,new:$('#pn').value});toast('Password changed');$('#po').value=$('#pn').value=''});
  $('#bk').onclick=()=>run(async()=>{const r=await post('/backups');toast('Backup created: '+r.name);pages.settings()});
  const loadAndroidHostStatus=async()=>{const r=await api('/android-host/status');
