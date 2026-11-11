@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VICORA CBT Examination</title>
+<style>
+:root{font-family:Segoe UI,Arial,sans-serif;color:#142b46;background:#f1f5fa}*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px}
+main{width:min(620px,100%);background:white;border:1px solid #dbe5f0;border-radius:22px;padding:34px;box-shadow:0 18px 60px #102b5014}
+.logo{font-size:30px;font-weight:800;letter-spacing:2px;color:#102b50}.logo span{color:#20b6a4}
+h1{font-size:24px;margin:25px 0 8px}.muted{color:#60748c;line-height:1.6}
+label{display:block;font-weight:700;margin:24px 0 8px}input{width:100%;padding:14px;border:1px solid #c9d7e6;border-radius:10px;font-size:15px}
+button{width:100%;margin-top:16px;border:0;border-radius:12px;padding:16px;font-size:15px;font-weight:700;cursor:pointer;background:#102b50;color:white}
+.status{margin-top:18px;padding:12px;border-radius:10px;background:#f1f5fa;color:#38516c;white-space:pre-wrap;line-height:1.5}
+</style></head><body><main>
+<div class="logo">VICORA<span>.</span></div><p class="muted">CBT Examination · Secure school examination client</p>
+<h1>Connect to your school's examination</h1>
+<p class="muted">Enter the address provided by your school. On the school network, this may be a private Wi-Fi address. For home or internet access, use the school's secure HTTPS address.</p>
+<label for="address">School examination address</label>
+<input id="address" placeholder="http://192.168.1.20:8000/">
+<button id="connect">Connect to examination</button>
+<div class="status" id="status">The examination will open after the school host is verified.</div>
+</main><script>
+const statusBox=document.getElementById("status");
+document.getElementById("connect").addEventListener("click",async()=>{
+ statusBox.textContent="Checking school examination host…";
+ const result=await window.vicoraDesktop.connect(document.getElementById("address").value);
+ statusBox.textContent=result.ok?"Connected. Loading the examination.":result.message;
+});
+</script></body></html>
