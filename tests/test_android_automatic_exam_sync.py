@@ -107,6 +107,9 @@ class AndroidAutomaticExamSyncTests(unittest.TestCase):
             ).lastrowid
             cbt.ex("INSERT INTO exam_classes(exam_id,class_id) VALUES(?,?)",
                    (second_exam_id, self.class_id))
+            second_exam_uuid = cbt.q1(
+                "SELECT sync_uuid FROM exams WHERE id=?", (second_exam_id,)
+            )["sync_uuid"]
         try:
             response = self.client.post(
                 "/api/android-host/sync-pull",
@@ -120,8 +123,7 @@ class AndroidAutomaticExamSyncTests(unittest.TestCase):
             self.assertFalse(payload["more_available"])
             self.assertEqual(
                 {item["exam"]["sync_uuid"] for item in payload["packages"]},
-                {self.package["exam"]["sync_uuid"],
-                 cbt.q1("SELECT sync_uuid FROM exams WHERE id=?", (second_exam_id,))["sync_uuid"]},
+                {self.package["exam"]["sync_uuid"], second_exam_uuid},
             )
         finally:
             with cbt.app.app_context():
