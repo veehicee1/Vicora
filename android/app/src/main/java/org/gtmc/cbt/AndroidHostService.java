@@ -18,7 +18,7 @@ import java.io.File;
 
 /** Keeps the phone-hosted CBT process alive while an examination is being hosted. */
 public final class AndroidHostService extends Service {
-    private static final String CHANNEL = "gtmc_exam_host";
+    private static final String CHANNEL = "vicora_exam_host";
     private static final int NOTIFICATION_ID = 8766;
     private final Handler syncHandler = new Handler(Looper.getMainLooper());
     private final Runnable syncPulse = new Runnable() {
@@ -33,7 +33,7 @@ public final class AndroidHostService extends Service {
         super.onCreate();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(
-                    CHANNEL, "GTMC examination hosting", NotificationManager.IMPORTANCE_LOW);
+                    CHANNEL, "VICORA examination hosting", NotificationManager.IMPORTANCE_LOW);
             channel.setDescription("Shows while this phone is hosting student examinations.");
             NotificationManager manager = getSystemService(NotificationManager.class);
             if (manager != null) manager.createNotificationChannel(channel);
@@ -46,7 +46,7 @@ public final class AndroidHostService extends Service {
                 : new Notification.Builder(this);
         Notification notification = builder
                 .setSmallIcon(android.R.drawable.stat_sys_upload)
-                .setContentTitle("GTMC CBT Host is running")
+                .setContentTitle("VICORA CBT Host is running")
                 .setContentText("Keep this phone powered and connected during the examination.")
                 .setContentIntent(pending)
                 .setOngoing(true)
