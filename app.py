@@ -158,7 +158,7 @@ def init_db():
     if not c.execute('select 1 from admins').fetchone():
         c.execute('insert into admins(username,password_hash) values(?,?)', ('admin', generate_password_hash('admin123')))
         c.execute("insert or replace into settings values('default_pw','1')")
-    defaults = {'secret': secrets.token_hex(32), 'school_name': 'CBT Examination Centre', 'allow_remote_admin': '0'}
+    defaults = {'secret': secrets.token_hex(32), 'school_name': os.environ.get('CBT_INITIAL_SCHOOL_NAME', 'CBT Examination Centre').strip()[:120] or 'CBT Examination Centre', 'allow_remote_admin': '0'}
     for k, v in defaults.items():
         c.execute('insert or ignore into settings values(?,?)', (k, v))
     c.commit()
