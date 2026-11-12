@@ -426,6 +426,12 @@ def admin(f):
         username = session.get('admin')
         if not username:
             return err('Not logged in', 401)
+        legacy_school_id = getset('vicora_legacy_school_id', '')
+        # Existing signed-in browsers predate School Code sessions. Their old
+        # cookie belongs to the original installation and is safely mapped to
+        # the immutable legacy school during this compatibility transition.
+        if not session.get('school_id') and legacy_school_id:
+            session['school_id'] = legacy_school_id
         staff = q1('SELECT username, role, active, school_id FROM admins WHERE username=? AND school_id=?', (username, session.get('school_id')))
         if not staff or not staff['active']:
             session.clear()
@@ -746,6 +752,9 @@ def a_logout():
 @app.get('/api/admin/me')
 def a_me():
     username = session.get('admin')
+    legacy_school_id = getset('vicora_legacy_school_id', '')
+    if username and not session.get('school_id') and legacy_school_id:
+        session['school_id'] = legacy_school_id
     staff = q1('SELECT username, role, active, school_id FROM admins WHERE username=? AND school_id=?', (username, session.get('school_id'))) if username and session.get('school_id') else None
     if not staff or not staff['active']:
         session.clear()
