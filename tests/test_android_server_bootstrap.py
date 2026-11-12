@@ -120,7 +120,8 @@ class AndroidServerBootstrapTests(unittest.TestCase):
     def test_explicit_stop_closes_lan_listener(self):
         with patch.dict(os.environ, {}, clear=False), \
              patch("werkzeug.serving.make_server", return_value=self.server), \
-             patch.object(importlib, "import_module", return_value=self.backend):
+             patch.object(importlib, "import_module", return_value=self.backend), \
+             patch.object(android_server, "health_check", return_value=True):
             android_server.start_server(self.data_dir, self.web_dir, "0.0.0.0", 8765)
             result = android_server.stop_server()
             self.assertTrue(result["ok"])
