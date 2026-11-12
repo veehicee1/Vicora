@@ -13,6 +13,7 @@ class CentralBackendBridgeTests(unittest.TestCase):
         self.app.testing = True
         install_central_backend_routes(
             self.app,
+            lambda: None,
             lambda message, code=400: (__import__("flask").jsonify(error=message), code),
         )
         self.client = self.app.test_client()
@@ -66,12 +67,13 @@ class CentralBackendBridgeTests(unittest.TestCase):
         upstream = {"ok": True, "data": []}
         with patch.dict(os.environ, {
             "VICORA_CENTRAL_APPS_SCRIPT_URL": self.url,
-            "VICORA_CENTRAL_ADMIN_KEY": "server-only-test-key"
+            "VICORA_CENTRAL_ADMIN_KEY": "server-only-test-key",
+            "VICORA_PLATFORM_ADMIN_TOKEN": "platform-test-token"
         }):
             with patch("central_backend.urllib.request.urlopen", return_value=self._response(upstream)) as call:
                 response = self.client.post("/api/central/admin", json={
                     "action": "admin.listApplications"
-                })
+                }, headers={"X-VICORA-PLATFORM-TOKEN": "platform-test-token"})
         self.assertEqual(response.status_code, 200)
         sent = json.loads(call.call_args.args[0].data.decode("utf-8"))
         self.assertEqual(sent["adminKey"], "server-only-test-key")
