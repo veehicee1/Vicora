@@ -13,6 +13,7 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 from tenant_migration import migrate_legacy_school
 from school_scoped_migration import migrate_school_scoped_unique_keys
+from multi_tenant import migrate_multi_tenant_schema, install_multi_tenant_routes, school_context
 import docx
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -166,6 +167,7 @@ def init_db():
     migrate_legacy_school(c)
     c.commit()
     migrate_school_scoped_unique_keys(c)
+    migrate_multi_tenant_schema(c)
     c.commit()
     c.close()
 
@@ -424,10 +426,13 @@ def admin(f):
         username = session.get('admin')
         if not username:
             return err('Not logged in', 401)
-        staff = q1('SELECT username, role, active FROM admins WHERE username=?', (username,))
+        staff = q1('SELECT username, role, active, school_id FROM admins WHERE username=? AND school_id=?', (username, session.get('school_id')))
         if not staff or not staff['active']:
             session.clear()
             return err('Staff account is inactive or unavailable. Sign in again.', 401)
+        legacy_school_id = getset('vicora_legacy_school_id', '')
+        if not session.get('school_id') or session.get('school_id') != legacy_school_id:
+            return err('This school is approved, but its examination workspace is being activated. Existing legacy APIs are blocked until tenant-scoped access is complete.', 503)
         role = staff['role'] if staff['role'] in ROLE_NAMES else 'super_admin'
         session['admin_role'] = role
         if not staff_permission(role, request.path, request.method):
@@ -697,7 +702,7 @@ def public_info():
         theme = json.loads(getset('school_theme', '{}') or '{}')
     except (TypeError, ValueError):
         theme = {}
-    return jsonify(school=getset('school_name'), theme=theme, school_logo_url='/api/public/school-logo')
+    return jsonify(school=getset('school_name'), school_code=getset('vicora_legacy_school_code'), school_id=getset('vicora_legacy_school_id'), theme=theme, school_logo_url='/api/public/school-logo')
 
 
 # ---------------------------------------------------------------- admin: auth & settings
@@ -707,12 +712,17 @@ def a_login():
     key = 'adm|' + str(request.remote_addr)
     if throttled(key):
         return err('Too many attempts. Wait 5 minutes.', 429)
-    r = q1('select * from admins where username=?', (d.get('username', '').strip(),))
+    school = school_context(db(), d.get('school_code'))
+    if not school:
+        add_fail(key)
+        return err('Enter a valid School Code. A School Code is required when more than one school is registered.', 401)
+    r = q1('select * from admins where lower(username)=lower(?) and school_id=?', (d.get('username', '').strip(), school['school_id']))
     if not r or not r['active'] or not check_password_hash(r['password_hash'], d.get('password', '')):
         add_fail(key)
         return err('Wrong username or password', 401)
     session.permanent = True
     session['admin'] = r['username']
+    session['school_id'] = school['school_id']
     session['admin_role'] = r['role']
     audit('Staff logged in: ' + r['username'] + ' (' + ROLE_NAMES.get(r['role'], r['role']) + ')')
     return jsonify(ok=True, user=r['username'], role=r['role'], role_name=ROLE_NAMES.get(r['role'], r['role']))
@@ -727,11 +737,11 @@ def a_logout():
 @app.get('/api/admin/me')
 def a_me():
     username = session.get('admin')
-    staff = q1('SELECT username, role, active FROM admins WHERE username=?', (username,)) if username else None
+    staff = q1('SELECT username, role, active, school_id FROM admins WHERE username=? AND school_id=?', (username, session.get('school_id'))) if username and session.get('school_id') else None
     if not staff or not staff['active']:
         session.clear()
         return jsonify(user=None, role=None, school=getset('school_name'))
-    return jsonify(user=staff['username'], role=staff['role'], role_name=ROLE_NAMES.get(staff['role'], staff['role']), school=getset('school_name'))
+    return jsonify(user=staff['username'], role=staff['role'], role_name=ROLE_NAMES.get(staff['role'], staff['role']), school=getset('school_name'), school_id=staff['school_id'], school_code=getset('vicora_legacy_school_code'))
 
 
 @app.post('/api/admin/password')
@@ -2323,7 +2333,11 @@ def student_by_creds(d):
     key = f'stu|{request.remote_addr}|{reg.lower()}'
     if throttled(key, 8):
         return None, err('Too many wrong attempts. Wait 5 minutes or ask the invigilator.', 429)
-    st = q1('select s.*, c.name cls from students s join classes c on c.id=s.class_id where lower(s.reg_no)=lower(?)', (reg,))
+    school = school_context(db(), d.get('school_code'))
+    if not school:
+        add_fail(key)
+        return None, err('Enter a valid School Code. A School Code is required when more than one school is registered.', 401)
+    st = q1('select s.*, c.name cls from students s join classes c on c.id=s.class_id where lower(s.reg_no)=lower(?) and s.school_id=?', (reg, school['school_id']))
     if not st or st['access_code'].upper() != code:
         add_fail(key)
         return None, err('Invalid registration number or access code', 401)
@@ -2628,6 +2642,8 @@ def serve(host=None, port=None):
         return
     wserve(app, host=host, port=port, threads=32)
 
+
+install_multi_tenant_routes(app, db, err)
 
 if __name__ == '__main__':
     start_background()
