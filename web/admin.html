@@ -123,7 +123,7 @@ td{color:#29425c}
 
 </style></head><body>
 <div id="login" class="panel" style="display:none"><h2>VICORA CBT Admin</h2><img src="/api/public/school-logo" alt="School logo" style="display:block;width:68px;height:68px;object-fit:contain;margin:0 auto 8px"><div id="schoolLoginName" class="mu" style="text-align:center;font-weight:700;margin-bottom:12px"></div>
-<label>School Code</label><input id="schoolCode" placeholder="VIC-XXXXXXXX" style="width:100%;text-transform:uppercase"><label>Username</label><input id="lu" value="admin" style="width:100%"><label>Password</label><input id="lp" type="password" style="width:100%" onkeydown="if(event.key==='Enter')doLogin()">
+<label>School Code</label><input id="schoolCode" placeholder="VIC-XXXXXXXX" style="width:100%;text-transform:uppercase"><label>Administrator email</label><input id="lu" type="email" autocomplete="username" style="width:100%"><label>Password</label><input id="lp" type="password" style="width:100%" onkeydown="if(event.key==='Enter')doLogin()">
 <p><button class="pr" style="width:100%" onclick="doLogin()">Sign in</button></p><p class="mu" id="lerr"></p></div>
 <aside id="side" style="display:none"><h1 id="brand">CBT Console<small>Admin</small></h1><nav id="nav"></nav></aside>
 <main id="main"></main><div id="modal"><div id="mbox"></div></div><div id="toast"></div>
@@ -147,7 +147,7 @@ let timer=null;
 function go(p){const allowed=ROLE_NAV[currentRole]||['dashboard'];if(!allowed.includes(p))p='dashboard';clearInterval(timer);timer=null;document.querySelectorAll('#nav a').forEach(a=>a.classList.toggle('on',a.dataset.p===p));location.hash=p;run(()=>pages[p]())}
 async function boot(){const m=await api('/me').catch(()=>({}));if(!m.user)return showLogin();currentRole=m.role||'super_admin';renderNav();$('#login').style.display='none';$('#side').style.display='block';$('#brand').innerHTML=esc(m.school)+'<small>VICORA · '+esc(m.role_name||'Super Admin')+'</small>';const h=location.hash.slice(1);go(h in pages?h:'dashboard')}
 function showLogin(){$('#side').style.display='none';$('#main').innerHTML='';$('#login').style.display='block'}
-async function doLogin(){try{await post('/login',{school_code:$('#schoolCode').value.trim().toUpperCase(),username:$('#lu').value,password:$('#lp').value});boot()}catch(e){$('#lerr').textContent=e.message}}
+async function doLogin(){try{const r=await fetch('/api/central/login',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({school_code:$('#schoolCode').value.trim().toUpperCase(),email:$('#lu').value.trim(),password:$('#lp').value})});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||'Sign in failed');boot()}catch(e){$('#lerr').textContent=e.message}}
 const logout=async()=>{await post('/logout');showLogin()};
 
 // ---------- reusable import dialog (Excel / Word / CSV)
