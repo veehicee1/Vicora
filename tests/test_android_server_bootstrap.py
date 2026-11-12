@@ -28,11 +28,21 @@ class FakeServer:
         self.closed.set()
 
 
+class FakeResult:
+    def __init__(self, row=None):
+        self.row = row
+    def fetchone(self):
+        return self.row
+
+
 class FakeConnection:
     def __init__(self):
         self.executed = []
     def execute(self, sql, values=()):
         self.executed.append((sql, values))
+        if "SELECT school_id,school_code FROM schools" in sql:
+            return FakeResult({"school_id": "legacy-school", "school_code": "VIC-11112222"})
+        return FakeResult()
     def commit(self):
         pass
     def close(self):
