@@ -11,6 +11,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
+from tenant_migration import migrate_legacy_school
 import docx
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -161,6 +162,7 @@ def init_db():
     defaults = {'secret': secrets.token_hex(32), 'school_name': os.environ.get('CBT_INITIAL_SCHOOL_NAME', 'CBT Examination Centre').strip()[:120] or 'CBT Examination Centre', 'allow_remote_admin': '0'}
     for k, v in defaults.items():
         c.execute('insert or ignore into settings values(?,?)', (k, v))
+    migrate_legacy_school(c)
     c.commit()
     c.close()
 
