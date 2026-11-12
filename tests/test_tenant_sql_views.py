@@ -1,12 +1,12 @@
 import sqlite3
 import unittest
 
-from multi_tenant import activate_tenant_views, migrate_multi_tenant_schema
+from multi_tenant import activate_tenant_views, migrate_multi_tenant_schema, TenantAwareConnection
 
 
 class TenantSqlViewIsolationTests(unittest.TestCase):
     def setUp(self):
-        self.db = sqlite3.connect(":memory:")
+        self.db = sqlite3.connect(":memory:", factory=TenantAwareConnection)
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA foreign_keys=ON")
         self.db.executescript("""
