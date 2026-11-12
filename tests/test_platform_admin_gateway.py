@@ -55,11 +55,15 @@ def test_subscription_admin_actions_are_allowlisted_and_validated():
         "admin.assignSubscription",
         "admin.setSubscriptionStatus",
         "admin.recordSubscriptionPayment",
+        "admin.updateSubscriptionPayment",
+        "admin.setSubscriptionPlanStatus",
     ):
         assert f'"{action}"' in source
     assert "payload.durationDays" in source
     assert "payload.billingCycle" in source
     assert "payload.subscriptionId" in source
+    assert "payload.paymentId" in source
+    assert "payload.planId" in source
 
 
 def test_subscription_backend_enforces_expiry_grace_and_plan_limits():
@@ -84,4 +88,8 @@ def test_platform_admin_page_exposes_plan_assignment_and_payment_controls():
     assert "admin.saveSubscriptionPlan" in page
     assert "admin.assignSubscription" in page
     assert "admin.recordSubscriptionPayment" in page
+    assert "admin.updateSubscriptionPayment" in page
+    assert "admin.setSubscriptionPlanStatus" in page
+    assert "Edit plan" in page
+    assert "Mark verified" in page
     assert "Monthly" in page and "Termly" in page and "Yearly" in page
