@@ -184,7 +184,7 @@ def install_multi_tenant_routes(app, db, err):
             """INSERT INTO schools
             (school_id,school_code,name,status,is_legacy_default,created_ts,approved_ts,
              contact_email,contact_phone,country,address,website,reviewed_by,review_note)
-            VALUES(?,?,?,'approved',0,?,?, ?,?,?,?,?, 'platform_super_admin',?)""",
+            VALUES(?,?,?,'approved',0,?,?,?,?,?,?,?,'platform_super_admin',?)""",
             (school_id, school_code, app_row["school_name"], now, now,
              app_row["email"], app_row["phone"], app_row["country"],
              app_row["address"], app_row["website"], note)
