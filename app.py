@@ -838,6 +838,7 @@ def a_me():
         activate_tenant_views(db(), session['school_id'])
     staff = q1('SELECT username, role, active, school_id FROM admins WHERE username=? AND school_id=?', (username, session.get('school_id'))) if username and session.get('school_id') else None
     if not staff or not staff['active']:
+        central_logout(session.get('central_session_key'), db())
         session.clear()
         return jsonify(user=None, role=None, school=getset('school_name'))
     school = q1('SELECT name, school_code FROM schools WHERE school_id=?', (staff['school_id'],))
