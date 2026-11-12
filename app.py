@@ -12,6 +12,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 from tenant_migration import migrate_legacy_school
+from school_scoped_migration import migrate_school_scoped_unique_keys
 import docx
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -163,6 +164,8 @@ def init_db():
     for k, v in defaults.items():
         c.execute('insert or ignore into settings values(?,?)', (k, v))
     migrate_legacy_school(c)
+    c.commit()
+    migrate_school_scoped_unique_keys(c)
     c.commit()
     c.close()
 
