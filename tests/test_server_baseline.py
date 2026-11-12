@@ -165,6 +165,27 @@ class ServerBaselineTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("HTTPS reverse-proxy", response.get_json()["error"])
 
+    def test_public_web_host_allows_admin_only_over_explicit_https_configuration(self):
+        from unittest.mock import patch
+        with self.client.session_transaction() as sess:
+            sess["admin"] = "admin"
+        with patch("app.PUBLIC_HOSTING", True), \
+             patch("app.PUBLIC_HOSTING_ADMIN", True), \
+             patch("app.COOKIE_SECURE", True), \
+             patch("app.TRUST_PROXY", False):
+            secure = self.client.get(
+                "/api/admin/dashboard",
+                base_url="https://school.example",
+                environ_overrides={"REMOTE_ADDR": "192.0.2.25"},
+            )
+            insecure = self.client.get(
+                "/api/admin/dashboard",
+                base_url="http://school.example",
+                environ_overrides={"REMOTE_ADDR": "192.0.2.25"},
+            )
+        self.assertEqual(secure.status_code, 200)
+        self.assertEqual(insecure.status_code, 403)
+
     def test_loopback_admin_can_reach_dashboard_after_login(self):
         with self.client.session_transaction() as sess:
             sess["admin"] = "admin"
