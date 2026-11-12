@@ -533,7 +533,9 @@ public class MainActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
+        String savedMode = getPreferences(0).getString("mode", "");
         if (webView == null || !("standalone".equals(currentMode) || "host".equals(currentMode))
+                || !("standalone".equals(savedMode) || "host".equals(savedMode))
                 || recoveryInProgress) return;
         recoveryInProgress = true;
         new Thread(() -> {
