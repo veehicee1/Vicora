@@ -2552,8 +2552,10 @@ def s_paper():
              response_drawing=r['response_drawing'] or '', flagged=r['flagged'])
            for r in qa('select * from answers where session_id=?', (g.ses['id'],))}
     st = q1('select s.name,s.reg_no,c.name cls from students s join classes c on c.id=s.class_id where s.id=?', (g.ses['student_id'],))
+    school_row = q1('SELECT name FROM schools WHERE school_id=?', (g.ses['school_id'],))
+    school_name = (school_row['name'] if school_row else '') or getset('school_name') or 'VICORA CBT'
     return jsonify(title=g.exam['title'], exam_id=g.exam['id'], remaining=time_left(g.ses, g.exam['duration_min']), questions=qs, answers=ans,
-                   student=st, school=getset('school_name'))
+                   student=st, school=school_name)
 
 
 @app.post('/api/student/answer')
