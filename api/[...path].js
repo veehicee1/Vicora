@@ -23,7 +23,9 @@ module.exports = async function handler(req, res) {
   }
 
   // This is an allowlist, not a general-purpose reverse proxy.
-  if (!ALLOWED_EXACT.has(path) && !ALLOWED_PREFIXES.some(prefix => path.startsWith(prefix))) {
+  const adminGatewayEnabled = process.env.VICORA_ENABLE_ADMIN_GATEWAY === "1";
+  const allowedAdminPath = adminGatewayEnabled && path.startsWith("/api/admin/");
+  if (!ALLOWED_EXACT.has(path) && !ALLOWED_PREFIXES.some(prefix => path.startsWith(prefix)) && !allowedAdminPath) {
     return sendJson(res, 404, { error: "Not found" });
   }
   if (!ALLOWED_METHODS.has(req.method)) {
