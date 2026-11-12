@@ -11,7 +11,7 @@
  */
 
 const VICORA = Object.freeze({
-  VERSION: '1.2.0',
+  VERSION: '1.3.0',
   DB_PROPERTY: 'VICORA_DATABASE_ID',
   DRIVE_PROPERTY: 'VICORA_STORAGE_FOLDER_ID',
   ADMIN_KEY_PROPERTY: 'VICORA_PLATFORM_ADMIN_KEY',
@@ -319,8 +319,7 @@ function generateStudentAccessCode_(schoolId) {
   const students = scoped_('Students', schoolId);
   let code = '';
   do {
-    code = '';
-    for (let i = 0; i < 8; i++) code += alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+    code = randomToken_().replace(/[^A-Z0-9]/gi, '').toUpperCase().slice(0, 8);
   } while (students.some(function(s) { return String(s.access_code || '').toUpperCase() === code; }));
   return code;
 }
