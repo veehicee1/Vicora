@@ -58,8 +58,29 @@ This is deliberately staged because the current Flask/SQLite schema is single-sc
 6. **Android and Windows host enrollment:** add school-scoped host pairing, school identity confirmation, local data migration, and tenant-aware package/result synchronization. Preserve offline hosting.
 7. **Release gates:** run database migration tests against a copy of the existing GTMC database, cross-tenant security tests, web exam journey tests, Android and Windows builds, and LAN/offline/online sync tests. Do not deploy or migrate the live school database until these gates pass.
 
-## Current implementation boundary
+## Current implementation status — development PR #12
 
-The current application initializes one school per installation. Its existing `admins`, `classes`, `subjects`, `students`, `questions`, `exams`, `sessions`, `answers`, `messages`, and sync tables are not yet consistently tenant-scoped. The current Vercel student gateway and root student page are not yet a complete multi-school implementation. Android has a local host and controlled sync foundation; Windows and cloud synchronization are not yet a complete universal three-way sync system.
+The following foundations are now implemented in the VICORA development branch and are undergoing CI validation:
 
-Therefore this document is an implementation contract, not a claim that multi-school registration, isolation, or all-host synchronization is already live. Keep the existing single-school GTMC workflow working until each migration and security stage is complete. Keep the web student portal draft separate until it is updated to resolve a school before login. No paid hosting deployment, live database migration, or pull-request merge is authorized by this design document.
+- The existing installation is assigned a stable legacy school ID and School Code; the migration is designed to preserve existing student, score, exam and relationship IDs.
+- Admin usernames, class names, subject names and student registration numbers are unique within a school rather than globally.
+- Public school applications, Platform Super Admin approval, immutable School IDs, unique School Codes and expiring one-time school-admin activation credentials are implemented.
+- Admin and student login resolve the School Code before credentials are checked. A School Code is an identifier, not a password.
+- Tenant-aware SQLite connections route core school-table reads and writes through school-filtered views. Inserts are stamped with the active school, updates/deletes are restricted to that school, and cross-school foreign-key relationships are rejected.
+- School settings use a composite school/key identity.
+- Android and Windows Host setup accept the approved School Code. Android-to-Windows pairing and sync requests are scoped to the paired school.
+- School-scoped host enrollment, heartbeat and revocation APIs, a Platform Admin review page, and school onboarding pages are included.
+- The Vercel gateway can target an HTTPS cloud API origin or the existing Cloudflare Access-protected host tunnel.
+
+This is a development foundation, not a claim that every host type already uses the new host-enrollment token or that universal Web ↔ Android ↔ Windows synchronization is complete.
+
+### Remaining work before multi-school production use
+
+1. Integrate new host-enrollment credentials into Android and Windows clients, including secure storage and revocation handling.
+2. Complete the universal versioned sync protocol for exam packages, roster changes, answer/result uploads, retry queues and conflict review across all three host types.
+3. Complete per-school backup/restore and archive/export. Until then, cross-school database backup routes fail closed.
+4. Rehearse migration against a verified copy of the existing GTMC database and compare record counts, IDs, scores, foreign keys and reports.
+5. Complete negative tenant-isolation tests for every API, file/export path and background job.
+6. Approve and configure the paid persistent web host, HTTPS domain and production gateway separately.
+
+No paid hosting deployment, live database migration or production deployment has been performed.
