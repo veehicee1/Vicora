@@ -4,13 +4,14 @@
  *
  * IMPORTANT:
  * - This service manages school tenancy and administration metadata.
- * - It is NOT the high-volume CBT answer/scoring engine.
+ * - The CBT sheet tabs are a controlled pilot foundation, not yet the live exam engine.
+ * - Do not use Google Sheets for high-volume simultaneous answer/scoring traffic.
  * - Do not put secrets in source code. Configure Script Properties as documented.
  * - Deploy only after configuring the spreadsheet and platform admin key.
  */
 
 const VICORA = Object.freeze({
-  VERSION: '1.0.0',
+  VERSION: '1.1.0',
   DB_PROPERTY: 'VICORA_DATABASE_ID',
   DRIVE_PROPERTY: 'VICORA_STORAGE_FOLDER_ID',
   ADMIN_KEY_PROPERTY: 'VICORA_PLATFORM_ADMIN_KEY',
@@ -23,7 +24,15 @@ const VICORA = Object.freeze({
     Sessions: ['session_id','token_hash','user_id','school_id','expires_at','created_at','revoked'],
     Classes: ['record_id','school_id','name','level','active','updated_at'],
     Subjects: ['record_id','school_id','name','code','level','active','updated_at'],
-    Students: ['record_id','school_id','admission_number','full_name','class_name','active','updated_at'],
+    Students: ['record_id','school_id','admission_number','full_name','class_name','access_code','active','created_at','updated_at'],
+    Exams: ['exam_id','school_id','title','subject','class_name','duration_minutes','question_count','instructions','status','opens_at','closes_at','created_by','created_at'],
+    Questions: ['question_id','school_id','exam_id','question_type','question_text','option_a','option_b','option_c','option_d','correct_answer','marks','position','active','created_at'],
+    ExamSessions: ['session_id','school_id','exam_id','student_id','admission_number','status','started_at','expires_at','submitted_at','score','total'],
+    ExamAnswers: ['answer_id','school_id','session_id','exam_id','student_id','question_id','answer_text','awarded_marks','saved_at'],
+    ExamResults: ['result_id','school_id','exam_id','student_id','admission_number','score','total','percent','grade','published','submitted_at'],
+    ExamEvents: ['event_id','school_id','session_id','student_id','event_type','details_json','created_at'],
+    StudentSessions: ['session_id','token_hash','school_id','student_id','expires_at','created_at','revoked'],
+    Messages: ['message_id','school_id','student_id','title','body','emergency','created_at'],
     Devices: ['device_id','school_id','device_name','platform','device_token_hash','status','last_seen','created_at'],
     SyncEvents: ['event_id','school_id','device_id','entity_type','entity_id','operation','payload_json','created_at'],
     Audit: ['audit_id','school_id','actor_id','action','details_json','created_at']
