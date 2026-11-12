@@ -264,11 +264,16 @@ def install_multi_tenant_routes(app, db, err):
             return err("A stable device ID (8-100 safe characters) is required.")
         if platform not in ("android", "windows", "web"):
             return err("Host platform must be Android, Windows or Web.")
+        existing = db().execute(
+            "SELECT school_id FROM school_hosts WHERE device_id=?", (device_id,)
+        ).fetchone()
+        if existing and existing["school_id"] != school_id:
+            return err("This device ID is already enrolled to another school. Revoke and transfer it through the platform administrator.", 409)
         token = secrets.token_urlsafe(40)
         db().execute(
             """INSERT INTO school_hosts(device_id,school_id,platform,label,token_hash,created_ts)
                VALUES(?,?,?,?,?,?) ON CONFLICT(device_id) DO UPDATE SET
-               school_id=excluded.school_id,platform=excluded.platform,label=excluded.label,
+               platform=excluded.platform,label=excluded.label,
                token_hash=excluded.token_hash,created_ts=excluded.created_ts,
                last_seen=0,revoked_ts=0""",
             (device_id, school_id, platform, label,
