@@ -45,6 +45,7 @@ button:disabled{opacity:.55;cursor:wait}.secondary{background:#e8eef6;color:#183
 <button id="pendingTab" aria-pressed="true">Pending applications</button>
 <button id="allTab" class="secondary" aria-pressed="false">All applications</button>
 <button id="schoolsTab" class="secondary" aria-pressed="false">Registered schools</button>
+<button id="subscriptionsTab" class="secondary" aria-pressed="false">Subscriptions & payments</button>
 </nav>
 <section><div id="content"><p class="muted">Connect to load platform records.</p></div></section>
 <section id="issued" class="panel" hidden>
@@ -65,14 +66,90 @@ function setStatus(message){$("status").textContent=message}
 function esc(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
 function authHeaders(){return {"Content-Type":"application/json","X-VICORA-PLATFORM-TOKEN":platformToken}}
 async function api(action,fields={}){const response=await fetch("/api/central/admin",{method:"POST",headers:authHeaders(),body:JSON.stringify({action,...fields})});const result=await response.json().catch(()=>({error:"Invalid server response"}));if(!response.ok||result.ok!==true)throw Error(result.error||"Platform request failed.");return result.data}
-function activateTab(id){for(const tab of ["pendingTab","allTab","schoolsTab"]){$(tab).setAttribute("aria-pressed",String(tab===id));$(tab).classList.toggle("secondary",tab!==id)}}
+function activateTab(id){for(const tab of ["pendingTab","allTab","schoolsTab","subscriptionsTab"]){$(tab).setAttribute("aria-pressed",String(tab===id));$(tab).classList.toggle("secondary",tab!==id)}}
 async function loadApplications(mode){activateTab(mode==="all"?"allTab":"pendingTab");$("content").innerHTML="<p>Loading applications…</p>";try{const rows=await api("admin.listApplications");const pending=rows.filter(a=>a.status==="pending");const approved=rows.filter(a=>a.status==="approved");$("pendingCount").textContent=pending.length;$("approvedCount").textContent=approved.length;const shown=mode==="all"?rows:pending;$("content").innerHTML=shown.length?shown.map(a=>'<article class="application"><h3>'+esc(a.school_name)+'</h3><p class="meta"><b>Contact:</b> '+esc(a.contact_name)+' · '+esc(a.contact_email)+' · '+esc(a.contact_phone)+'</p><p class="meta"><b>Location:</b> '+esc([a.address,a.state,a.country].filter(Boolean).join(", "))+'</p><p class="meta"><b>Status:</b> '+esc(a.status)+' · <b>Submitted:</b> '+esc(a.submitted_at?new Date(a.submitted_at).toLocaleString():"")+'</p>'+(a.decision_note?'<p><b>Review note:</b> '+esc(a.decision_note)+'</p>':"")+(a.status==="pending"?'<label for="note-'+esc(a.application_id)+'">Review note (optional)</label><textarea id="note-'+esc(a.application_id)+'" rows="2" maxlength="500" placeholder="Add a review note"></textarea><div class="actions"><button onclick="decide(\''+esc(a.application_id)+'\',\'approve\')">Approve and issue School Code</button><button class="reject" onclick="decide(\''+esc(a.application_id)+'\',\'reject\')">Reject</button></div>':"")+'</article>').join(""):"<p>No applications found in this view.</p>";setStatus("Loaded "+shown.length+" application(s).")}catch(error){$("content").innerHTML="";setStatus(error.message);throw error}}
 async function loadSchools(){activateTab("schoolsTab");$("content").innerHTML="<p>Loading registered schools…</p>";try{const rows=await api("admin.listSchools");$("schoolCount").textContent=rows.length;$("content").innerHTML=rows.length?rows.map(s=>'<article class="school"><h3>'+esc(s.name)+'</h3><div class="grid"><p class="meta"><b>School Code</b><br>'+esc(s.schoolCode)+'</p><p class="meta"><b>School ID</b><br>'+esc(s.schoolId)+'</p><p class="meta"><b>Type</b><br>'+esc(s.schoolType)+'</p><p class="meta"><b>Location</b><br>'+esc([s.state,s.country].filter(Boolean).join(", "))+'</p><p class="meta"><b>Status</b><br>'+esc(s.status)+'</p></div><div class="actions">'+(s.status==="approved"?'<button class="reject" onclick="setSchoolStatus(\''+esc(s.schoolId)+'\',\'suspended\')">Suspend school</button>':s.status==="suspended"?'<button onclick="setSchoolStatus(\''+esc(s.schoolId)+'\',\'approved\')">Reactivate school</button>':'<span class="muted">This school status cannot be changed here.</span>')+'</div></article>').join(""):"<p>No schools are registered yet.</p>";setStatus("Loaded "+rows.length+" registered school(s).")}catch(error){$("content").innerHTML="";setStatus(error.message)}}
+async function loadSubscriptions(){
+  activateTab("subscriptionsTab");
+  $("content").innerHTML="<p>Loading subscription records…</p>";
+  try{
+    const data=await api("admin.listSubscriptionData");
+    const activePlans=data.plans.filter(p=>p.active==="true");
+    const schools=data.schools.filter(x=>x.status==="approved");
+    const subs=data.subscriptions;
+    const payments=data.payments;
+    const money=(amount,currency)=>esc(currency||"NGN")+" "+Number(amount||0).toLocaleString();
+    const planOptions=activePlans.map(p=>'<option value="'+esc(p.plan_id)+'">'+esc(p.plan_name)+' · '+esc(p.billing_cycle)+' · '+money(p.amount,p.currency)+'</option>').join("");
+    const schoolOptions=schools.map(x=>'<option value="'+esc(x.schoolId)+'">'+esc(x.name)+' ('+esc(x.schoolCode)+')</option>').join("");
+    const subOptions=subs.map(x=>'<option value="'+esc(x.subscriptionId)+'">'+esc(x.schoolName)+' · '+esc(x.planName)+' · '+esc(x.status)+'</option>').join("");
+    const active=subs.filter(x=>x.status==="active").length;
+    const expired=subs.filter(x=>new Date(x.endAt).getTime()<Date.now()&&x.status==="active").length;
+    $("content").innerHTML=
+      '<div class="stats"><div class="stat"><b>'+schools.length+'</b><span>Approved schools</span></div><div class="stat"><b>'+active+'</b><span>Active subscriptions</span></div><div class="stat"><b>'+expired+'</b><span>Past end date (grace may apply)</span></div></div>'+
+      '<article class="panel"><h2>Create a subscription plan</h2><p class="muted">Set your own prices and limits. Monthly, termly and yearly are presets; duration remains editable.</p>'+
+      '<div class="grid"><div><label for="planName">Plan name</label><input id="planName" maxlength="100" placeholder="e.g. Standard School"></div>'+
+      '<div><label for="billingCycle">Billing cycle</label><select id="billingCycle"><option value="monthly">Monthly</option><option value="termly">Termly</option><option value="yearly">Yearly</option><option value="custom">Custom</option></select></div>'+
+      '<div><label for="durationDays">Duration (days)</label><input id="durationDays" type="number" min="1" max="3660" value="30"></div>'+
+      '<div><label for="planAmount">Price</label><input id="planAmount" type="number" min="0" step="0.01" value="0"></div>'+
+      '<div><label for="planCurrency">Currency</label><input id="planCurrency" maxlength="8" value="NGN"></div>'+
+      '<div><label for="graceDays">Grace period (days)</label><input id="graceDays" type="number" min="0" max="90" value="0"></div>'+
+      '<div><label for="maxStudents">Maximum students (0 = unlimited)</label><input id="maxStudents" type="number" min="0" value="0"></div>'+
+      '<div><label for="maxStaff">Maximum staff (0 = unlimited)</label><input id="maxStaff" type="number" min="0" value="0"></div></div>'+
+      '<label for="planFeatures">Included features (one per line)</label><textarea id="planFeatures" rows="3" placeholder="CBT exams&#10;Question bank&#10;Results and reports"></textarea>'+
+      '<div class="actions"><button onclick="saveSubscriptionPlan()">Save plan</button></div></article>'+
+      '<article class="panel"><h2>Assign or renew a school subscription</h2><div class="grid"><div><label for="assignSchool">School</label><select id="assignSchool"><option value="">Select school</option>'+schoolOptions+'</select></div>'+
+      '<div><label for="assignPlan">Plan</label><select id="assignPlan"><option value="">Select plan</option>'+planOptions+'</select></div></div>'+
+      '<label for="assignNotes">Admin note (optional)</label><input id="assignNotes" maxlength="500" placeholder="Renewal, invoice or approval note">'+
+      '<div class="actions"><button onclick="assignSubscription()">Assign / renew subscription</button></div></article>'+
+      '<article class="panel"><h2>Subscription plans</h2>'+(data.plans.length?data.plans.map(p=>'<div class="school"><b>'+esc(p.plan_name)+'</b> · '+esc(p.billing_cycle)+' · '+money(p.amount,p.currency)+'<p class="muted">'+esc(p.duration_days)+' days · '+esc(p.grace_days)+' grace days · '+(p.active==="true"?"Active":"Inactive")+'</p><p class="muted">Limits: '+(Number(p.max_students)||"Unlimited")+' students; '+(Number(p.max_staff)||"Unlimited")+' staff</p></div>').join(""):"<p>No plans created yet.</p>")+'</article>'+
+      '<article class="panel"><h2>School subscriptions</h2>'+(subs.length?subs.map(x=>'<div class="school"><h3>'+esc(x.schoolName)+'</h3><p class="meta">'+esc(x.schoolCode)+' · '+esc(x.planName)+' ('+esc(x.billingCycle)+')</p><p class="meta"><b>Status:</b> '+esc(x.status)+' · <b>Ends:</b> '+esc(x.endAt?new Date(x.endAt).toLocaleDateString():"—")+' · <b>Grace:</b> '+esc(x.graceDays)+' days</p><p class="meta"><b>Plan price:</b> '+money(x.amount,x.currency)+'</p><div class="actions">'+(x.status==="active"?'<button class="reject" onclick="changeSubscriptionStatus(\''+esc(x.subscriptionId)+'\',\'suspended\')">Suspend</button>':'')+(x.status==="suspended"?'<button onclick="changeSubscriptionStatus(\''+esc(x.subscriptionId)+'\',\'active\')">Reactivate</button>':'')+(x.status!=="cancelled"&&x.status!=="replaced"?'<button class="secondary" onclick="changeSubscriptionStatus(\''+esc(x.subscriptionId)+'\',\'cancelled\')">Cancel</button>':'')+'</div></div>').join(""):"<p>No subscriptions assigned yet.</p>")+'</article>'+
+      '<article class="panel"><h2>Record a payment</h2><p class="muted">Manual payment ledger only. Verify receipts/transfers outside VICORA before selecting Verified. Recording a payment does not automatically renew a subscription.</p>'+
+      '<label for="paymentSubscription">Subscription</label><select id="paymentSubscription"><option value="">Select subscription</option>'+subOptions+'</select>'+
+      '<div class="grid"><div><label for="paymentAmount">Amount received</label><input id="paymentAmount" type="number" min="0.01" step="0.01"></div><div><label for="paymentCurrency">Currency</label><input id="paymentCurrency" value="NGN" maxlength="8"></div>'+
+      '<div><label for="paymentMethod">Payment method</label><input id="paymentMethod" value="Bank transfer" maxlength="60"></div><div><label for="paymentReference">Reference / receipt number</label><input id="paymentReference" maxlength="120"></div>'+
+      '<div><label for="paymentStatus">Verification status</label><select id="paymentStatus"><option value="pending">Pending</option><option value="verified">Verified</option><option value="rejected">Rejected</option></select></div></div>'+
+      '<label for="paymentNotes">Payment note</label><input id="paymentNotes" maxlength="500"><div class="actions"><button onclick="recordSubscriptionPayment()">Save payment record</button></div></article>'+
+      '<article class="panel"><h2>Recent payment records</h2>'+(payments.length?payments.map(p=>'<div class="school"><b>'+money(p.amount,p.currency)+'</b> · '+esc(p.status)+'<p class="muted">Ref: '+esc(p.reference||"—")+' · Method: '+esc(p.payment_method)+' · '+esc(p.created_at)+'</p></div>').join(""):"<p>No payments recorded.</p>")+'</article>';
+    $("schoolCount").textContent=data.schools.length;
+    setStatus("Loaded "+subs.length+" subscription(s), "+data.plans.length+" plan(s), and "+payments.length+" recent payment record(s).");
+  }catch(error){$("content").innerHTML="";setStatus(error.message)}
+}
+async function saveSubscriptionPlan(){
+  const features=$("planFeatures").value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
+  try{
+    await api("admin.saveSubscriptionPlan",{planName:$("planName").value,billingCycle:$("billingCycle").value,
+      durationDays:Number($("durationDays").value),amount:Number($("planAmount").value),currency:$("planCurrency").value,
+      graceDays:Number($("graceDays").value),maxStudents:Number($("maxStudents").value),maxStaff:Number($("maxStaff").value),features:features,active:true});
+    setStatus("Subscription plan saved.");await loadSubscriptions();
+  }catch(error){setStatus(error.message)}
+}
+async function assignSubscription(){
+  const schoolId=$("assignSchool").value,planId=$("assignPlan").value;
+  if(!schoolId||!planId){setStatus("Select a school and a plan.");return}
+  if(!confirm("Assign this plan and start its subscription now? Any previous active subscription for this school will be replaced."))return;
+  try{const result=await api("admin.assignSubscription",{schoolId:schoolId,planId:planId,notes:$("assignNotes").value});
+    setStatus("Subscription assigned. Expiry: "+new Date(result.endAt).toLocaleDateString());await loadSubscriptions();
+  }catch(error){setStatus(error.message)}
+}
+async function changeSubscriptionStatus(subscriptionId,status){
+  if(!confirm("Change this subscription to "+status+"?"))return;
+  try{await api("admin.setSubscriptionStatus",{subscriptionId:subscriptionId,status:status});setStatus("Subscription updated.");await loadSubscriptions()}
+  catch(error){setStatus(error.message)}
+}
+async function recordSubscriptionPayment(){
+  const subscriptionId=$("paymentSubscription").value;
+  if(!subscriptionId){setStatus("Select a subscription.");return}
+  try{await api("admin.recordSubscriptionPayment",{subscriptionId:subscriptionId,amount:Number($("paymentAmount").value),
+    currency:$("paymentCurrency").value,paymentMethod:$("paymentMethod").value,reference:$("paymentReference").value,
+    status:$("paymentStatus").value,notes:$("paymentNotes").value});
+    setStatus("Payment record saved.");await loadSubscriptions();
+  }catch(error){setStatus(error.message)}
+}
 async function setSchoolStatus(id,status){const verb=status==="suspended"?"suspend":"reactivate";if(!confirm("Are you sure you want to "+verb+" this school?"+(status==="suspended"?" All active central user sessions will be revoked.":"")))return;try{const result=await api("admin.setSchoolStatus",{schoolId:id,status});setStatus(result.changed?(status==="suspended"?"School suspension completed.":"School reactivated successfully."):"School status was already "+status+".");await loadSchools()}catch(error){setStatus(error.message)}}
 async function decide(id,decision){const note=$("note-"+id)?.value||"";if(!confirm(decision==="approve"?"Approve this school and issue its School Code?":"Reject this school application?"))return;try{const result=await api("admin.decideApplication",{applicationId:id,decision,note});if(decision==="approve"){$("code").textContent=result.schoolCode;$("schoolId").textContent=result.schoolId;$("activation").textContent=result.activationToken;$("delivery").textContent=result.emailSent?"Activation email sent to "+result.contactEmail+". Keep these details private.":"Email delivery was not confirmed. Send the activation details securely to "+result.contactEmail+".";$("issued").hidden=false;}setStatus(decision==="approve"?"School approved and provisioned.":"Application rejected.");await loadApplications("pending")}catch(error){setStatus(error.message)}}
 $("connect").onclick=async()=>{platformToken=$("token").value.trim();if(!platformToken){setStatus("Enter your platform authorization token.");return}setStatus("Connecting…");try{await loadApplications("pending");$("workspace").hidden=false;setStatus("Connected to VICORA Central.")}catch(error){setStatus(error.message)}};
 $("clear").onclick=()=>{platformToken="";$("token").value="";$("workspace").hidden=true;$("issued").hidden=true;setStatus("Platform token cleared from this page session.")};
-$("pendingTab").onclick=()=>loadApplications("pending");$("allTab").onclick=()=>loadApplications("all");$("schoolsTab").onclick=loadSchools;
+$("pendingTab").onclick=()=>loadApplications("pending");$("allTab").onclick=()=>loadApplications("all");$("schoolsTab").onclick=loadSchools;$("subscriptionsTab").onclick=loadSubscriptions;
 $("copy").onclick=async()=>{const details="VICORA School Code: "+$("code").textContent+"\nSchool ID: "+$("schoolId").textContent+"\nActivation token: "+$("activation").textContent+"\n"+$("delivery").textContent;try{await navigator.clipboard.writeText(details);setStatus("Activation details copied. Store and send them securely.")}catch(_){setStatus("Copy is unavailable here. Select and copy the activation details manually.")}};
 </script>
 </body>
