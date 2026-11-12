@@ -19,7 +19,7 @@ const VICORA = Object.freeze({
   SCHOOL_CODE_PREFIX: 'VIC',
   SHEETS: {
     Applications: ['application_id','school_name','school_type','country','state','address','contact_name','contact_email','contact_phone','status','submitted_at','reviewed_at','reviewed_by','decision_note'],
-    Schools: ['school_id','school_code','school_name','school_type','country','state','address','contact_name','contact_email','contact_phone','status','created_at','approved_at'],
+    Schools: ['school_id','school_code','school_name','school_type','country','state','address','contact_name','contact_email','contact_phone','status','created_at','approved_at','subscription_required'],
     Users: ['user_id','school_id','name','email','role','password_salt','password_hash','active','created_at','last_login'],
     Sessions: ['session_id','token_hash','user_id','school_id','expires_at','created_at','revoked'],
     Classes: ['record_id','school_id','name','level','active','updated_at'],
@@ -197,7 +197,7 @@ function decideApplication_(b) {
     school_type: application.school_type, country: application.country, state: application.state,
     address: application.address, contact_name: application.contact_name,
     contact_email: application.contact_email, contact_phone: application.contact_phone,
-    status: 'approved', created_at: new Date().toISOString(), approved_at: new Date().toISOString()
+    status: 'approved', subscription_required: 'true', created_at: new Date().toISOString(), approved_at: new Date().toISOString()
   };
   appendObject_('Schools', school);
   const salt = randomToken_();
@@ -660,8 +660,12 @@ function setSubscriptionPlanStatus_(b) {
 function assertSubscriptionAccess_(schoolId) {
   const rows=readObjects_('Subscriptions').filter(function(x){return x.school_id===schoolId;})
     .sort(function(a,b){return String(b.created_at).localeCompare(String(a.created_at));});
-  // Existing schools without a subscription remain accessible until the platform assigns one.
-  if(!rows.length) return {allowed:true,unassigned:true};
+  // Existing schools without a subscription remain accessible; newly approved schools require a plan before login.
+  if(!rows.length) {
+    const school=findOne_('Schools','school_id',schoolId);
+    if(school && String(school.subscription_required)==='true') throw new Error('Your school has been approved, but a subscription plan has not yet been assigned. Contact the VICORA platform administrator.');
+    return {allowed:true,unassigned:true};
+  }
   const sub=rows.find(function(x){return x.status==='active'||x.status==='suspended';});
   if(!sub) throw new Error('This school has no active subscription. Contact VICORA support.');
   if(sub.status==='suspended') throw new Error('This school subscription is suspended. Contact VICORA support.');
