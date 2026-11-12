@@ -1,0 +1,53 @@
+# Free-tier-friendly Android test build for VICORA.
+# Builds both app flavours in one cloud job; no local SDK installation required.
+workflows:
+  vicora-android-test:
+    name: VICORA Android Admin + Examination (debug)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      java: 17
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: work/finish-vicora-platform
+          include: true
+          source: true
+      cancel_previous_builds: true
+    scripts:
+      - name: Confirm build environment
+        script: |
+          java -version
+          uname -a
+      - name: Install Android SDK packages
+        script: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+      - name: Install Gradle 8.11.1
+        script: |
+          curl --fail --location --silent --show-error \
+            https://services.gradle.org/distributions/gradle-8.11.1-bin.zip \
+            --output /tmp/gradle-8.11.1-bin.zip
+          unzip -q /tmp/gradle-8.11.1-bin.zip -d /tmp
+          echo "/tmp/gradle-8.11.1/bin" >> "$CM_ENV"
+          gradle --version
+      - name: Configure Android SDK
+        script: |
+          printf 'sdk.dir=%s\n' "$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/android/local.properties"
+      - name: Build both VICORA Android test apps
+        script: |
+          cd "$CM_BUILD_DIR/android"
+          gradle --no-daemon --stacktrace assembleAdminDebug assembleExaminationDebug
+      - name: Verify both APKs exist
+        script: |
+          test -s "$CM_BUILD_DIR/android/app/build/outputs/apk/admin/debug/app-admin-debug.apk"
+          test -s "$CM_BUILD_DIR/android/app/build/outputs/apk/examination/debug/app-examination-debug.apk"
+    artifacts:
+      - android/app/build/outputs/apk/admin/debug/app-admin-debug.apk
+      - android/app/build/outputs/apk/examination/debug/app-examination-debug.apk
+      - /tmp/gradle-*.log
+    cache:
+      cache_paths:
+        - $HOME/.gradle/caches
+        - $HOME/.gradle/wrapper
