@@ -28,7 +28,9 @@ when ready to allow those previews.
 
 - The school Admin UI is served from `/admin/` as a static copy of the maintained `web/admin.html`.
 - To enable it, set `VICORA_ENABLE_ADMIN_GATEWAY=1` in the Vercel project environment. Leave it unset or set to `0` to keep the Admin API blocked.
-- Configure `VICORA_API_ORIGIN` to a trusted HTTPS persistent API origin. The gateway forwards only the browser session cookie and expected headers; Flask remains responsible for login, CSRF protections where configured, role checks, school context and data isolation.
+- Configure `VICORA_API_ORIGIN` to a trusted HTTPS persistent API origin protected by Cloudflare Access or an equivalent ingress policy. The gateway forwards only the browser session cookie and expected headers; Flask remains responsible for login, role checks, school context and data isolation.
+- On the backend, set `CBT_PUBLIC_HOSTING=1`, `CBT_PUBLIC_HOSTING_ADMIN=1`, and `CBT_COOKIE_SECURE=1` to permit remote Admin only over HTTPS. Set `CBT_REMOTE_STUDENT_ONLY=0` only when the backend ingress is separately protected and the Vercel gateway is the intended public entry point. Keep the backend origin private; do not expose its Flask port directly.
+- Keep `VICORA_ENABLE_ADMIN_GATEWAY` unset until those backend protections and HTTPS session cookies are verified on a Preview deployment. The flag is a routing gate, not a substitute for backend authentication.
 - The Admin page is not operational until a persistent backend is deployed and configured. Vercel static hosting alone does not host the Flask process or SQLite database.
 - Do not use the Android student-only tunnel as the Admin API origin. Use a separately protected, persistent backend origin with server-side access controls.
 
