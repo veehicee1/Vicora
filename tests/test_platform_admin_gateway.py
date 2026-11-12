@@ -6,6 +6,7 @@ def test_platform_admin_bridge_keeps_apps_script_key_server_side():
     assert '"admin.listApplications"' in source
     assert '"admin.decideApplication"' in source
     assert '"admin.listSchools"' in source
+    assert '"admin.setSchoolStatus"' in source
     assert "VICORA_CENTRAL_APPS_SCRIPT_URL" in source
     assert "VICORA_PLATFORM_ADMIN_KEY" in source
     assert "VICORA_PLATFORM_ADMIN_TOKEN" in source
@@ -24,7 +25,22 @@ def test_platform_admin_page_uses_protected_bridge_and_never_persists_token():
     assert "admin.listApplications" in page
     assert "admin.decideApplication" in page
     assert "admin.listSchools" in page
+    assert "admin.setSchoolStatus" in page
+    assert "Suspend school" in page
+    assert "Reactivate school" in page
     assert "Registered schools" in page
     assert "localStorage" not in page
     assert "sessionStorage" not in page
     assert "VICORA_PLATFORM_ADMIN_KEY" not in page
+
+
+def test_school_status_control_is_scoped_to_existing_schools_and_revokes_sessions():
+    source = Path("apps-script/Code.gs").read_text(encoding="utf-8")
+    assert "case 'admin.setSchoolStatus': requirePlatformAdmin_(body); result = setSchoolStatus_(body); break;" in source
+    assert "function setSchoolStatus_(b)" in source
+    assert "['approved','suspended']" in source
+    assert "school.status === status" in source
+    assert "school_id === schoolId" in source
+    assert "revoked: 'true'" in source
+    assert "school.suspended" in source
+    assert "school.reactivated" in source

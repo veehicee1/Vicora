@@ -6,7 +6,8 @@ const MAX_BODY_BYTES = 16 * 1024;
 const ALLOWED_ACTIONS = new Set([
   "admin.listApplications",
   "admin.decideApplication",
-  "admin.listSchools"
+  "admin.listSchools",
+  "admin.setSchoolStatus"
 ]);
 
 function sendJson(res, status, body) {
@@ -87,6 +88,13 @@ module.exports = async function handler(req, res) {
     payload.note = String(body.note || "").slice(0, 500);
     if (!payload.applicationId || !["approve", "reject"].includes(payload.decision)) {
       return sendJson(res, 400, { ok: false, error: "A valid application ID and decision are required." });
+    }
+  }
+  if (body.action === "admin.setSchoolStatus") {
+    payload.schoolId = String(body.schoolId || "").slice(0, 100);
+    payload.status = String(body.status || "").toLowerCase();
+    if (!payload.schoolId || !["approved", "suspended"].includes(payload.status)) {
+      return sendJson(res, 400, { ok: false, error: "A valid school ID and status are required." });
     }
   }
 
