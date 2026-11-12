@@ -50,8 +50,8 @@ def _rebuild_without_global_unique(connection, table, column):
         raise RuntimeError(f"Temporary migration table {temp_table} already exists")
 
     create_sql = re.sub(
-        rf"^(CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?)(['\\"]?){re.escape(table)}\\2",
-        rf"\\1{temp_table}",
+        rf"^(CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?)(['\"]?){re.escape(table)}\2",
+        rf"\1{temp_table}",
         original_sql,
         count=1,
         flags=re.IGNORECASE,
@@ -61,8 +61,8 @@ def _rebuild_without_global_unique(connection, table, column):
 
     # Remove only the known inline UNIQUE marker, leaving type, NULL rules,
     # defaults, checks, collations and all other column definitions intact.
-    pattern = rf"(\\b{re.escape(column)}\\s+[^,\\n]*?)\\s+UNIQUE\\b"
-    create_sql, replacements = re.subn(pattern, r"\\1", create_sql, count=1, flags=re.IGNORECASE)
+    pattern = rf"(\b{re.escape(column)}\s+[^,\n]*?)\s+UNIQUE\b"
+    create_sql, replacements = re.subn(pattern, r"\1", create_sql, count=1, flags=re.IGNORECASE)
     if replacements != 1:
         raise RuntimeError(f"Expected one global UNIQUE constraint on {table}.{column}")
 
