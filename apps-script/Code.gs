@@ -63,6 +63,7 @@ function doPost(e) {
       case 'admin.listApplications': requirePlatformAdmin_(body); result = listApplications_(); break;
       case 'admin.decideApplication': requirePlatformAdmin_(body); result = decideApplication_(body); break;
       case 'admin.listSchools': requirePlatformAdmin_(body); result = listSchools_(); break;
+      case 'admin.setSchoolStatus': requirePlatformAdmin_(body); result = setSchoolStatus_(body); break;
       case 'activateSchool': result = activateSchool_(body); break;
       case 'login': result = login_(body); break;
       case 'logout': result = logout_(body); break;
@@ -546,6 +547,33 @@ function requireRole_(auth, roles) {
 
 function listSchools_() {
   return readObjects_('Schools').map(publicSchool_);
+}
+
+function setSchoolStatus_(b) {
+  const schoolId = required_(b.schoolId, 'School ID', 100);
+  const status = String(b.status || '').toLowerCase();
+  if (['approved','suspended'].indexOf(status) === -1) {
+    throw new Error('School status must be approved or suspended.');
+  }
+  const school = findOne_('Schools', 'school_id', schoolId);
+  if (!school) throw new Error('School not found.');
+  if (['approved','suspended'].indexOf(String(school.status)) === -1) {
+    throw new Error('Only approved or suspended schools can be changed here.');
+  }
+  if (school.status === status) return { schoolId: schoolId, status: status, changed: false };
+  const sheet = sheet_('Schools');
+  updateObjectRow_(sheet, rowNumberByValue_(sheet, 'school_id', schoolId), { status: status });
+  if (status === 'suspended') {
+    const sessions = readObjects_('Sessions').filter(function(s) {
+      return s.school_id === schoolId && s.revoked !== 'true';
+    });
+    const sessionSheet = sheet_('Sessions');
+    sessions.forEach(function(s) {
+      updateObjectRow_(sessionSheet, rowNumberByValue_(sessionSheet, 'session_id', s.session_id), { revoked: 'true' });
+    });
+  }
+  audit_(schoolId, status === 'suspended' ? 'school.suspended' : 'school.reactivated', {});
+  return { schoolId: schoolId, status: status, changed: true, revokedSessions: status === 'suspended' };
 }
 
 function publicSchool_(s) {
