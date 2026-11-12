@@ -86,7 +86,7 @@ class TenantSqlViewIsolationTests(unittest.TestCase):
         self.db.execute("UPDATE classes SET name='JSS1A' WHERE id=10")
         self.assertEqual(self.db.execute("SELECT name FROM main.classes WHERE id=10").fetchone()[0], "JSS1A")
         self.db.execute("INSERT INTO settings VALUES('school_theme','{}')")
-        self.assertEqual(self.db.execute("SELECT school_id FROM main.settings WHERE key='school_theme'").fetchone()[0], "school-a")
+        self.assertEqual(sqlite3.Connection.execute(self.db, "SELECT school_id FROM main.settings WHERE key='school_theme'").fetchone()[0], "school-a")
 
     def test_relationship_views_prevent_cross_school_links(self):
         activate_tenant_views(self.db, "school-a")
