@@ -86,7 +86,7 @@ async function loadSubscriptions(){
     const expired=subs.filter(x=>new Date(x.endAt).getTime()<Date.now()&&x.status==="active").length;
     $("content").innerHTML=
       '<div class="stats"><div class="stat"><b>'+schools.length+'</b><span>Approved schools</span></div><div class="stat"><b>'+active+'</b><span>Active subscriptions</span></div><div class="stat"><b>'+expired+'</b><span>Past end date (grace may apply)</span></div></div>'+
-      '<article class="panel"><h2>Create a subscription plan</h2><p class="muted">Set your own prices and limits. Monthly, termly and yearly are presets; duration remains editable.</p>'+
+      '<article class="panel"><h2>Create or edit a subscription plan</h2><p class="muted">Set your own prices and limits. Monthly, termly and yearly are presets; duration remains editable.</p>'+
       '<div class="grid"><div><label for="planName">Plan name</label><input id="planName" maxlength="100" placeholder="e.g. Standard School"></div>'+
       '<div><label for="billingCycle">Billing cycle</label><select id="billingCycle"><option value="monthly">Monthly</option><option value="termly">Termly</option><option value="yearly">Yearly</option><option value="custom">Custom</option></select></div>'+
       '<div><label for="durationDays">Duration (days)</label><input id="durationDays" type="number" min="1" max="3660" value="30"></div>'+
