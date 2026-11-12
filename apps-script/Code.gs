@@ -280,6 +280,7 @@ function createAccount_(b) {
   const role = String(b.role || 'teacher');
   if (['school_admin','school_owner','teacher','exam_officer','viewer'].indexOf(role) === -1) throw new Error('Invalid account role.');
   if (readObjects_('Users').some(function(u) { return u.school_id === auth.schoolId && String(u.email).toLowerCase() === email; })) throw new Error('This email already has an account in this school.');
+  if (['teacher','exam_officer','viewer'].indexOf(role) !== -1) enforcePlanLimit_(auth.schoolId, 'staff');
   const temporaryPassword = randomToken_().slice(0, 20);
   const salt = randomToken_();
   const user = { user_id: Utilities.getUuid(), school_id: auth.schoolId, name: name, email: email, role: role, password_salt: salt, password_hash: sha256_(salt + temporaryPassword), active: 'true', created_at: new Date().toISOString(), last_login: '' };
@@ -316,6 +317,7 @@ function saveStudent_(b) {
   const className = required_(b.className, 'Class', 80);
   const sheet = sheet_('Students');
   const existing = readObjects_('Students').find(function(s) { return s.school_id === auth.schoolId && s.admission_number === admission; });
+  if (!existing) enforcePlanLimit_(auth.schoolId, 'students');
   const accessCode = existing && existing.access_code ? String(existing.access_code) : generateStudentAccessCode_(auth.schoolId);
   const values = { record_id: existing ? existing.record_id : Utilities.getUuid(), school_id: auth.schoolId, admission_number: admission, full_name: name, class_name: className, access_code: accessCode, active: 'true', updated_at: new Date().toISOString() };
   if (existing) updateObjectRow_(sheet, rowNumberByValue_(sheet, 'record_id', existing.record_id), values);
@@ -614,6 +616,20 @@ function recordSubscriptionPayment_(b) {
   return {paymentId:payment.payment_id,status:status};
 }
 
+function enforcePlanLimit_(schoolId, kind) {
+  const rows=readObjects_('Subscriptions').filter(function(x){return x.school_id===schoolId && x.status==='active';})
+    .sort(function(a,b){return String(b.created_at).localeCompare(String(a.created_at));});
+  if(!rows.length) return;
+  const plan=findOne_('SubscriptionPlans','plan_id',rows[0].plan_id);
+  if(!plan) return;
+  const limit=Number(kind==='students'?plan.max_students:plan.max_staff)||0;
+  if(limit<=0) return;
+  const count=kind==='students'
+    ? scoped_('Students',schoolId).filter(function(x){return String(x.active)==='true';}).length
+    : scoped_('Users',schoolId).filter(function(x){return ['teacher','exam_officer','viewer'].indexOf(String(x.role))!==-1 && String(x.active)==='true';}).length;
+  if(count>=limit) throw new Error('Your VICORA subscription has reached its '+kind+' limit ('+limit+'). Upgrade or renew your plan to add more.');
+}
+
 function assertSubscriptionAccess_(schoolId) {
   const rows=readObjects_('Subscriptions').filter(function(x){return x.school_id===schoolId;})
     .sort(function(a,b){return String(b.created_at).localeCompare(String(a.created_at));});
@@ -652,6 +668,9 @@ function requireHost_(b) {
   const token = required_(b.deviceToken, 'Device token', 300);
   const device = findOne_('Devices', 'device_id', id);
   if (!device || device.status !== 'active' || device.device_token_hash !== sha256_(token)) throw new Error('Host credentials are invalid or revoked.');
+  const school = findOne_('Schools', 'school_id', device.school_id);
+  if (!school || school.status !== 'approved') throw new Error('This school account is suspended or inactive.');
+  assertSubscriptionAccess_(device.school_id);
   return { deviceId: id, schoolId: device.school_id };
 }
 
