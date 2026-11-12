@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: vicora-web-host
+    runtime: python
+    plan: starter
+    region: frankfurt
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    healthCheckPath: /api/health
+    autoDeploy: false
+    numInstances: 1
+    disk:
+      name: vicora-school-data
+      mountPath: /var/data
+      sizeGB: 10
+    envVars:
+      - key: CBT_DATA
+        value: /var/data
+      - key: CBT_WEB
+        value: web
+      - key: CBT_HOST
+        value: 0.0.0.0
+      - key: CBT_PORT
+        value: "10000"
+      - key: CBT_PUBLIC_HOSTING
+        value: "1"
+      - key: CBT_PUBLIC_HOSTING_ADMIN
+        value: "1"
+      - key: CBT_COOKIE_SECURE
+        value: "1"
+      - key: PYTHON_VERSION
+        value: 3.11.11

@@ -6,7 +6,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 PYTHON_DIR = Path(__file__).resolve().parents[1] / "android" / "app" / "src" / "main" / "python"
 sys.path.insert(0, str(PYTHON_DIR))
@@ -82,7 +82,8 @@ class AndroidServerBootstrapTests(unittest.TestCase):
     def test_host_bootstrap_sets_private_paths_before_import_and_binds_lan(self):
         with patch.dict(os.environ, {}, clear=False), \
              patch("werkzeug.serving.make_server", return_value=self.server) as make_server, \
-             patch.object(importlib, "import_module", return_value=self.backend) as importer:
+             patch.object(importlib, "import_module", return_value=self.backend) as importer, \
+             patch.object(android_server, "health_check", return_value=True):
             result = android_server.start_server(self.data_dir, self.web_dir, "0.0.0.0", 8765, "VICORA Demo School")
 
             self.assertEqual(result["port"], 8765)
@@ -105,7 +106,8 @@ class AndroidServerBootstrapTests(unittest.TestCase):
         second_server = FakeServer()
         with patch.dict(os.environ, {}, clear=False), \
              patch("werkzeug.serving.make_server", side_effect=[self.server, second_server]) as make_server, \
-             patch.object(importlib, "import_module", return_value=self.backend):
+             patch.object(importlib, "import_module", return_value=self.backend), \
+             patch.object(android_server, "health_check", return_value=True):
             offline = android_server.start_server(self.data_dir, self.web_dir, "127.0.0.1", 8765)
             self.assertEqual(offline["host"], "127.0.0.1")
             hosted = android_server.start_server(self.data_dir, self.web_dir, "0.0.0.0", 8765)
@@ -118,7 +120,8 @@ class AndroidServerBootstrapTests(unittest.TestCase):
     def test_explicit_stop_closes_lan_listener(self):
         with patch.dict(os.environ, {}, clear=False), \
              patch("werkzeug.serving.make_server", return_value=self.server), \
-             patch.object(importlib, "import_module", return_value=self.backend):
+             patch.object(importlib, "import_module", return_value=self.backend), \
+             patch.object(android_server, "health_check", return_value=True):
             android_server.start_server(self.data_dir, self.web_dir, "0.0.0.0", 8765)
             result = android_server.stop_server()
             self.assertTrue(result["ok"])
@@ -128,6 +131,15 @@ class AndroidServerBootstrapTests(unittest.TestCase):
             self.assertIsNone(android_server._server)
             self.assertIsNone(android_server._server_thread)
             self.assertEqual(android_server._server_host, None)
+
+    def test_health_check_uses_readiness_endpoint_and_requires_ready_database(self):
+        response = MagicMock()
+        response.status = 200
+        response.read.return_value = b'{"ok":true,"database":"ready"}'
+        response.__enter__.return_value = response
+        with patch("urllib.request.urlopen", return_value=response) as open_url:
+            self.assertTrue(android_server.health_check("127.0.0.1", 8765))
+        self.assertIn("/api/health", open_url.call_args.args[0].full_url)
 
     def test_missing_web_assets_fails_before_starting_backend(self):
         missing = os.path.join(self.temp.name, "missing-web")

@@ -176,17 +176,20 @@ SERVER_PORT = int(os.environ.get('CBT_PORT', '8000'))
 COOKIE_SECURE = os.environ.get('CBT_COOKIE_SECURE', '1' if TRUST_PROXY else '0').strip().lower() in ('1', 'true', 'yes')
 
 REMOTE_STUDENT_ONLY = os.environ.get('CBT_REMOTE_STUDENT_ONLY', '0').strip().lower() in ('1', 'true', 'yes')
-# Student-only route filtering also supports direct LAN listeners. In that mode,
-# Flask sees the real client address and does not trust forwarded headers. Trusted
-# reverse-proxy mode remains a separate, loopback-only configuration below.
+PUBLIC_HOSTING = os.environ.get('CBT_PUBLIC_HOSTING', '0').strip().lower() in ('1', 'true', 'yes')
+PUBLIC_HOSTING_ADMIN = os.environ.get('CBT_PUBLIC_HOSTING_ADMIN', '0').strip().lower() in ('1', 'true', 'yes')
+# Student-only route filtering also supports direct LAN listeners. Public cloud
+# hosting is a distinct mode: the managed platform HTTPS proxy is trusted, while
+# the Flask server itself binds to the platform interface and uses persistent storage.
 
-
-# Forwarded headers are trusted only when the app is loopback-bound behind a
-# locally controlled reverse proxy. This prevents LAN clients from spoofing
-# X-Forwarded-For and bypassing the remote-admin restriction.
+# A local trusted proxy keeps Flask loopback-only. A managed public host has its
+# own ingress proxy; trust its forwarded client/scheme/host headers for HTTPS
+# cookies, rate limiting and secure remote-admin checks.
 if TRUST_PROXY:
     if SERVER_HOST not in ('127.0.0.1', 'localhost', '::1'):
         raise RuntimeError('CBT_TRUST_PROXY=1 requires CBT_HOST to be loopback-only (127.0.0.1).')
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+elif PUBLIC_HOSTING:
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
 # A local HTTPS tunnel/reverse proxy may forward to this LAN host over loopback.
@@ -291,6 +294,15 @@ def grade(pct):
     return 'A' if pct >= 70 else 'B' if pct >= 60 else 'C' if pct >= 50 else 'D' if pct >= 45 else 'E' if pct >= 40 else 'F'
 
 
+def question_fingerprint(text):
+    """Normalize question wording while preserving mathematical operators and numbers."""
+    value = str(text or "").replace("’", "'").replace("'", "")
+    value = re.sub(r"<[^>]*>", " ", value).casefold()
+    value = re.sub(r"\s*([+\-*/=<>%^])\s*", r"\1", value)
+    value = re.sub(r"[^\w+\-*/=<>%^]+", " ", value, flags=re.UNICODE)
+    return " ".join(value.split())
+
+
 def gen_code():
     return ''.join(secrets.choice('ABCDEFGHJKLMNPQRSTUVWXYZ23456789') for _ in range(6))
 
@@ -312,9 +324,11 @@ def add_fail(key):
 def guard():
     p = request.path
     if p.startswith('/api/admin') or p == '/admin':
-        local = request.remote_addr in ('127.0.0.1', '::1')
-        if not local and not (TRUST_PROXY and COOKIE_SECURE and getset('allow_remote_admin', '0') == '1'):
-            return err('Remote Admin access requires the trusted HTTPS reverse-proxy mode and explicit local approval.', 403)
+        local = request.remote_addr in ('127.0.0.1', '::1', 'localhost')
+        hosted_secure_admin = PUBLIC_HOSTING and PUBLIC_HOSTING_ADMIN and COOKIE_SECURE and request.is_secure
+        local_proxy_admin = TRUST_PROXY and COOKIE_SECURE and getset('allow_remote_admin', '0') == '1'
+        if not local and not hosted_secure_admin and not local_proxy_admin:
+            return err('Remote Admin access requires an explicitly enabled trusted HTTPS hosting or reverse-proxy configuration.', 403)
 
 
 @app.get('/api/health')
@@ -2411,7 +2425,7 @@ def s_begin():
         # appear twice even if copied into separate objective/theory records.
         seen_text, objective_pool, theory_pool = set(), [], []
         for row in question_rows:
-            normalized_text = ' '.join((row['text'] or '').casefold().split())
+            normalized_text = question_fingerprint(row['text'])
             if not normalized_text or normalized_text in seen_text:
                 continue
             seen_text.add(normalized_text)

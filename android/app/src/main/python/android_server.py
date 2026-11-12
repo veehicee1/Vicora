@@ -28,11 +28,14 @@ def health_check(host="127.0.0.1", port=8765, timeout=2.5):
     """Return true only when the embedded HTTP server answers a real request."""
     try:
         request = urllib.request.Request(
-            "http://{}:{}/".format(host, int(port)),
-            headers={"Cache-Control": "no-cache", "Connection": "close"},
+            "http://{}:{}/api/health".format(host, int(port)),
+            headers={"Accept": "application/json", "Cache-Control": "no-cache", "Connection": "close"},
         )
         with urllib.request.urlopen(request, timeout=float(timeout)) as response:
-            return 200 <= response.status < 500
+            if response.status != 200:
+                return False
+            payload = json.loads(response.read().decode("utf-8"))
+            return payload.get("ok") is True and payload.get("database") == "ready"
     except Exception:
         return False
 

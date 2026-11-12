@@ -9,6 +9,15 @@ import uuid
 os.environ.setdefault("CBT_DATA", tempfile.mkdtemp(prefix="vicora-web-exam-e2e-"))
 
 import app as cbt  # noqa: E402
+from app import question_fingerprint  # noqa: E402
+
+
+class QuestionRepeatProtectionTests(unittest.TestCase):
+    def test_fingerprint_ignores_case_spacing_and_punctuation_but_preserves_math_signs(self):
+        self.assertEqual(question_fingerprint("What is 2 + 2?"),
+                         question_fingerprint(" what IS 2+2 "))
+        self.assertNotEqual(question_fingerprint("What is 2 + 2?"),
+                            question_fingerprint("What is 2 - 2?"))
 
 
 class WebExaminationJourneyTests(unittest.TestCase):
