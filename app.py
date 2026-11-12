@@ -289,12 +289,30 @@ def ex(sql, a=()):
 
 
 def getset(k, d=''):
-    r = db().execute('select value from settings where key=?', (k,)).fetchone()
+    connection = db()
+    school_id = getattr(connection, 'tenant_school_id', None) or session.get('school_id')
+    if school_id and not getattr(connection, 'tenant_school_id', None):
+        activate_tenant_views(connection, school_id)
+    if getattr(connection, 'tenant_school_id', None):
+        r = connection.execute('select value from settings where key=?', (k,)).fetchone()
+    else:
+        legacy = connection.execute(
+            "SELECT value FROM main.settings WHERE key='vicora_legacy_school_id' ORDER BY rowid LIMIT 1"
+        ).fetchone()
+        if legacy and legacy[0]:
+            r = connection.execute(
+                "SELECT value FROM main.settings WHERE key=? AND school_id=?", (k, legacy[0])
+            ).fetchone()
+        else:
+            r = connection.execute('select value from main.settings where key=?', (k,)).fetchone()
     return r[0] if r else d
 
 
 def setset(k, v):
     connection = db()
+    school_id = getattr(connection, 'tenant_school_id', None) or session.get('school_id')
+    if school_id and not getattr(connection, 'tenant_school_id', None):
+        activate_tenant_views(connection, school_id)
     if getattr(connection, 'tenant_school_id', None):
         ex('insert or replace into settings(key,value) values(?,?)', (k, str(v)))
         return
