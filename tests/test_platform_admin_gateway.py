@@ -85,7 +85,7 @@ def test_subscription_backend_enforces_expiry_grace_and_plan_limits():
 def test_platform_admin_page_exposes_plan_assignment_and_payment_controls():
     page = Path("public/platform-admin.html").read_text(encoding="utf-8")
     assert "Subscriptions & payments" in page
-    assert "Create a subscription plan" in page
+    assert "Create or edit a subscription plan" in page
     assert "Assign or renew a school subscription" in page
     assert "Record a payment" in page
     assert "admin.saveSubscriptionPlan" in page
