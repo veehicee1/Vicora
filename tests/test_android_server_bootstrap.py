@@ -136,7 +136,7 @@ class AndroidServerBootstrapTests(unittest.TestCase):
         response = Mock()
         response.status = 200
         response.read.return_value = b'{"ok":true,"database":"ready"}'
-        response.__enter__.return_value = response'
+        response.__enter__.return_value = response
         with patch("urllib.request.urlopen", return_value=response) as open_url:
             self.assertTrue(android_server.health_check("127.0.0.1", 8765))
         self.assertIn("/api/health", open_url.call_args.args[0].full_url)
