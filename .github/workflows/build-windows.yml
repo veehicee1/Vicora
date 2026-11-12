@@ -9,6 +9,9 @@ on:
   pull_request:
     paths:
       - "app.py"
+      - "tenant_migration.py"
+      - "school_scoped_migration.py"
+      - "multi_tenant.py"
       - "windows_host.py"
       - "restore_backup.py"
       - "diagnostics.py"
@@ -72,21 +75,21 @@ jobs:
           ) | Out-Null
           if ($errors.Count -gt 0) { $errors | Format-List | Out-String | Write-Error }
       - name: Validate Python source
-        run: python -m compileall -q app.py windows_host.py diagnostics.py restore_backup.py
+        run: python -m compileall -q app.py tenant_migration.py school_scoped_migration.py multi_tenant.py windows_host.py diagnostics.py restore_backup.py
       - name: Run server safety regression tests
         run: python -m unittest discover -s tests -v
-      - name: Smoke-test Flask application import
+      - name: Smoke-test Flask application and migration imports
         shell: pwsh
         run: |
-          $env:CBT_DATA = Join-Path $env:RUNNER_TEMP "gtmc-cbt-smoke"
-          python -c "import app; assert app.app is not None; print('Flask app import OK')"
+          $env:CBT_DATA = Join-Path $env:RUNNER_TEMP "vicora-cbt-smoke"
+          python -c "import tenant_migration, school_scoped_migration, multi_tenant, app; assert app.app is not None; print('Flask app and tenant migration imports OK')"
       - name: Build diagnostic and restore utilities
         shell: cmd
         run: build.bat
       - name: Build standalone VICORA Windows Host server
         shell: pwsh
         run: |
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name VICORA-CBT-Server --add-data "web;web" --collect-all flask --collect-all werkzeug --collect-all waitress --collect-all openpyxl --collect-all docx windows_host.py
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name VICORA-CBT-Server --add-data "web;web" --hidden-import tenant_migration --hidden-import school_scoped_migration --hidden-import multi_tenant --collect-all flask --collect-all werkzeug --collect-all waitress --collect-all openpyxl --collect-all docx windows_host.py
           if (!(Test-Path "dist/VICORA-CBT-Server.exe")) { throw "VICORA Windows Host executable was not produced" }
           if ((Get-Item "dist/VICORA-CBT-Server.exe").Length -lt 1048576) { throw "VICORA Windows Host executable is unexpectedly small" }
       - name: Build Electron Examination app with bundled Chromium
