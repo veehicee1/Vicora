@@ -185,14 +185,29 @@ def _ensure_local_admin(connection, school_id, user):
     return username
 
 
-def central_logout(session_token):
-    if not session_token:
+def central_logout(session_key, connection):
+    if not session_key or connection is None:
         return
-    try:
-        _post_action("logout", sessionToken=session_token)
-    except (RuntimeError, ValueError):
-        # Local logout must still complete if the central service is unavailable.
-        pass
+    digest = hashlib.sha256(str(session_key).encode("utf-8")).hexdigest()
+    connection.execute("""
+        CREATE TABLE IF NOT EXISTS central_sessions (
+            session_key_hash TEXT PRIMARY KEY, session_token TEXT NOT NULL,
+            expires_ts REAL NOT NULL, school_id TEXT NOT NULL,
+            local_username TEXT NOT NULL, created_ts INTEGER NOT NULL
+        )
+    """)
+    row = connection.execute(
+        "SELECT session_token FROM main.central_sessions WHERE session_key_hash=?",
+        (digest,)
+    ).fetchone()
+    if row:
+        try:
+            _post_action("logout", sessionToken=row["session_token"])
+        except (RuntimeError, ValueError):
+            # Local logout must still complete if the central service is unavailable.
+            pass
+        connection.execute("DELETE FROM main.central_sessions WHERE session_key_hash=?", (digest,))
+        connection.commit()
 
 
 def install_central_backend_routes(app, db, err):
@@ -269,12 +284,30 @@ def install_central_backend_routes(app, db, err):
             expires_ts = datetime.fromisoformat(expires_text.replace("Z", "+00:00")).timestamp()
             if expires_ts <= time.time():
                 raise ValueError("The central login session has expired. Sign in again.")
+            if not auth.get("sessionToken"):
+                raise RuntimeError("VICORA Central did not return a secure session token.")
+            connection.execute("""
+                CREATE TABLE IF NOT EXISTS central_sessions (
+                    session_key_hash TEXT PRIMARY KEY, session_token TEXT NOT NULL,
+                    expires_ts REAL NOT NULL, school_id TEXT NOT NULL,
+                    local_username TEXT NOT NULL, created_ts INTEGER NOT NULL
+                )
+            """)
+            session_key = secrets.token_urlsafe(40)
+            connection.execute(
+                """INSERT INTO main.central_sessions
+                (session_key_hash,session_token,expires_ts,school_id,local_username,created_ts)
+                VALUES(?,?,?,?,?,?)""",
+                (hashlib.sha256(session_key.encode("utf-8")).hexdigest(),
+                 auth["sessionToken"], expires_ts, school_id, username, int(time.time()))
+            )
+            connection.commit()
             session.clear()
             session.permanent = True
             session["admin"] = username
             session["school_id"] = school_id
             session["admin_role"] = ROLE_MAP[user.get("role")]
-            session["central_session_token"] = auth.get("sessionToken")
+            session["central_session_key"] = session_key
             session["central_expires_ts"] = expires_ts
             return jsonify(ok=True, user=user.get("name") or email,
                            role=session["admin_role"], role_name="School Administrator" if session["admin_role"] == "super_admin" else session["admin_role"].replace("_", " ").title(),
