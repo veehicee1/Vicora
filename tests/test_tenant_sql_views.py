@@ -31,15 +31,13 @@ class TenantSqlViewIsolationTests(unittest.TestCase):
             CREATE TABLE exams(id INTEGER PRIMARY KEY,title TEXT NOT NULL,subject_id INTEGER NOT NULL,school_id TEXT NOT NULL);
             CREATE TABLE sessions(id INTEGER PRIMARY KEY,exam_id INTEGER NOT NULL,student_id INTEGER NOT NULL,
               token TEXT,school_id TEXT NOT NULL);
-            CREATE TABLE messages(id INTEGER PRIMARY KEY,student_id INTEGER NOT NULL,title TEXT NOT NULL,
-              body TEXT NOT NULL,school_id TEXT NOT NULL);
+            CREATE TABLE messages(id INTEGER PRIMARY KEY,student_id INTEGER NOT NULL,exam_id INTEGER,
+              title TEXT NOT NULL,body TEXT NOT NULL,school_id TEXT NOT NULL);
             CREATE TABLE exam_classes(exam_id INTEGER,class_id INTEGER,PRIMARY KEY(exam_id,class_id));
             CREATE TABLE session_questions(session_id INTEGER,pos INTEGER,question_id INTEGER,opt_order TEXT,
               PRIMARY KEY(session_id,pos));
             CREATE TABLE staff_exam_assignments(staff_id INTEGER,exam_id INTEGER,assigned_by TEXT,
               assigned_ts INTEGER,PRIMARY KEY(staff_id,exam_id));
-            CREATE TABLE messages(id INTEGER PRIMARY KEY,student_id INTEGER,exam_id INTEGER,title TEXT,
-              body TEXT,school_id TEXT);
             CREATE TABLE answers(session_id INTEGER,question_id INTEGER,choice TEXT,response_text TEXT,
               response_drawing TEXT,flagged INTEGER,ts INTEGER,school_id TEXT,PRIMARY KEY(session_id,question_id));
             CREATE TABLE theory_marks(session_id INTEGER,question_id INTEGER,mark REAL,school_id TEXT,
