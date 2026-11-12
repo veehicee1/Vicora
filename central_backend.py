@@ -236,6 +236,63 @@ def central_logout(session_key, connection):
         connection.commit()
 
 
+def _sync_central_school_profile(connection, school_id, session_token):
+    """Import the central roster into the existing tenant CBT database.
+    Existing exams, attempts, answers and results are never modified.
+    """
+    from multi_tenant import activate_tenant_views
+    profile = _post_action("school.profile", sessionToken=session_token)
+    activate_tenant_views(connection, school_id)
+    counts = {"classes": 0, "subjects": 0, "students": 0, "skipped_students": 0}
+    class_ids = {}
+    for item in profile.get("classes", []):
+        if str(item.get("active", "true")).lower() == "false": continue
+        name = str(item.get("name") or "").strip()[:80]
+        sync_id = str(item.get("record_id") or "").strip()
+        if not name or not sync_id: continue
+        row = connection.execute("SELECT id FROM classes WHERE sync_uuid=?", (sync_id,)).fetchone()
+        if row:
+            connection.execute("UPDATE classes SET name=? WHERE id=?", (name, row["id"]))
+            class_ids[name.casefold()] = row["id"]
+        else:
+            by_name = connection.execute("SELECT id FROM classes WHERE lower(name)=lower(?)", (name,)).fetchone()
+            if by_name: class_ids[name.casefold()] = by_name["id"]
+            else:
+                cur = connection.execute("INSERT INTO classes(name,sync_uuid) VALUES(?,?)", (name, sync_id))
+                class_ids[name.casefold()] = cur.lastrowid
+        counts["classes"] += 1
+    for item in profile.get("subjects", []):
+        if str(item.get("active", "true")).lower() == "false": continue
+        name = str(item.get("name") or "").strip()[:100]
+        sync_id = str(item.get("record_id") or "").strip()
+        if not name or not sync_id: continue
+        row = connection.execute("SELECT id FROM subjects WHERE sync_uuid=?", (sync_id,)).fetchone()
+        if row: connection.execute("UPDATE subjects SET name=? WHERE id=?", (name, row["id"]))
+        else:
+            by_name = connection.execute("SELECT id FROM subjects WHERE lower(name)=lower(?)", (name,)).fetchone()
+            if not by_name: connection.execute("INSERT INTO subjects(name,sync_uuid) VALUES(?,?)", (name, sync_id))
+        counts["subjects"] += 1
+    for item in profile.get("students", []):
+        if str(item.get("active", "true")).lower() == "false": continue
+        admission = str(item.get("admission_number") or "").strip()[:80]
+        full_name = str(item.get("full_name") or "").strip()[:160]
+        class_name = str(item.get("class_name") or "").strip()[:80]
+        sync_id = str(item.get("record_id") or "").strip()
+        access_code = str(item.get("access_code") or "").strip().upper()[:32]
+        class_id = class_ids.get(class_name.casefold())
+        if not admission or not full_name or not class_id or not sync_id or not access_code:
+            counts["skipped_students"] += 1; continue
+        row = connection.execute("SELECT id FROM students WHERE sync_uuid=?", (sync_id,)).fetchone()
+        if row:
+            connection.execute("UPDATE students SET reg_no=?,name=?,class_id=?,access_code=? WHERE id=?", (admission, full_name, class_id, access_code, row["id"]))
+        else:
+            collision = connection.execute("SELECT id FROM students WHERE lower(reg_no)=lower(?)", (admission,)).fetchone()
+            if collision: counts["skipped_students"] += 1; continue
+            connection.execute("INSERT INTO students(reg_no,name,class_id,access_code,sync_uuid) VALUES(?,?,?,?,?)", (admission, full_name, class_id, access_code, sync_id))
+        counts["students"] += 1
+    connection.commit()
+    return counts
+
 def install_central_backend_routes(app, db, err):
     @app.get("/api/central/health")
     def vicora_central_health():
@@ -339,10 +396,15 @@ def install_central_backend_routes(app, db, err):
             session["admin_role"] = ROLE_MAP[user.get("role")]
             session["central_session_key"] = session_key
             session["central_expires_ts"] = expires_ts
+            sync_summary = {"classes": 0, "subjects": 0, "students": 0, "skipped_students": 0}
+            try:
+                sync_summary = _sync_central_school_profile(connection, school_id, auth["sessionToken"])
+            except (RuntimeError, ValueError, KeyError, TypeError):
+                pass  # roster sync must not block administrator login
             return jsonify(ok=True, user=user.get("name") or email,
                            role=session["admin_role"], role_name="School Administrator" if session["admin_role"] == "super_admin" else session["admin_role"].replace("_", " ").title(),
                            school=school.get("name"), school_code=code,
-                           expires_at=expires_text, central=True)
+                           expires_at=expires_text, central=True, roster_sync=sync_summary)
         except ValueError as exc:
             _login_failed(login_key)
             return err(str(exc), 401)
