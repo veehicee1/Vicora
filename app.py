@@ -321,6 +321,8 @@ def setset(k, v):
         activate_tenant_views(connection, school_id)
     if getattr(connection, 'tenant_school_id', None):
         ex('insert into settings(key,value) values(?,?)', (k, str(v)))
+        if k == 'school_name':
+            ex('UPDATE schools SET name=? WHERE school_id=?', (str(v)[:120], connection.tenant_school_id))
         return
     legacy = connection.execute(
         "SELECT value FROM main.settings WHERE key='vicora_legacy_school_id' ORDER BY rowid LIMIT 1"
@@ -328,6 +330,8 @@ def setset(k, v):
     if legacy and legacy[0]:
         ex('insert or replace into main.settings(key,value,school_id) values(?,?,?)',
            (k, str(v), legacy[0]))
+        if k == 'school_name':
+            ex('UPDATE schools SET name=? WHERE school_id=?', (str(v)[:120], legacy[0]))
     else:
         ex('insert or replace into settings(key,value) values(?,?)', (k, str(v)))
 
