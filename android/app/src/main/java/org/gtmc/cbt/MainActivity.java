@@ -306,6 +306,85 @@ public class MainActivity extends Activity {
             }
         }).start();
     }
+    private void configureCloudHostEnrollment() {
+        LinearLayout form = new LinearLayout(this);
+        form.setOrientation(LinearLayout.VERTICAL);
+        form.setPadding(dp(20), dp(8), dp(20), dp(8));
+
+        EditText apiUrl = new EditText(this);
+        apiUrl.setSingleLine(true);
+        apiUrl.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_URI);
+        apiUrl.setHint("https://your-vicora-api.example");
+        apiUrl.setText(getPreferences(0).getString("android_sync_server_url", ""));
+        form.addView(apiUrl);
+
+        EditText schoolCode = new EditText(this);
+        schoolCode.setSingleLine(true);
+        schoolCode.setHint("School Code (VIC-XXXXXXXX)");
+        schoolCode.setText(getPreferences(0).getString("school_code", ""));
+        form.addView(schoolCode);
+
+        EditText deviceId = new EditText(this);
+        deviceId.setSingleLine(true);
+        deviceId.setHint("Device ID from School Admin");
+        form.addView(deviceId);
+
+        EditText hostToken = new EditText(this);
+        hostToken.setSingleLine(true);
+        hostToken.setHint("One-time host token from School Admin");
+        hostToken.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        form.addView(hostToken);
+
+        new AlertDialog.Builder(this)
+            .setTitle("Configure VICORA Cloud Sync")
+            .setMessage("First enroll this Android device in the approved school's Admin dashboard. Copy the Device ID and one-time Host Token shown there. Use the HTTPS API address configured for VICORA.")
+            .setView(form)
+            .setPositiveButton("Save and Connect", (dialog, which) -> {
+                String endpoint = apiUrl.getText().toString().trim().replaceAll("/+$", "");
+                String code = schoolCode.getText().toString().trim().toUpperCase();
+                String id = deviceId.getText().toString().trim();
+                String token = hostToken.getText().toString().trim();
+                android.net.Uri parsed = android.net.Uri.parse(endpoint);
+                if (!"https".equalsIgnoreCase(parsed.getScheme()) || parsed.getHost() == null
+                        || parsed.getUserInfo() != null || parsed.getQuery() != null || parsed.getFragment() != null) {
+                    Toast.makeText(this, "Enter a valid HTTPS VICORA API address.", Toast.LENGTH_LONG).show();
+                    return;
+                }
+                if (!code.matches("VIC-[A-F0-9]{8}") || id.length() < 8 || token.length() < 32) {
+                    Toast.makeText(this, "Check the School Code, Device ID and complete Host Token.", Toast.LENGTH_LONG).show();
+                    return;
+                }
+                Toast.makeText(this, "Saving encrypted VICORA Host credentials…", Toast.LENGTH_SHORT).show();
+                new Thread(() -> {
+                    try {
+                        AndroidHostPairing.saveCloudEnrollment(this, endpoint, id, token, code);
+                        runOnUiThread(() -> {
+                            getPreferences(0).edit()
+                                .putString("android_sync_server_url", endpoint)
+                                .putString("school_code", code)
+                                .putString("android_sync_school_code", code)
+                                .apply();
+                            new AlertDialog.Builder(this)
+                                .setTitle("VICORA Cloud Host configured")
+                                .setMessage("The Host Token has been stored using Android Keystore encryption. Background sync is scheduled when internet is available. Keep this device connected and check Sync Status after enrollment.")
+                                .setPositiveButton("Sync now", (d, w) -> AndroidHostSyncScheduler.enqueueNow(this))
+                                .setNegativeButton("Close", null)
+                                .show();
+                        });
+                    } catch (Exception ex) {
+                        String message = ex.getMessage() == null ? "Cloud Host setup failed." : ex.getMessage();
+                        runOnUiThread(() -> new AlertDialog.Builder(this)
+                            .setTitle("Cloud Host setup failed")
+                            .setMessage(message)
+                            .setPositiveButton("OK", null)
+                            .show());
+                    }
+                }, "vicora-cloud-enrollment").start();
+            })
+            .setNegativeButton("Cancel", null)
+            .show();
+    }
+
     private void enterServerAddress() {
         EditText address = new EditText(this); address.setSingleLine(true);
         address.setHint("http://192.168.1.10:8000/");
@@ -594,7 +673,8 @@ public class MainActivity extends Activity {
                     Python.getInstance().getModule("android_server").callAttr("start_server",
                         getFilesDir().getAbsolutePath() + "/gtmc-cbt-data",
                         new File(getFilesDir(), "web").getAbsolutePath(), host, 8765,
-                        getPreferences(0).getString("school_name", ""));
+                        getPreferences(0).getString("school_name", ""),
+                        getPreferences(0).getString("school_code", ""));
                     healthy = Python.getInstance().getModule("android_server")
                         .callAttr("health_check", "127.0.0.1", 8765).toBoolean();
                 }
