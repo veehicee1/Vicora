@@ -88,3 +88,21 @@ Before enabling real school onboarding:
 6. Do not approve production schools until the central backend version mismatch and tenant onboarding readiness have been resolved.
 
 This dashboard does not create a Vercel deployment, set environment variables, modify the live Google spreadsheet, or approve any school by itself.
+
+
+## VICORA subscriptions and billing administration
+
+The Platform Admin dashboard includes a **Subscriptions & payments** section. Platform operators can create configurable monthly, termly, yearly or custom plans; set duration in days, NGN or another currency, grace days, student/staff limits and feature descriptions; assign or renew a plan for an approved school; suspend, reactivate or cancel a subscription; and keep a manual payment ledger with pending, verified and rejected records.
+
+The Apps Script central database creates these tabs on the next safe run of `initializeVicoraBackend()` (existing rows and columns are preserved):
+- `SubscriptionPlans`
+- `Subscriptions`
+- `SubscriptionPayments`
+
+Subscription enforcement runs during school login, authenticated school API requests and host authentication. When a subscription has been assigned, expired, suspended or cancelled access is denied; the configured grace period is honoured after the subscription end date. Plans with non-zero student or staff limits are enforced when new students or staff accounts are created. Newly approved schools are marked as requiring a subscription and cannot sign in until the platform operator assigns a plan. Existing schools with no subscription record remain accessible until the platform operator assigns a plan, so this update does not unexpectedly lock existing schools.
+
+**Payment boundary:** the payment ledger records payments entered and verified by a platform operator. It does not connect to Paystack, Flutterwave or a bank, does not independently verify transfers, and does not automatically renew a subscription when a payment is recorded. Verify funds externally, record the payment as Verified, then assign/renew the subscription.
+
+**Duration defaults:** the dashboard suggests 30 days for monthly, 90 days for termly and 365 days for yearly plans. The operator can edit the duration to match the school's actual academic calendar and commercial terms. Renewing an unexpired active subscription starts the next term at its existing end date, preserving the remaining paid time. Prices are intentionally not pre-filled; the platform owner sets them.
+
+After the Apps Script source is deployed as a new Web App version and the central sheet is safely initialized, test with a clearly marked test school and a low-value test plan before applying subscriptions to real schools. Expiry and grace are evaluated at request time; no time-triggered expiry job is required.

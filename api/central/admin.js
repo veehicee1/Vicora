@@ -7,7 +7,14 @@ const ALLOWED_ACTIONS = new Set([
   "admin.listApplications",
   "admin.decideApplication",
   "admin.listSchools",
-  "admin.setSchoolStatus"
+  "admin.setSchoolStatus",
+  "admin.listSubscriptionData",
+  "admin.saveSubscriptionPlan",
+  "admin.assignSubscription",
+  "admin.setSubscriptionStatus",
+  "admin.recordSubscriptionPayment",
+  "admin.updateSubscriptionPayment",
+  "admin.setSubscriptionPlanStatus"
 ]);
 
 function sendJson(res, status, body) {
@@ -96,6 +103,66 @@ module.exports = async function handler(req, res) {
     if (!payload.schoolId || !["approved", "suspended"].includes(payload.status)) {
       return sendJson(res, 400, { ok: false, error: "A valid school ID and status are required." });
     }
+  }
+
+  if (body.action === "admin.saveSubscriptionPlan") {
+    payload.planId = String(body.planId || "").slice(0, 100);
+    payload.planName = String(body.planName || "").slice(0, 100);
+    payload.billingCycle = String(body.billingCycle || "").toLowerCase();
+    payload.durationDays = Number(body.durationDays);
+    payload.amount = Number(body.amount);
+    payload.currency = String(body.currency || "NGN").slice(0, 8);
+    payload.graceDays = Number(body.graceDays || 0);
+    payload.maxStudents = Number(body.maxStudents || 0);
+    payload.maxStaff = Number(body.maxStaff || 0);
+    payload.features = Array.isArray(body.features) ? body.features.slice(0, 30).map(x => String(x).slice(0, 100)) : [];
+    payload.active = body.active !== false;
+    if (!payload.planName || !["monthly", "termly", "yearly", "custom"].includes(payload.billingCycle) ||
+        !Number.isInteger(payload.durationDays) || payload.durationDays < 1 || payload.durationDays > 3660 ||
+        !Number.isFinite(payload.amount) || payload.amount < 0 ||
+        !Number.isInteger(payload.graceDays) || payload.graceDays < 0 || payload.graceDays > 90) {
+      return sendJson(res, 400, { ok: false, error: "Enter valid plan details, duration, price and grace period." });
+    }
+  }
+  if (body.action === "admin.assignSubscription") {
+    payload.schoolId = String(body.schoolId || "").slice(0, 100);
+    payload.planId = String(body.planId || "").slice(0, 100);
+    payload.startAt = String(body.startAt || "").slice(0, 40);
+    payload.notes = String(body.notes || "").slice(0, 500);
+    if (!payload.schoolId || !payload.planId) return sendJson(res, 400, { ok: false, error: "Choose a school and subscription plan." });
+  }
+  if (body.action === "admin.setSubscriptionStatus") {
+    payload.subscriptionId = String(body.subscriptionId || "").slice(0, 100);
+    payload.status = String(body.status || "").toLowerCase();
+    if (!payload.subscriptionId || !["active", "suspended", "cancelled"].includes(payload.status)) {
+      return sendJson(res, 400, { ok: false, error: "A valid subscription and status are required." });
+    }
+  }
+  if (body.action === "admin.recordSubscriptionPayment") {
+    payload.subscriptionId = String(body.subscriptionId || "").slice(0, 100);
+    payload.amount = Number(body.amount);
+    payload.currency = String(body.currency || "NGN").slice(0, 8);
+    payload.paymentMethod = String(body.paymentMethod || "manual").slice(0, 60);
+    payload.reference = String(body.reference || "").slice(0, 120);
+    payload.status = String(body.status || "pending").toLowerCase();
+    payload.notes = String(body.notes || "").slice(0, 500);
+    if (!payload.subscriptionId || !Number.isFinite(payload.amount) || payload.amount <= 0 ||
+        !["pending", "verified", "rejected"].includes(payload.status)) {
+      return sendJson(res, 400, { ok: false, error: "Enter a valid subscription, amount and payment status." });
+    }
+  }
+
+  if (body.action === "admin.updateSubscriptionPayment") {
+    payload.paymentId = String(body.paymentId || "").slice(0, 100);
+    payload.status = String(body.status || "").toLowerCase();
+    if (!payload.paymentId || !["pending", "verified", "rejected"].includes(payload.status)) {
+      return sendJson(res, 400, { ok: false, error: "A valid payment record and status are required." });
+    }
+  }
+  if (body.action === "admin.setSubscriptionPlanStatus") {
+    payload.planId = String(body.planId || "").slice(0, 100);
+    payload.active = body.active === true;
+    if (!payload.planId) return sendJson(res, 400, { ok: false, error: "A valid plan ID is required." });
   }
 
   try {

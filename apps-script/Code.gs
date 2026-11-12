@@ -19,7 +19,7 @@ const VICORA = Object.freeze({
   SCHOOL_CODE_PREFIX: 'VIC',
   SHEETS: {
     Applications: ['application_id','school_name','school_type','country','state','address','contact_name','contact_email','contact_phone','status','submitted_at','reviewed_at','reviewed_by','decision_note'],
-    Schools: ['school_id','school_code','school_name','school_type','country','state','address','contact_name','contact_email','contact_phone','status','created_at','approved_at'],
+    Schools: ['school_id','school_code','school_name','school_type','country','state','address','contact_name','contact_email','contact_phone','status','created_at','approved_at','subscription_required'],
     Users: ['user_id','school_id','name','email','role','password_salt','password_hash','active','created_at','last_login'],
     Sessions: ['session_id','token_hash','user_id','school_id','expires_at','created_at','revoked'],
     Classes: ['record_id','school_id','name','level','active','updated_at'],
@@ -35,7 +35,10 @@ const VICORA = Object.freeze({
     Messages: ['message_id','school_id','student_id','title','body','emergency','created_at'],
     Devices: ['device_id','school_id','device_name','platform','device_token_hash','status','last_seen','created_at'],
     SyncEvents: ['event_id','school_id','device_id','entity_type','entity_id','operation','payload_json','created_at'],
-    Audit: ['audit_id','school_id','actor_id','action','details_json','created_at']
+    Audit: ['audit_id','school_id','actor_id','action','details_json','created_at'],
+    SubscriptionPlans: ['plan_id','plan_name','billing_cycle','duration_days','amount','currency','grace_days','max_students','max_staff','features_json','active','created_at','updated_at'],
+    Subscriptions: ['subscription_id','school_id','plan_id','status','start_at','end_at','grace_days','notes','created_at','updated_at'],
+    SubscriptionPayments: ['payment_id','subscription_id','school_id','amount','currency','payment_method','reference','status','paid_at','recorded_by','notes','created_at']
   }
 });
 
@@ -64,6 +67,13 @@ function doPost(e) {
       case 'admin.decideApplication': requirePlatformAdmin_(body); result = decideApplication_(body); break;
       case 'admin.listSchools': requirePlatformAdmin_(body); result = listSchools_(); break;
       case 'admin.setSchoolStatus': requirePlatformAdmin_(body); result = setSchoolStatus_(body); break;
+      case 'admin.listSubscriptionData': requirePlatformAdmin_(body); result = listSubscriptionData_(); break;
+      case 'admin.saveSubscriptionPlan': requirePlatformAdmin_(body); result = saveSubscriptionPlan_(body); break;
+      case 'admin.assignSubscription': requirePlatformAdmin_(body); result = assignSubscription_(body); break;
+      case 'admin.setSubscriptionStatus': requirePlatformAdmin_(body); result = setSubscriptionStatus_(body); break;
+      case 'admin.recordSubscriptionPayment': requirePlatformAdmin_(body); result = recordSubscriptionPayment_(body); break;
+      case 'admin.updateSubscriptionPayment': requirePlatformAdmin_(body); result = updateSubscriptionPayment_(body); break;
+      case 'admin.setSubscriptionPlanStatus': requirePlatformAdmin_(body); result = setSubscriptionPlanStatus_(body); break;
       case 'activateSchool': result = activateSchool_(body); break;
       case 'login': result = login_(body); break;
       case 'logout': result = logout_(body); break;
@@ -187,7 +197,7 @@ function decideApplication_(b) {
     school_type: application.school_type, country: application.country, state: application.state,
     address: application.address, contact_name: application.contact_name,
     contact_email: application.contact_email, contact_phone: application.contact_phone,
-    status: 'approved', created_at: new Date().toISOString(), approved_at: new Date().toISOString()
+    status: 'approved', subscription_required: 'true', created_at: new Date().toISOString(), approved_at: new Date().toISOString()
   };
   appendObject_('Schools', school);
   const salt = randomToken_();
@@ -240,6 +250,7 @@ function login_(b) {
   const password = String(b.password || '');
   const school = findOne_('Schools', 'school_code', code);
   if (!school || school.status !== 'approved') throw new Error('School Code is invalid or inactive.');
+  assertSubscriptionAccess_(school.school_id);
   const user = readObjects_('Users').find(function(u) {
     return u.school_id === school.school_id && String(u.email).toLowerCase() === email && String(u.active) === 'true';
   });
@@ -271,6 +282,7 @@ function createAccount_(b) {
   const role = String(b.role || 'teacher');
   if (['school_admin','school_owner','teacher','exam_officer','viewer'].indexOf(role) === -1) throw new Error('Invalid account role.');
   if (readObjects_('Users').some(function(u) { return u.school_id === auth.schoolId && String(u.email).toLowerCase() === email; })) throw new Error('This email already has an account in this school.');
+  if (['teacher','exam_officer','viewer'].indexOf(role) !== -1) enforcePlanLimit_(auth.schoolId, 'staff');
   const temporaryPassword = randomToken_().slice(0, 20);
   const salt = randomToken_();
   const user = { user_id: Utilities.getUuid(), school_id: auth.schoolId, name: name, email: email, role: role, password_salt: salt, password_hash: sha256_(salt + temporaryPassword), active: 'true', created_at: new Date().toISOString(), last_login: '' };
@@ -307,6 +319,7 @@ function saveStudent_(b) {
   const className = required_(b.className, 'Class', 80);
   const sheet = sheet_('Students');
   const existing = readObjects_('Students').find(function(s) { return s.school_id === auth.schoolId && s.admission_number === admission; });
+  if (!existing) enforcePlanLimit_(auth.schoolId, 'students');
   const accessCode = existing && existing.access_code ? String(existing.access_code) : generateStudentAccessCode_(auth.schoolId);
   const values = { record_id: existing ? existing.record_id : Utilities.getUuid(), school_id: auth.schoolId, admission_number: admission, full_name: name, class_name: className, access_code: accessCode, active: 'true', updated_at: new Date().toISOString() };
   if (existing) updateObjectRow_(sheet, rowNumberByValue_(sheet, 'record_id', existing.record_id), values);
@@ -520,6 +533,149 @@ function saveQuestion_(b) {
   return {questionId:id,saved:true};
 }
 
+function listSubscriptionData_() {
+  const schools = listSchools_();
+  const plans = readObjects_('SubscriptionPlans');
+  const subscriptions = readObjects_('Subscriptions').map(function(sub) {
+    const school = findOne_('Schools', 'school_id', sub.school_id) || {};
+    const plan = findOne_('SubscriptionPlans', 'plan_id', sub.plan_id) || {};
+    return { subscriptionId:sub.subscription_id,schoolId:sub.school_id,schoolName:school.school_name||'Unknown school',
+      schoolCode:school.school_code||'',planId:sub.plan_id,planName:plan.plan_name||'Deleted plan',
+      billingCycle:plan.billing_cycle||'',amount:plan.amount||'0',currency:plan.currency||'NGN',
+      status:sub.status,startAt:sub.start_at,endAt:sub.end_at,graceDays:sub.grace_days||'0',
+      notes:sub.notes||'',createdAt:sub.created_at };
+  }).sort(function(a,b){return String(b.createdAt).localeCompare(String(a.createdAt));});
+  const payments=readObjects_('SubscriptionPayments').sort(function(a,b){return String(b.created_at).localeCompare(String(a.created_at));}).slice(0,300);
+  return {schools:schools,plans:plans,subscriptions:subscriptions,payments:payments};
+}
+
+function saveSubscriptionPlan_(b) {
+  const id=clean_(b.planId||'',100)||Utilities.getUuid();
+  const name=required_(b.planName,'Plan name',100);
+  const cycle=String(b.billingCycle||'').toLowerCase();
+  if(['monthly','termly','yearly','custom'].indexOf(cycle)===-1) throw new Error('Billing cycle must be monthly, termly, yearly or custom.');
+  const days=Number(b.durationDays);
+  if(!isFinite(days)||Math.floor(days)!==days||days<1||days>3660) throw new Error('Plan duration must be between 1 and 3660 days.');
+  const amount=Number(b.amount);
+  if(!isFinite(amount)||amount<0||amount>100000000000) throw new Error('Enter a valid non-negative plan price.');
+  const grace=Number(b.graceDays==null?0:b.graceDays);
+  if(!isFinite(grace)||Math.floor(grace)!==grace||grace<0||grace>90) throw new Error('Grace period must be between 0 and 90 days.');
+  const maxStudents=Number(b.maxStudents||0),maxStaff=Number(b.maxStaff||0);
+  if(!isFinite(maxStudents)||maxStudents<0||!isFinite(maxStaff)||maxStaff<0) throw new Error('User limits must be zero (unlimited) or a positive number.');
+  const existing=findOne_('SubscriptionPlans','plan_id',id);
+  const row={plan_id:id,plan_name:name,billing_cycle:cycle,duration_days:String(days),amount:String(amount),
+    currency:required_(b.currency||'NGN','Currency',8).toUpperCase(),grace_days:String(grace),
+    max_students:String(Math.floor(maxStudents)),max_staff:String(Math.floor(maxStaff)),
+    features_json:JSON.stringify(Array.isArray(b.features)?b.features.map(function(x){return clean_(x,100);}).filter(Boolean).slice(0,30):[]),
+    active:String(b.active!==false),created_at:existing?existing.created_at:new Date().toISOString(),updated_at:new Date().toISOString()};
+  const sheet=sheet_('SubscriptionPlans');
+  if(existing) updateObjectRow_(sheet,rowNumberByValue_(sheet,'plan_id',id),row); else appendObject_('SubscriptionPlans',row);
+  audit_('','subscription.plan.saved',{planId:id,billingCycle:cycle});
+  return {planId:id,saved:true};
+}
+
+function assignSubscription_(b) {
+  const schoolId=required_(b.schoolId,'School ID',100),planId=required_(b.planId,'Plan ID',100);
+  const school=findOne_('Schools','school_id',schoolId),plan=findOne_('SubscriptionPlans','plan_id',planId);
+  if(!school) throw new Error('School not found.');
+  if(school.status!=='approved') throw new Error('Reactivate the school account before assigning a subscription.');
+  if(!plan||String(plan.active)!=='true') throw new Error('Choose an active subscription plan.');
+  const now=new Date().toISOString(),sheet=sheet_('Subscriptions');
+  const current=readObjects_('Subscriptions').filter(function(x){return x.school_id===schoolId&&x.status==='active';})
+    .sort(function(a,b){return String(b.created_at).localeCompare(String(a.created_at));})[0];
+  const currentEnd=current?new Date(current.end_at):null;
+  const defaultStart=currentEnd&&isFinite(currentEnd.getTime())&&currentEnd.getTime()>Date.now()?currentEnd:new Date();
+  const start=new Date(b.startAt||defaultStart.toISOString());
+  if(!isFinite(start.getTime())) throw new Error('Enter a valid subscription start date.');
+  const end=new Date(start.getTime());end.setDate(end.getDate()+Number(plan.duration_days));
+  readObjects_('Subscriptions').filter(function(x){return x.school_id===schoolId&&x.status==='active';}).forEach(function(x){
+    updateObjectRow_(sheet,rowNumberByValue_(sheet,'subscription_id',x.subscription_id),{status:'replaced',updated_at:now});
+  });
+  const row={subscription_id:Utilities.getUuid(),school_id:schoolId,plan_id:planId,status:'active',
+    start_at:start.toISOString(),end_at:end.toISOString(),grace_days:String(plan.grace_days||'0'),
+    notes:clean_(b.notes||'',500),created_at:now,updated_at:now};
+  appendObject_('Subscriptions',row);audit_(schoolId,'subscription.assigned',{subscriptionId:row.subscription_id,planId:planId,endAt:row.end_at});
+  return {subscriptionId:row.subscription_id,status:'active',startAt:row.start_at,endAt:row.end_at};
+}
+
+function setSubscriptionStatus_(b) {
+  const id=required_(b.subscriptionId,'Subscription ID',100),status=String(b.status||'').toLowerCase();
+  if(['active','suspended','cancelled'].indexOf(status)===-1) throw new Error('Subscription status must be active, suspended or cancelled.');
+  const sub=findOne_('Subscriptions','subscription_id',id);if(!sub) throw new Error('Subscription not found.');
+  updateObjectRow_(sheet_('Subscriptions'),rowNumberByValue_(sheet_('Subscriptions'),'subscription_id',id),{status:status,updated_at:new Date().toISOString()});
+  audit_(sub.school_id,'subscription.status.changed',{subscriptionId:id,status:status});
+  return {subscriptionId:id,status:status,changed:true};
+}
+
+function recordSubscriptionPayment_(b) {
+  const subscriptionId=required_(b.subscriptionId,'Subscription ID',100),sub=findOne_('Subscriptions','subscription_id',subscriptionId);
+  if(!sub) throw new Error('Subscription not found.');
+  const amount=Number(b.amount);if(!isFinite(amount)||amount<=0||amount>100000000000) throw new Error('Enter a valid payment amount.');
+  const status=String(b.status||'pending').toLowerCase();
+  if(['pending','verified','rejected'].indexOf(status)===-1) throw new Error('Payment status must be pending, verified or rejected.');
+  const payment={payment_id:Utilities.getUuid(),subscription_id:subscriptionId,school_id:sub.school_id,amount:String(amount),
+    currency:required_(b.currency||'NGN','Currency',8).toUpperCase(),payment_method:clean_(b.paymentMethod||'manual',60),
+    reference:clean_(b.reference||'',120),status:status,paid_at:status==='verified'?new Date().toISOString():'',
+    recorded_by:'platform-admin',notes:clean_(b.notes||'',500),created_at:new Date().toISOString()};
+  appendObject_('SubscriptionPayments',payment);
+  audit_(sub.school_id,'subscription.payment.recorded',{paymentId:payment.payment_id,status:status,amount:amount});
+  return {paymentId:payment.payment_id,status:status};
+}
+
+function enforcePlanLimit_(schoolId, kind) {
+  const rows=readObjects_('Subscriptions').filter(function(x){return x.school_id===schoolId && x.status==='active';})
+    .sort(function(a,b){return String(b.created_at).localeCompare(String(a.created_at));});
+  if(!rows.length) return;
+  const plan=findOne_('SubscriptionPlans','plan_id',rows[0].plan_id);
+  if(!plan) return;
+  const limit=Number(kind==='students'?plan.max_students:plan.max_staff)||0;
+  if(limit<=0) return;
+  const count=kind==='students'
+    ? scoped_('Students',schoolId).filter(function(x){return String(x.active)==='true';}).length
+    : scoped_('Users',schoolId).filter(function(x){return ['teacher','exam_officer','viewer'].indexOf(String(x.role))!==-1 && String(x.active)==='true';}).length;
+  if(count>=limit) throw new Error('Your VICORA subscription has reached its '+kind+' limit ('+limit+'). Upgrade or renew your plan to add more.');
+}
+
+function updateSubscriptionPayment_(b) {
+  const id=required_(b.paymentId,'Payment ID',100),status=String(b.status||'').toLowerCase();
+  if(['pending','verified','rejected'].indexOf(status)===-1) throw new Error('Payment status must be pending, verified or rejected.');
+  const payment=findOne_('SubscriptionPayments','payment_id',id);
+  if(!payment) throw new Error('Payment record not found.');
+  updateObjectRow_(sheet_('SubscriptionPayments'),rowNumberByValue_(sheet_('SubscriptionPayments'),'payment_id',id),
+    {status:status,paid_at:status==='verified'?(payment.paid_at||new Date().toISOString()):''});
+  audit_(payment.school_id,'subscription.payment.status.changed',{paymentId:id,status:status});
+  return {paymentId:id,status:status,updated:true};
+}
+
+function setSubscriptionPlanStatus_(b) {
+  const id=required_(b.planId,'Plan ID',100),active=String(b.active)==='true';
+  const plan=findOne_('SubscriptionPlans','plan_id',id);
+  if(!plan) throw new Error('Subscription plan not found.');
+  updateObjectRow_(sheet_('SubscriptionPlans'),rowNumberByValue_(sheet_('SubscriptionPlans'),'plan_id',id),
+    {active:String(active),updated_at:new Date().toISOString()});
+  audit_('','subscription.plan.status.changed',{planId:id,active:active});
+  return {planId:id,active:active,updated:true};
+}
+
+function assertSubscriptionAccess_(schoolId) {
+  const rows=readObjects_('Subscriptions').filter(function(x){return x.school_id===schoolId;})
+    .sort(function(a,b){return String(b.created_at).localeCompare(String(a.created_at));});
+  // Existing schools without a subscription remain accessible; newly approved schools require a plan before login.
+  if(!rows.length) {
+    const school=findOne_('Schools','school_id',schoolId);
+    if(school && String(school.subscription_required)==='true') throw new Error('Your school has been approved, but a subscription plan has not yet been assigned. Contact the VICORA platform administrator.');
+    return {allowed:true,unassigned:true};
+  }
+  const sub=rows.find(function(x){return x.status==='active'||x.status==='suspended';});
+  if(!sub) throw new Error('This school has no active subscription. Contact VICORA support.');
+  if(sub.status==='suspended') throw new Error('This school subscription is suspended. Contact VICORA support.');
+  const start=new Date(sub.start_at).getTime(),end=new Date(sub.end_at).getTime();
+  if(!isFinite(start)||!isFinite(end)||Date.now()<start) throw new Error('This school subscription is not currently active.');
+  const graceEnd=end+(Math.max(0,Number(sub.grace_days)||0)*86400000);
+  if(Date.now()>graceEnd) throw new Error('This school subscription has expired. Contact VICORA support to renew.');
+  return {allowed:true,inGrace:Date.now()>end,subscriptionId:sub.subscription_id};
+}
+
 function requirePlatformAdmin_(b) {
   const expected = PropertiesService.getScriptProperties().getProperty(VICORA.ADMIN_KEY_PROPERTY);
   if (!expected || String(b.adminKey || '') !== expected) throw new Error('Platform administrator access is not configured or the key is invalid.');
@@ -530,7 +686,12 @@ function requireSession_(b) {
   const hash = sha256_(token);
   const sessionRow = readObjects_('Sessions').find(function(s) { return s.token_hash === hash && s.revoked !== 'true' && new Date(s.expires_at).getTime() > Date.now(); });
   if (!sessionRow) throw new Error('Session expired or invalid. Please sign in again.');
-  return { userId: sessionRow.user_id, schoolId: sessionRow.school_id, role: findOne_('Users','user_id',sessionRow.user_id).role };
+  const school = findOne_('Schools', 'school_id', sessionRow.school_id);
+  if (!school || school.status !== 'approved') throw new Error('This school account is suspended or inactive. Contact VICORA support.');
+  assertSubscriptionAccess_(sessionRow.school_id);
+  const user = findOne_('Users','user_id',sessionRow.user_id);
+  if (!user || String(user.active) !== 'true') throw new Error('This user account is inactive.');
+  return { userId: sessionRow.user_id, schoolId: sessionRow.school_id, role: user.role };
 }
 
 function requireHost_(b) {
@@ -538,6 +699,9 @@ function requireHost_(b) {
   const token = required_(b.deviceToken, 'Device token', 300);
   const device = findOne_('Devices', 'device_id', id);
   if (!device || device.status !== 'active' || device.device_token_hash !== sha256_(token)) throw new Error('Host credentials are invalid or revoked.');
+  const school = findOne_('Schools', 'school_id', device.school_id);
+  if (!school || school.status !== 'approved') throw new Error('This school account is suspended or inactive.');
+  assertSubscriptionAccess_(device.school_id);
   return { deviceId: id, schoolId: device.school_id };
 }
 
