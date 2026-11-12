@@ -702,7 +702,11 @@ def public_info():
         theme = json.loads(getset('school_theme', '{}') or '{}')
     except (TypeError, ValueError):
         theme = {}
-    return jsonify(school=getset('school_name'), school_code=getset('vicora_legacy_school_code'), school_id=getset('vicora_legacy_school_id'), theme=theme, school_logo_url='/api/public/school-logo')
+    school = school_context(db(), request.args.get('school_code'))
+    return jsonify(school=school['name'] if school else getset('school_name'),
+                   school_code=school['school_code'] if school else getset('vicora_legacy_school_code'),
+                   school_id=school['school_id'] if school else getset('vicora_legacy_school_id'),
+                   theme=theme, school_logo_url='/api/public/school-logo')
 
 
 # ---------------------------------------------------------------- admin: auth & settings
@@ -741,7 +745,10 @@ def a_me():
     if not staff or not staff['active']:
         session.clear()
         return jsonify(user=None, role=None, school=getset('school_name'))
-    return jsonify(user=staff['username'], role=staff['role'], role_name=ROLE_NAMES.get(staff['role'], staff['role']), school=getset('school_name'), school_id=staff['school_id'], school_code=getset('vicora_legacy_school_code'))
+    school = q1('SELECT name, school_code FROM schools WHERE school_id=?', (staff['school_id'],))
+    return jsonify(user=staff['username'], role=staff['role'], role_name=ROLE_NAMES.get(staff['role'], staff['role']),
+                   school=school['name'] if school else getset('school_name'),
+                   school_id=staff['school_id'], school_code=school['school_code'] if school else '')
 
 
 @app.post('/api/admin/password')
