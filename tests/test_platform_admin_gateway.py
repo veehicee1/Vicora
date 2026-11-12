@@ -71,6 +71,8 @@ def test_subscription_backend_enforces_expiry_grace_and_plan_limits():
     assert "SubscriptionPlans:" in source
     assert "Subscriptions:" in source
     assert "SubscriptionPayments:" in source
+    assert "subscription_required" in source
+    assert "newly approved schools" not in source  # implementation keeps legacy schools backward-compatible
     assert "assertSubscriptionAccess_(school.school_id)" in source
     assert "assertSubscriptionAccess_(sessionRow.school_id)" in source
     assert "enforcePlanLimit_(auth.schoolId, 'students')" in source
