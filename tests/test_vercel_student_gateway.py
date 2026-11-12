@@ -44,3 +44,5 @@ def test_vercel_serves_student_and_school_admin_portals():
     assert "/gtmc-logo.jpg" not in html
     admin = Path("public/admin/index.html").read_text(encoding="utf-8")
     assert "/api/admin" in admin
+    maintained = Path("web/admin.html").read_text(encoding="utf-8")
+    assert admin == maintained, "Keep the deployed Vercel Admin page synchronized with web/admin.html."
