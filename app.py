@@ -14,6 +14,7 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from tenant_migration import migrate_legacy_school
 from school_scoped_migration import migrate_school_scoped_unique_keys
 from multi_tenant import migrate_multi_tenant_schema, install_multi_tenant_routes, school_context, activate_tenant_views, TenantAwareConnection
+from central_backend import install_central_backend_routes
 import docx
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -2767,6 +2768,7 @@ def serve(host=None, port=None):
 
 
 install_multi_tenant_routes(app, db, err)
+install_central_backend_routes(app, err)
 
 if __name__ == '__main__':
     start_background()
