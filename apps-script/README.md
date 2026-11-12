@@ -75,7 +75,11 @@ Host endpoints use the `deviceId` and one-time `deviceToken` returned by `host.e
 
 ## CBT pilot status
 
-The first setup step adds these school-scoped tabs: `Exams`, `Questions`, `ExamSessions`, `ExamAnswers`, `ExamResults`, `ExamEvents`, `StudentSessions` and `Messages`. The `Students` tab also gains `access_code` and `created_at` columns. Existing student rows are not deleted or rewritten. The `initializeVicoraBackend` function must be run again manually after deploying this code to create the new tabs/columns. The current student and administrator screens still call the existing Flask API; this schema addition alone does not connect those screens to Apps Script. The next implementation step is the authenticated Apps Script exam API and a controlled gateway adapter, followed by a small pilot test.
+The first setup step adds these school-scoped tabs: `Exams`, `Questions`, `ExamSessions`, `ExamAnswers`, `ExamResults`, `ExamEvents`, `StudentSessions` and `Messages`. The `Students` tab also gains `access_code` and `created_at` columns. Existing student rows are not deleted or rewritten.
+
+The Apps Script pilot now includes authenticated, school-scoped exam authoring actions: `exam.list`, `exam.save`, `exam.publish`, `question.list` and `question.save`. Only school administrators, owners and exam officers can create or publish exams/questions; viewers can list them. The first pilot supports objective multiple-choice questions only. Exams must have the configured number of active questions before they can be published. Published exams and their questions are locked against edits through these actions.
+
+**This is authoring-only at this stage.** The existing generated student and administrator screens still call the Flask API, and student login, paper delivery, answer saving, submission and results remain on Flask. Do not switch live candidates to Apps Script yet. The next stage is to add student pilot endpoints, then a controlled server-side adapter and end-to-end test using a small number of test accounts. Keep Flask available as the fallback throughout.
 
 ## Important integration and operational notes
 
