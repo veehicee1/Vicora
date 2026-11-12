@@ -291,6 +291,15 @@ def grade(pct):
     return 'A' if pct >= 70 else 'B' if pct >= 60 else 'C' if pct >= 50 else 'D' if pct >= 45 else 'E' if pct >= 40 else 'F'
 
 
+def question_fingerprint(text):
+    """Normalize question wording while preserving mathematical operators and numbers."""
+    value = str(text or "").replace("’", "'").replace("'", "")
+    value = re.sub(r"<[^>]*>", " ", value).casefold()
+    value = re.sub(r"\\s*([+\\-*/=<>%^])\\s*", r"\\1", value)
+    value = re.sub(r"[^\\w+\\-*/=<>%^]+", " ", value, flags=re.UNICODE)
+    return " ".join(value.split())
+
+
 def gen_code():
     return ''.join(secrets.choice('ABCDEFGHJKLMNPQRSTUVWXYZ23456789') for _ in range(6))
 
@@ -2411,7 +2420,7 @@ def s_begin():
         # appear twice even if copied into separate objective/theory records.
         seen_text, objective_pool, theory_pool = set(), [], []
         for row in question_rows:
-            normalized_text = ' '.join((row['text'] or '').casefold().split())
+            normalized_text = question_fingerprint(row['text'])
             if not normalized_text or normalized_text in seen_text:
                 continue
             seen_text.add(normalized_text)
