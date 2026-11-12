@@ -220,16 +220,49 @@ public class MainActivity extends Activity {
                     }
                     value = value.length() > 120 ? value.substring(0, 120) : value;
                     getPreferences(0).edit().putString("school_name", value).apply();
-                    startStandaloneWithSchoolName(requestedMode, value);
+                    promptHostSchoolCodeAndStart(requestedMode, value);
                 })
                 .setNegativeButton("Cancel", (dialog, which) -> chooseMode())
                 .show();
             return;
         }
-        startStandaloneWithSchoolName(requestedMode, schoolName);
+        promptHostSchoolCodeAndStart(requestedMode, schoolName);
     }
 
-    private void startStandaloneWithSchoolName(String requestedMode, String schoolName) {
+    private void promptHostSchoolCodeAndStart(String requestedMode, String schoolName) {
+        if (!"host".equals(requestedMode)) {
+            startStandaloneWithSchoolName(requestedMode, schoolName, "");
+            return;
+        }
+        String savedCode = getPreferences(0).getString("school_code", "").trim().toUpperCase();
+        if (savedCode.matches("VIC-[A-F0-9]{8}")) {
+            startStandaloneWithSchoolName(requestedMode, schoolName, savedCode);
+            return;
+        }
+        EditText code = new EditText(this);
+        code.setSingleLine(true);
+        code.setHint("VIC-XXXXXXXX");
+        code.setTextSize(17);
+        new AlertDialog.Builder(this)
+            .setTitle("Enter VICORA School Code")
+            .setMessage("Enter the School Code issued after your school is approved on the VICORA platform. This code identifies the school on Android, Windows and Web.")
+            .setView(code)
+            .setCancelable(false)
+            .setPositiveButton("Save and Start", (dialog, which) -> {
+                String value = code.getText().toString().trim().toUpperCase();
+                if (!value.matches("VIC-[A-F0-9]{8}")) {
+                    Toast.makeText(this, "Enter a valid School Code in the format VIC-XXXXXXXX.", Toast.LENGTH_LONG).show();
+                    promptHostSchoolCodeAndStart(requestedMode, schoolName);
+                    return;
+                }
+                getPreferences(0).edit().putString("school_code", value).apply();
+                startStandaloneWithSchoolName(requestedMode, schoolName, value);
+            })
+            .setNegativeButton("Cancel", (dialog, which) -> chooseMode())
+            .show();
+    }
+
+    private void startStandaloneWithSchoolName(String requestedMode, String schoolName, String schoolCode) {
         getWindow().clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         Toast.makeText(this, "host".equals(requestedMode)
             ? "Starting VICORA Wi-Fi / hotspot host…"
@@ -243,7 +276,8 @@ public class MainActivity extends Activity {
                     new File(getFilesDir(), "web").getAbsolutePath(),
                     "host".equals(requestedMode) ? "0.0.0.0" : "127.0.0.1",
                     8765,
-                    schoolName == null ? "" : schoolName);
+                    schoolName == null ? "" : schoolName,
+                    schoolCode == null ? "" : schoolCode);
                 runOnUiThread(() -> {
                     currentMode = requestedMode;
                     getPreferences(0).edit().putString("mode",requestedMode).apply();
