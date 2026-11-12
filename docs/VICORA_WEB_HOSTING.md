@@ -99,7 +99,7 @@ The Apps Script central database creates these tabs on the next safe run of `ini
 - `Subscriptions`
 - `SubscriptionPayments`
 
-Subscription enforcement runs during school login, authenticated school API requests and host authentication. When a subscription has been assigned, expired, suspended or cancelled access is denied; the configured grace period is honoured after the subscription end date. Plans with non-zero student or staff limits are enforced when new students or staff accounts are created. Existing schools with no subscription record remain accessible until the platform operator assigns a plan, so this update does not unexpectedly lock existing schools.
+Subscription enforcement runs during school login, authenticated school API requests and host authentication. When a subscription has been assigned, expired, suspended or cancelled access is denied; the configured grace period is honoured after the subscription end date. Plans with non-zero student or staff limits are enforced when new students or staff accounts are created. Newly approved schools are marked as requiring a subscription and cannot sign in until the platform operator assigns a plan. Existing schools with no subscription record remain accessible until the platform operator assigns a plan, so this update does not unexpectedly lock existing schools.
 
 **Payment boundary:** the payment ledger records payments entered and verified by a platform operator. It does not connect to Paystack, Flutterwave or a bank, does not independently verify transfers, and does not automatically renew a subscription when a payment is recorded. Verify funds externally, record the payment as Verified, then assign/renew the subscription.
 
