@@ -9,9 +9,8 @@ import secrets
 import uuid
 
 LEGACY_SCHOOL_TABLES = (
-    "admins", "staff_exam_assignments", "classes", "subjects", "students",
-    "questions", "exams", "exam_classes", "sessions", "messages",
-    "session_questions", "answers", "theory_marks", "proctor_events",
+    "admins", "classes", "subjects", "students", "questions", "exams",
+    "sessions", "messages", "answers", "theory_marks", "proctor_events",
     "android_host_devices", "android_sync_receipts", "android_sync_conflicts",
     "android_sync_outbox", "audit",
 )
