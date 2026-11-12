@@ -63,6 +63,18 @@ class CentralBackendBridgeTests(unittest.TestCase):
         })
         self.assertEqual(response.status_code, 403)
 
+    def test_central_admin_requires_platform_token(self):
+        with patch.dict(os.environ, {
+            "VICORA_CENTRAL_ADMIN_KEY": "server-only-test-key",
+            "VICORA_PLATFORM_ADMIN_TOKEN": "platform-test-token"
+        }):
+            with patch("central_backend.urllib.request.urlopen") as call:
+                response = self.client.post("/api/central/admin", json={
+                    "action": "admin.listApplications"
+                })
+        self.assertEqual(response.status_code, 401)
+        call.assert_not_called()
+
     def test_admin_key_is_added_only_server_side(self):
         upstream = {"ok": True, "data": []}
         with patch.dict(os.environ, {
