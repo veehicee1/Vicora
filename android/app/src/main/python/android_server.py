@@ -1,5 +1,6 @@
 """Android embedded Flask server bootstrap with health diagnostics."""
 import importlib
+import json
 import os
 import threading
 import time
@@ -19,7 +20,7 @@ def _write_diagnostic(data_dir, message):
         os.makedirs(data_dir, exist_ok=True)
         path = os.path.join(data_dir, "android-server-startup.log")
         with open(path, "a", encoding="utf-8") as log:
-            log.write("\n[{:.3f}] {}\n".format(time.time(), message))
+            log.write("\\n[{:.3f}] {}\\n".format(time.time(), message))
     except Exception:
         pass
 
