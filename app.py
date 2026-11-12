@@ -316,7 +316,7 @@ def getset(k, d=''):
 
 def setset(k, v):
     connection = db()
-    school_id = getattr(connection, 'tenant_school_id', None) or session.get('school_id')
+    school_id = getattr(connection, 'tenant_school_id', None) or (session.get('school_id') if has_request_context() else None)
     if school_id and not getattr(connection, 'tenant_school_id', None):
         activate_tenant_views(connection, school_id)
     if getattr(connection, 'tenant_school_id', None):
