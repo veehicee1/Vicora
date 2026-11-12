@@ -3,7 +3,7 @@
 const { Readable } = require("node:stream");
 
 const ALLOWED_EXACT = new Set(["/api/public/info", "/api/public/school-logo", "/api/public/schools/resolve", "/api/public/school-applications", "/api/public/school-activation"]);
-const ALLOWED_PREFIXES = ["/api/student/", "/api/platform/"];
+const ALLOWED_PREFIXES = ["/api/student/", "/api/platform/", "/api/android-host/"];
 const ALLOWED_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 
 function sendJson(res, status, body) {
@@ -51,7 +51,7 @@ module.exports = async function handler(req, res) {
 
   const target = new URL(path + incoming.search, origin);
   const headers = new Headers();
-  for (const key of ["accept", "content-type", "cookie", "user-agent", "accept-language", "x-vicora-platform-token"]) {
+  for (const key of ["accept", "content-type", "cookie", "user-agent", "accept-language", "x-vicora-platform-token", "x-vicora-host-token", "authorization"]) {
     const value = req.headers[key];
     if (typeof value === "string") headers.set(key, value);
   }
