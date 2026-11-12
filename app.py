@@ -100,7 +100,6 @@ def init_db():
     c = raw()
     c.execute('PRAGMA journal_mode=WAL')
     c.executescript(SCHEMA)
-    migrate_legacy_school(c)
     # Additive staff RBAC migration: existing administrators retain their credentials
     # and become Super Admins; no examination or student records are rewritten.
     admin_cols = {r['name'] for r in c.execute('PRAGMA table_info(admins)').fetchall()}
@@ -163,6 +162,7 @@ def init_db():
     defaults = {'secret': secrets.token_hex(32), 'school_name': os.environ.get('CBT_INITIAL_SCHOOL_NAME', 'CBT Examination Centre').strip()[:120] or 'CBT Examination Centre', 'allow_remote_admin': '0'}
     for k, v in defaults.items():
         c.execute('insert or ignore into settings values(?,?)', (k, v))
+    migrate_legacy_school(c)
     c.commit()
     c.close()
 
