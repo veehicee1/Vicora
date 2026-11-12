@@ -1439,11 +1439,15 @@ def android_host_pair():
         return err('Android Host pairing requires HTTPS.', 400)
     d = request.get_json(silent=True) or {}
     code = str(d.get('pairing_code') or '')
+    school = school_context(db(), d.get('school_code'))
+    if not school:
+        return err('Enter the approved school School Code before pairing this host.', 401)
+    activate_tenant_views(db(), school['school_id'])
     try:
         device_id = str(uuid.UUID(str(d.get('device_id') or '')))
     except (ValueError, TypeError, AttributeError):
         return err('A valid device ID is required.')
-    label = str(d.get('label') or 'GTMC Android Host')[:100]
+    label = str(d.get('label') or 'VICORA Android Host')[:100]
     expected = getset('android_host_pairing_hash', '')
     expires = int(getset('android_host_pairing_expires', '0') or 0)
     supplied = hashlib.sha256(code.encode('utf-8')).hexdigest() if code else ''
@@ -1466,8 +1470,14 @@ def _android_device_from_request():
     device_id = str((request.get_json(silent=True) or {}).get('device_id') or '')
     if not token or not device_id:
         return None
-    row = q1('select * from android_host_devices where device_id=? and revoked_ts=0', (device_id,))
+    # Device IDs are globally unique. Resolve the device once, then activate its
+    # verified tenant before reading or changing any school examination data.
+    row = q1('select * from main.android_host_devices where device_id=? and revoked_ts=0', (device_id,))
     digest = hashlib.sha256(token.encode('utf-8')).hexdigest()
+    if not row or not hmac.compare_digest(row['token_hash'], digest):
+        return None
+    activate_tenant_views(db(), row['school_id'])
+    row = q1('select * from android_host_devices where device_id=? and revoked_ts=0', (device_id,))
     if not row or not hmac.compare_digest(row['token_hash'], digest):
         return None
     ex('update android_host_devices set last_seen=? where device_id=?', (int(time.time()), device_id))
