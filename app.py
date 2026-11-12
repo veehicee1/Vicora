@@ -158,11 +158,17 @@ def init_db():
     for col, definition in [('paused_at', 'INTEGER DEFAULT 0'), ('paused_total_sec', 'INTEGER DEFAULT 0')]:
         if col not in session_cols:
             c.execute(f'ALTER TABLE sessions ADD COLUMN {col} {definition}')
+    settings_columns = {r['name'] for r in c.execute('PRAGMA table_info(settings)').fetchall()}
     if not c.execute('select 1 from admins').fetchone():
         c.execute('insert into admins(username,password_hash) values(?,?)', ('admin', generate_password_hash('admin123')))
-        c.execute("insert or replace into settings values('default_pw','1')")
+        if 'school_id' in settings_columns:
+            legacy = c.execute("SELECT school_id FROM schools WHERE is_legacy_default=1 LIMIT 1").fetchone()
+            if not legacy:
+                raise RuntimeError('Cannot initialize the default administrator without a legacy school.')
+            c.execute("INSERT OR REPLACE INTO settings(key,value,school_id) VALUES('default_pw','1',?)", (legacy[0],))
+        else:
+            c.execute("insert or replace into settings(key,value) values('default_pw','1')")
     defaults = {'secret': secrets.token_hex(32), 'school_name': os.environ.get('CBT_INITIAL_SCHOOL_NAME', 'CBT Examination Centre').strip()[:120] or 'CBT Examination Centre', 'allow_remote_admin': '0'}
-    settings_columns = {r['name'] for r in c.execute('PRAGMA table_info(settings)').fetchall()}
     if 'school_id' in settings_columns:
         legacy_row = c.execute("SELECT value FROM settings WHERE key='vicora_legacy_school_id' ORDER BY rowid LIMIT 1").fetchone()
         legacy_school = legacy_row['value'] if legacy_row else ''
