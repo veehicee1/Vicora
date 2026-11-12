@@ -9,6 +9,7 @@ files:
   - desktop-admin/**/*
   - package.json
 win:
+  icon: assets/vicora.ico
   target:
     - target: portable
       arch:

@@ -29,10 +29,13 @@
       "target": [
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
-      "artifactName": "VICORA-CBT-Examination-${version}-Windows.${ext}"
+      "artifactName": "VICORA-CBT-Examination-${version}-Windows.${ext}",
+      "icon": "assets/vicora.ico"
     }
   }
 }
