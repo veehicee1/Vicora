@@ -35,13 +35,14 @@ public final class AndroidHostPairing {
     private AndroidHostPairing() { }
 
     public static synchronized JSONObject pair(Context context, String serverBaseUrl,
-                                                 String oneTimeCode) throws Exception {
+                                                 String oneTimeCode, String schoolCode) throws Exception {
         if (serverBaseUrl == null || !serverBaseUrl.startsWith("https://")) {
             throw new IllegalArgumentException("A trusted HTTPS server address is required.");
         }
         String deviceId = getOrCreateDeviceId(context);
         JSONObject request = new JSONObject();
         request.put("pairing_code", oneTimeCode);
+        request.put("school_code", schoolCode == null ? "" : schoolCode.trim().toUpperCase());
         request.put("device_id", deviceId);
         request.put("label", "VICORA Android Host");
 
@@ -77,6 +78,7 @@ public final class AndroidHostPairing {
             }
             JSONObject record = new JSONObject();
             record.put("device_id", deviceId);
+            record.put("school_code", schoolCode == null ? "" : schoolCode.trim().toUpperCase());
             record.put("device_token", token);
             record.put("server_url", serverBaseUrl.replaceAll("/+$", ""));
             saveEncrypted(context, record.toString());
