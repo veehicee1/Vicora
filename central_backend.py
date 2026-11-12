@@ -167,10 +167,20 @@ def _ensure_local_admin(connection, school_id, user):
     ).fetchone()
     if mapped:
         username = mapped["local_username"]
-        connection.execute(
-            "UPDATE main.admins SET role=?,active=1 WHERE username=? AND school_id=?",
-            (local_role, username, school_id)
-        )
+        local = connection.execute(
+            "SELECT id FROM main.admins WHERE username=? AND school_id=?",
+            (username, school_id)
+        ).fetchone()
+        if local:
+            connection.execute(
+                "UPDATE main.admins SET role=?,active=1 WHERE username=? AND school_id=?",
+                (local_role, username, school_id)
+            )
+        else:
+            connection.execute(
+                "INSERT INTO main.admins(username,password_hash,role,active,school_id) VALUES(?,?,?,?,?)",
+                (username, generate_password_hash(secrets.token_urlsafe(48)), local_role, 1, school_id)
+            )
         connection.execute(
             "UPDATE main.central_user_map SET email=?,central_role=? WHERE central_user_id=? AND school_id=?",
             (email, central_role, user_id, school_id)
