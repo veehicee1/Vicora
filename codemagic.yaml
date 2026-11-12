@@ -1,0 +1,51 @@
+# Free-plan Android test build for VICORA.
+# Uses Codemagic's personal macOS M2 free allowance only.
+# Do not enable billing or select Linux/Windows paid runners.
+workflows:
+  vicora-android-test:
+    name: VICORA Android Admin + Examination (debug)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      java: 17
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: work/finish-vicora-platform
+          include: true
+          source: true
+      cancel_previous_builds: true
+    scripts:
+      - name: Verify free Mac build environment and Android SDK
+        script: |
+          java -version
+          export ANDROID_SDK_ROOT=/usr/local/share/android-sdk
+          export ANDROID_HOME="$ANDROID_SDK_ROOT"
+          export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
+          test -x "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          test -x "/Users/builder/programs/gradle-8.14.1/bin/gradle"
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$CM_ENV"
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$CM_ENV"
+          echo "PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:/Users/builder/programs/gradle-8.14.1/bin:$PATH" >> "$CM_ENV"
+      - name: Configure Android SDK
+        script: |
+          printf 'sdk.dir=%s\n' "$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/android/local.properties"
+      - name: Build both VICORA Android test apps
+        script: |
+          cd "$CM_BUILD_DIR/android"
+          gradle --no-daemon --stacktrace assembleAdminDebug assembleExaminationDebug
+      - name: Verify both APKs exist
+        script: |
+          test -s "$CM_BUILD_DIR/android/app/build/outputs/apk/admin/debug/app-admin-debug.apk"
+          test -s "$CM_BUILD_DIR/android/app/build/outputs/apk/examination/debug/app-examination-debug.apk"
+    artifacts:
+      - android/app/build/outputs/apk/admin/debug/app-admin-debug.apk
+      - android/app/build/outputs/apk/examination/debug/app-examination-debug.apk
+      - /tmp/*.log
+    cache:
+      cache_paths:
+        - $HOME/.gradle/caches
+        - $HOME/.gradle/wrapper
