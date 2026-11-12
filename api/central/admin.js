@@ -12,7 +12,9 @@ const ALLOWED_ACTIONS = new Set([
   "admin.saveSubscriptionPlan",
   "admin.assignSubscription",
   "admin.setSubscriptionStatus",
-  "admin.recordSubscriptionPayment"
+  "admin.recordSubscriptionPayment",
+  "admin.updateSubscriptionPayment",
+  "admin.setSubscriptionPlanStatus"
 ]);
 
 function sendJson(res, status, body) {
@@ -148,6 +150,19 @@ module.exports = async function handler(req, res) {
         !["pending", "verified", "rejected"].includes(payload.status)) {
       return sendJson(res, 400, { ok: false, error: "Enter a valid subscription, amount and payment status." });
     }
+  }
+
+  if (body.action === "admin.updateSubscriptionPayment") {
+    payload.paymentId = String(body.paymentId || "").slice(0, 100);
+    payload.status = String(body.status || "").toLowerCase();
+    if (!payload.paymentId || !["pending", "verified", "rejected"].includes(payload.status)) {
+      return sendJson(res, 400, { ok: false, error: "A valid payment record and status are required." });
+    }
+  }
+  if (body.action === "admin.setSubscriptionPlanStatus") {
+    payload.planId = String(body.planId || "").slice(0, 100);
+    payload.active = body.active === true;
+    if (!payload.planId) return sendJson(res, 400, { ok: false, error: "A valid plan ID is required." });
   }
 
   try {
