@@ -294,7 +294,18 @@ def getset(k, d=''):
 
 
 def setset(k, v):
-    ex('insert or replace into settings values(?,?)', (k, str(v)))
+    connection = db()
+    if getattr(connection, 'tenant_school_id', None):
+        ex('insert or replace into settings(key,value) values(?,?)', (k, str(v)))
+        return
+    legacy = connection.execute(
+        "SELECT value FROM main.settings WHERE key='vicora_legacy_school_id' ORDER BY rowid LIMIT 1"
+    ).fetchone()
+    if legacy and legacy[0]:
+        ex('insert or replace into main.settings(key,value,school_id) values(?,?,?)',
+           (k, str(v), legacy[0]))
+    else:
+        ex('insert or replace into settings(key,value) values(?,?)', (k, str(v)))
 
 
 def audit(action):
