@@ -157,5 +157,65 @@ class MultiTenantLoginIsolationTests(unittest.TestCase):
         self.assertEqual(response.status_code, 401)
 
 
+    def test_foreign_school_exam_id_is_hidden_from_results_and_exports(self):
+        login = self.client.post("/api/admin/login", json={
+            "school_code": "VIC-AAAA1111", "username": "principal",
+            "password": "School-Password-2026!"
+        })
+        self.assertEqual(login.status_code, 200)
+        results = self.client.get(f"/api/admin/results/{self.exam_b}")
+        exported = self.client.get(f"/api/admin/export/results/{self.exam_b}")
+        self.assertEqual(results.status_code, 404, results.get_json())
+        self.assertEqual(exported.status_code, 404, exported.get_json())
+
+    def test_foreign_school_student_id_cannot_be_deleted(self):
+        login = self.client.post("/api/admin/login", json={
+            "school_code": "VIC-AAAA1111", "username": "principal",
+            "password": "School-Password-2026!"
+        })
+        self.assertEqual(login.status_code, 200)
+        db = cbt.raw()
+        foreign = db.execute(
+            "SELECT id FROM students WHERE school_id=? AND name='Beta Student'",
+            (self.school_b,),
+        ).fetchone()
+        db.close()
+        self.assertIsNotNone(foreign)
+        response = self.client.post("/api/admin/students/delete", json={"ids": [foreign["id"]]})
+        self.assertEqual(response.status_code, 200, response.get_json())
+        db = cbt.raw()
+        still_there = db.execute(
+            "SELECT id FROM students WHERE id=? AND school_id=?",
+            (foreign["id"], self.school_b),
+        ).fetchone()
+        db.close()
+        self.assertIsNotNone(still_there, "A school-A administrator must not delete a school-B student.")
+
+    def test_android_cloud_host_token_cannot_pull_another_school_exams(self):
+        login = self.client.post("/api/admin/login", json={
+            "school_code": "VIC-AAAA1111", "username": "principal",
+            "password": "School-Password-2026!"
+        })
+        self.assertEqual(login.status_code, 200)
+        device_id = "vicora-alpha-negative-sync"
+        enrolled = self.client.post("/api/admin/hosts/enroll", json={
+            "device_id": device_id, "platform": "android", "label": "Alpha Host"
+        })
+        self.assertEqual(enrolled.status_code, 200, enrolled.get_json())
+        token = enrolled.get_json()["host_token"]
+        db = cbt.raw()
+        db.execute("UPDATE exams SET android_host_sync_enabled=1 WHERE id=?", (self.exam_b,))
+        db.commit()
+        db.close()
+        response = self.client.post(
+            "/api/android-host/sync-pull",
+            base_url="https://api.vicora.example",
+            json={"device_id": device_id, "known_revisions": {}},
+            headers={"X-VICORA-HOST-TOKEN": token},
+        )
+        self.assertEqual(response.status_code, 200, response.get_json())
+        titles = [item["exam"]["title"] for item in response.get_json()["packages"]]
+        self.assertNotIn("Beta Mathematics", titles)
+
 if __name__ == "__main__":
     unittest.main()
