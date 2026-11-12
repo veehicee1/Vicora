@@ -6,7 +6,7 @@ Students      : http://SERVER-IP:8000/
 import os, sys, io, csv, re, time, random, secrets, sqlite3, socket, threading, glob, json, uuid, hashlib, hmac, base64, urllib.request, urllib.error
 from datetime import datetime
 from functools import wraps
-from flask import Flask, g, request, jsonify, session, send_file, send_from_directory
+from flask import Flask, g, request, jsonify, session, send_file, send_from_directory, has_request_context
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
 import openpyxl
@@ -290,7 +290,7 @@ def ex(sql, a=()):
 
 def getset(k, d=''):
     connection = db()
-    school_id = getattr(connection, 'tenant_school_id', None) or session.get('school_id')
+    school_id = getattr(connection, 'tenant_school_id', None) or (session.get('school_id') if has_request_context() else None)
     if school_id and not getattr(connection, 'tenant_school_id', None):
         activate_tenant_views(connection, school_id)
     if getattr(connection, 'tenant_school_id', None):
@@ -314,7 +314,7 @@ def setset(k, v):
     if school_id and not getattr(connection, 'tenant_school_id', None):
         activate_tenant_views(connection, school_id)
     if getattr(connection, 'tenant_school_id', None):
-        ex('insert or replace into settings(key,value) values(?,?)', (k, str(v)))
+        ex('insert into settings(key,value) values(?,?)', (k, str(v)))
         return
     legacy = connection.execute(
         "SELECT value FROM main.settings WHERE key='vicora_legacy_school_id' ORDER BY rowid LIMIT 1"
