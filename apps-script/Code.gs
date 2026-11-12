@@ -11,7 +11,7 @@
  */
 
 const VICORA = Object.freeze({
-  VERSION: '1.1.0',
+  VERSION: '1.2.0',
   DB_PROPERTY: 'VICORA_DATABASE_ID',
   DRIVE_PROPERTY: 'VICORA_STORAGE_FOLDER_ID',
   ADMIN_KEY_PROPERTY: 'VICORA_PLATFORM_ADMIN_KEY',
@@ -76,6 +76,11 @@ function doPost(e) {
       case 'sync.push': result = syncPush_(body); break;
       case 'sync.pull': result = syncPull_(body); break;
       case 'school.profile': result = schoolProfile_(body); break;
+      case 'exam.list': result = listExams_(body); break;
+      case 'exam.save': result = saveExam_(body); break;
+      case 'exam.publish': result = publishExam_(body); break;
+      case 'question.list': result = listQuestions_(body); break;
+      case 'question.save': result = saveQuestion_(body); break;
       default: throw new Error('Unsupported action: ' + action);
     }
     return json_({ ok: true, data: result });
@@ -376,6 +381,131 @@ function schoolProfile_(b) {
   const auth = requireSession_(b);
   const school = findOne_('Schools', 'school_id', auth.schoolId);
   return { school: publicSchool_(school), users: readObjects_('Users').filter(function(u) { return u.school_id === auth.schoolId; }).map(function(u) { return { userId: u.user_id, name: u.name, email: u.email, role: u.role, active: u.active }; }), classes: scoped_('Classes', auth.schoolId), subjects: scoped_('Subjects', auth.schoolId), students: scoped_('Students', auth.schoolId), devices: scoped_('Devices', auth.schoolId).map(function(d) { return { deviceId: d.device_id, name: d.device_name, platform: d.platform, status: d.status, lastSeen: d.last_seen }; }) };
+}
+
+
+/**
+ * Controlled CBT pilot: school-scoped exam and question authoring.
+ * Student delivery and answer traffic remain on the existing Flask engine
+ * until the separate student pilot routes have passed end-to-end testing.
+ */
+function listExams_(b) {
+  const auth = requireSession_(b);
+  requireRole_(auth, ['school_admin','school_owner','exam_officer','viewer']);
+  return scoped_('Exams', auth.schoolId).sort(function(a,b) {
+    return String(b.created_at).localeCompare(String(a.created_at));
+  }).map(function(e) {
+    return {
+      examId: e.exam_id, title: e.title, subject: e.subject, className: e.class_name,
+      durationMinutes: Number(e.duration_minutes || 0), questionCount: Number(e.question_count || 0),
+      instructions: e.instructions, status: e.status, opensAt: e.opens_at, closesAt: e.closes_at
+    };
+  });
+}
+
+function saveExam_(b) {
+  const auth = requireSession_(b);
+  requireRole_(auth, ['school_admin','school_owner','exam_officer']);
+  const id = clean_(b.examId || '', 100) || Utilities.getUuid();
+  const existing = findOne_('Exams','exam_id',id);
+  if (existing && existing.school_id !== auth.schoolId) throw new Error('Exam not found in this school.');
+  if (existing && existing.status === 'published') throw new Error('Published exams cannot be edited. Close it first.');
+  const duration = Number(b.durationMinutes);
+  if (!isFinite(duration) || duration < 1 || duration > 600) throw new Error('Duration must be between 1 and 600 minutes.');
+  const count = Number(b.questionCount);
+  if (!isFinite(count) || count < 1 || count > 500) throw new Error('Question count must be between 1 and 500.');
+  const now = new Date().toISOString();
+  const row = {
+    exam_id: id, school_id: auth.schoolId,
+    title: required_(b.title,'Exam title',160),
+    subject: required_(b.subject,'Subject',100),
+    class_name: required_(b.className,'Class',100),
+    duration_minutes: String(Math.floor(duration)),
+    question_count: String(Math.floor(count)),
+    instructions: clean_(b.instructions || '',2000),
+    status: existing ? existing.status : 'draft',
+    opens_at: clean_(b.opensAt || '',50),
+    closes_at: clean_(b.closesAt || '',50),
+    created_by: auth.userId,
+    created_at: existing ? existing.created_at : now
+  };
+  const sheet = sheet_('Exams');
+  if (existing) updateObjectRow_(sheet,rowNumberByValue_(sheet,'exam_id',id),row);
+  else appendObject_('Exams',row);
+  audit_(auth.schoolId,'exam.saved',{examId:id});
+  return {examId:id,saved:true,status:row.status};
+}
+
+function publishExam_(b) {
+  const auth = requireSession_(b);
+  requireRole_(auth, ['school_admin','school_owner','exam_officer']);
+  const id = required_(b.examId,'Exam ID',100);
+  const exam = findOne_('Exams','exam_id',id);
+  if (!exam || exam.school_id !== auth.schoolId) throw new Error('Exam not found in this school.');
+  const questions = scoped_('Questions',auth.schoolId).filter(function(q) {
+    return q.exam_id === id && q.active !== 'false';
+  });
+  if (!questions.length) throw new Error('Add questions before publishing this exam.');
+  if (questions.length !== Number(exam.question_count)) throw new Error('The number of active questions must match the exam question count.');
+  const now = new Date().toISOString();
+  const opens = exam.opens_at ? new Date(exam.opens_at).getTime() : NaN;
+  const closes = exam.closes_at ? new Date(exam.closes_at).getTime() : NaN;
+  if (exam.opens_at && !isFinite(opens)) throw new Error('Opening date is invalid.');
+  if (exam.closes_at && !isFinite(closes)) throw new Error('Closing date is invalid.');
+  if (isFinite(opens) && isFinite(closes) && closes <= opens) throw new Error('Closing date must be after opening date.');
+  updateObjectRow_(sheet_('Exams'),rowNumberByValue_(sheet_('Exams'),'exam_id',id),{status:'published'});
+  audit_(auth.schoolId,'exam.published',{examId:id,questionCount:questions.length});
+  return {examId:id,status:'published',publishedAt:now,questionCount:questions.length};
+}
+
+function listQuestions_(b) {
+  const auth = requireSession_(b);
+  requireRole_(auth, ['school_admin','school_owner','exam_officer','viewer']);
+  const examId = required_(b.examId,'Exam ID',100);
+  const exam = findOne_('Exams','exam_id',examId);
+  if (!exam || exam.school_id !== auth.schoolId) throw new Error('Exam not found in this school.');
+  return scoped_('Questions',auth.schoolId).filter(function(q) {
+    return q.exam_id === examId;
+  }).sort(function(a,b) { return Number(a.position)-Number(b.position); }).map(function(q) {
+    return {
+      questionId:q.question_id, questionType:q.question_type, questionText:q.question_text,
+      optionA:q.option_a, optionB:q.option_b, optionC:q.option_c, optionD:q.option_d,
+      correctAnswer:q.correct_answer, marks:Number(q.marks || 1), position:Number(q.position || 0),
+      active:q.active !== 'false'
+    };
+  });
+}
+
+function saveQuestion_(b) {
+  const auth = requireSession_(b);
+  requireRole_(auth, ['school_admin','school_owner','exam_officer']);
+  const examId = required_(b.examId,'Exam ID',100);
+  const exam = findOne_('Exams','exam_id',examId);
+  if (!exam || exam.school_id !== auth.schoolId) throw new Error('Exam not found in this school.');
+  if (exam.status === 'published') throw new Error('Questions cannot be changed after an exam is published.');
+  const id = clean_(b.questionId || '',100) || Utilities.getUuid();
+  const existing = findOne_('Questions','question_id',id);
+  if (existing && (existing.school_id !== auth.schoolId || existing.exam_id !== examId)) throw new Error('Question not found in this exam.');
+  const type = String(b.questionType || 'objective').toLowerCase();
+  if (type !== 'objective') throw new Error('The first CBT pilot supports objective questions only.');
+  const marks = Number(b.marks == null ? 1 : b.marks);
+  if (!isFinite(marks) || marks <= 0 || marks > 100) throw new Error('Question marks must be greater than 0 and at most 100.');
+  const answer = String(b.correctAnswer || '').trim().toUpperCase();
+  if (['A','B','C','D'].indexOf(answer) < 0) throw new Error('Correct answer must be A, B, C or D.');
+  const row = {
+    question_id:id,school_id:auth.schoolId,exam_id:examId,question_type:type,
+    question_text:required_(b.questionText,'Question text',5000),
+    option_a:required_(b.optionA,'Option A',1000),option_b:required_(b.optionB,'Option B',1000),
+    option_c:required_(b.optionC,'Option C',1000),option_d:required_(b.optionD,'Option D',1000),
+    correct_answer:answer,marks:String(marks),
+    position:String(Math.max(1,Math.floor(Number(b.position)||1))),
+    active:'true',created_at:existing ? existing.created_at : new Date().toISOString()
+  };
+  const sheet = sheet_('Questions');
+  if (existing) updateObjectRow_(sheet,rowNumberByValue_(sheet,'question_id',id),row);
+  else appendObject_('Questions',row);
+  audit_(auth.schoolId,'question.saved',{examId:examId,questionId:id});
+  return {questionId:id,saved:true};
 }
 
 function requirePlatformAdmin_(b) {
