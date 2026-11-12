@@ -30,11 +30,19 @@ workflows:
       - name: Install Android SDK components
         script: |
           set -e
-          SDKMANAGER="$(find "$ANDROID_SDK_ROOT" -type f -name sdkmanager -print -quit)"
-          test -n "$SDKMANAGER"
+          # Use the modern Android Command-line Tools SDK manager.
+          # The legacy $ANDROID_SDK_ROOT/tools/bin/sdkmanager is incompatible with Java 17.
+          SDKMANAGER="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            echo "Modern sdkmanager not found at: $SDKMANAGER"
+            echo "Available sdkmanager locations:"
+            find "$ANDROID_SDK_ROOT" -type f -name sdkmanager -print || true
+            exit 1
+          fi
+          "$SDKMANAGER" --version
           yes | "$SDKMANAGER" --licenses >/dev/null
           "$SDKMANAGER" --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
-          printf 'sdk.dir=%s\n' "$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/android/local.properties"
+          printf 'sdk.dir=%s\\n' "$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/android/local.properties"
       - name: Install compatible Gradle
         script: |
           set -e
