@@ -836,7 +836,15 @@ def a_me():
         session.clear()
         return jsonify(user=None, role=None, school=getset('school_name'))
     school = q1('SELECT name, school_code FROM schools WHERE school_id=?', (staff['school_id'],))
-    return jsonify(user=staff['username'], role=staff['role'], role_name=ROLE_NAMES.get(staff['role'], staff['role']),
+    display_user = staff['username']
+    if session.get('central_session_token'):
+        central_user = db().execute(
+            "SELECT email FROM main.central_user_map WHERE local_username=? AND school_id=?",
+            (staff['username'], staff['school_id'])
+        ).fetchone()
+        if central_user:
+            display_user = central_user['email']
+    return jsonify(user=display_user, role=staff['role'], role_name=ROLE_NAMES.get(staff['role'], staff['role']),
                    school=school['name'] if school else getset('school_name'),
                    school_id=staff['school_id'], school_code=school['school_code'] if school else '')
 
