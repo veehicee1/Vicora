@@ -607,7 +607,9 @@ def install_multi_tenant_routes(app, db, err):
              hashlib.sha256(token.encode()).hexdigest(), int(time.time()))
         )
         db().commit()
-        return jsonify(ok=True, device_id=device_id, host_token=token,
+        school = db().execute("SELECT school_code FROM schools WHERE school_id=?", (school_id,)).fetchone()
+        return jsonify(ok=True, device_id=device_id, school_code=school["school_code"] if school else "",
+                       host_token=token,
                        message="Store this host token securely. It will not be shown again.")
 
     @app.post("/api/host/heartbeat")
