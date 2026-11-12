@@ -72,6 +72,8 @@ function doPost(e) {
       case 'admin.assignSubscription': requirePlatformAdmin_(body); result = assignSubscription_(body); break;
       case 'admin.setSubscriptionStatus': requirePlatformAdmin_(body); result = setSubscriptionStatus_(body); break;
       case 'admin.recordSubscriptionPayment': requirePlatformAdmin_(body); result = recordSubscriptionPayment_(body); break;
+      case 'admin.updateSubscriptionPayment': requirePlatformAdmin_(body); result = updateSubscriptionPayment_(body); break;
+      case 'admin.setSubscriptionPlanStatus': requirePlatformAdmin_(body); result = setSubscriptionPlanStatus_(body); break;
       case 'activateSchool': result = activateSchool_(body); break;
       case 'login': result = login_(body); break;
       case 'logout': result = logout_(body); break;
@@ -578,10 +580,14 @@ function assignSubscription_(b) {
   if(!school) throw new Error('School not found.');
   if(school.status!=='approved') throw new Error('Reactivate the school account before assigning a subscription.');
   if(!plan||String(plan.active)!=='true') throw new Error('Choose an active subscription plan.');
-  const start=new Date(b.startAt||new Date().toISOString());
+  const now=new Date().toISOString(),sheet=sheet_('Subscriptions');
+  const current=readObjects_('Subscriptions').filter(function(x){return x.school_id===schoolId&&x.status==='active';})
+    .sort(function(a,b){return String(b.created_at).localeCompare(String(a.created_at));})[0];
+  const currentEnd=current?new Date(current.end_at):null;
+  const defaultStart=currentEnd&&isFinite(currentEnd.getTime())&&currentEnd.getTime()>Date.now()?currentEnd:new Date();
+  const start=new Date(b.startAt||defaultStart.toISOString());
   if(!isFinite(start.getTime())) throw new Error('Enter a valid subscription start date.');
   const end=new Date(start.getTime());end.setDate(end.getDate()+Number(plan.duration_days));
-  const now=new Date().toISOString(),sheet=sheet_('Subscriptions');
   readObjects_('Subscriptions').filter(function(x){return x.school_id===schoolId&&x.status==='active';}).forEach(function(x){
     updateObjectRow_(sheet,rowNumberByValue_(sheet,'subscription_id',x.subscription_id),{status:'replaced',updated_at:now});
   });
@@ -628,6 +634,27 @@ function enforcePlanLimit_(schoolId, kind) {
     ? scoped_('Students',schoolId).filter(function(x){return String(x.active)==='true';}).length
     : scoped_('Users',schoolId).filter(function(x){return ['teacher','exam_officer','viewer'].indexOf(String(x.role))!==-1 && String(x.active)==='true';}).length;
   if(count>=limit) throw new Error('Your VICORA subscription has reached its '+kind+' limit ('+limit+'). Upgrade or renew your plan to add more.');
+}
+
+function updateSubscriptionPayment_(b) {
+  const id=required_(b.paymentId,'Payment ID',100),status=String(b.status||'').toLowerCase();
+  if(['pending','verified','rejected'].indexOf(status)===-1) throw new Error('Payment status must be pending, verified or rejected.');
+  const payment=findOne_('SubscriptionPayments','payment_id',id);
+  if(!payment) throw new Error('Payment record not found.');
+  updateObjectRow_(sheet_('SubscriptionPayments'),rowNumberByValue_(sheet_('SubscriptionPayments'),'payment_id',id),
+    {status:status,paid_at:status==='verified'?(payment.paid_at||new Date().toISOString()):''});
+  audit_(payment.school_id,'subscription.payment.status.changed',{paymentId:id,status:status});
+  return {paymentId:id,status:status,updated:true};
+}
+
+function setSubscriptionPlanStatus_(b) {
+  const id=required_(b.planId,'Plan ID',100),active=String(b.active)==='true';
+  const plan=findOne_('SubscriptionPlans','plan_id',id);
+  if(!plan) throw new Error('Subscription plan not found.');
+  updateObjectRow_(sheet_('SubscriptionPlans'),rowNumberByValue_(sheet_('SubscriptionPlans'),'plan_id',id),
+    {active:String(active),updated_at:new Date().toISOString()});
+  audit_('','subscription.plan.status.changed',{planId:id,active:active});
+  return {planId:id,active:active,updated:true};
 }
 
 function assertSubscriptionAccess_(schoolId) {
