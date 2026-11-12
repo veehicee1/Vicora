@@ -1470,14 +1470,26 @@ def android_host_pair():
 
 def _android_device_from_request():
     auth = request.headers.get('Authorization', '')
-    token = auth[7:].strip() if auth.lower().startswith('bearer ') else ''
+    bearer = auth[7:].strip() if auth.lower().startswith('bearer ') else ''
+    token = request.headers.get('X-VICORA-HOST-TOKEN', '').strip() or bearer
     device_id = str((request.get_json(silent=True) or {}).get('device_id') or '')
     if not token or not device_id:
         return None
-    # Device IDs are globally unique. Resolve the device once, then activate its
-    # verified tenant before reading or changing any school examination data.
-    row = q1('select * from main.android_host_devices where device_id=? and revoked_ts=0', (device_id,))
     digest = hashlib.sha256(token.encode('utf-8')).hexdigest()
+    # New school-scoped host credentials are preferred. Legacy paired Android
+    # devices remain supported during the transition.
+    host = q1('select * from main.school_hosts where device_id=? and revoked_ts=0', (device_id,))
+    if host and hmac.compare_digest(host['token_hash'], digest):
+        activate_tenant_views(db(), host['school_id'])
+        host = q1('select * from school_hosts where device_id=? and revoked_ts=0', (device_id,))
+        if not host or not hmac.compare_digest(host['token_hash'], digest):
+            return None
+        ex('update school_hosts set last_seen=? where device_id=?',
+           (int(time.time()), device_id))
+        return host
+    # Legacy Windows/Android pairing credentials are still accepted, but only
+    # after their stored school ID has been verified and activated.
+    row = q1('select * from main.android_host_devices where device_id=? and revoked_ts=0', (device_id,))
     if not row or not hmac.compare_digest(row['token_hash'], digest):
         return None
     activate_tenant_views(db(), row['school_id'])
