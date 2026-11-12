@@ -26,7 +26,7 @@ class TenantAwareConnection(sqlite3.Connection):
     def execute(self, sql, parameters=()):
         rewritten = self._tenant_sql(sql)
         cursor = super().execute(rewritten, parameters)
-        match = re.match(r"(?is)^\\s*INSERT(?:\\s+OR\\s+\\w+)?\\s+INTO\\s+tenant_([a-z_]+)\\b", rewritten)
+        match = re.match(r"(?is)^\s*INSERT(?:\s+OR\s+\w+)?\s+INTO\s+tenant_([a-z_]+)\b", rewritten)
         if self.tenant_school_id and match:
             table = match.group(1)
             info = sqlite3.Connection.execute(
