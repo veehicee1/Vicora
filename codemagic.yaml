@@ -1,5 +1,6 @@
-# Free-tier-friendly Android test build for VICORA.
-# Builds both app flavours in one cloud job; no local SDK installation required.
+# Free-plan Android test build for VICORA.
+# Uses Codemagic's personal macOS M2 free allowance only.
+# Do not enable billing or select Linux/Windows paid runners.
 workflows:
   vicora-android-test:
     name: VICORA Android Admin + Examination (debug)
@@ -16,22 +17,18 @@ workflows:
           source: true
       cancel_previous_builds: true
     scripts:
-      - name: Confirm build environment
+      - name: Verify free Mac build environment and Android SDK
         script: |
           java -version
-          uname -a
-      - name: Install Android SDK packages
-        script: |
-          yes | sdkmanager --licenses >/dev/null
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
-      - name: Install Gradle 8.11.1
-        script: |
-          curl --fail --location --silent --show-error \
-            https://services.gradle.org/distributions/gradle-8.11.1-bin.zip \
-            --output /tmp/gradle-8.11.1-bin.zip
-          unzip -q /tmp/gradle-8.11.1-bin.zip -d /tmp
-          echo "/tmp/gradle-8.11.1/bin" >> "$CM_ENV"
-          gradle --version
+          export ANDROID_SDK_ROOT=/usr/local/share/android-sdk
+          export ANDROID_HOME="$ANDROID_SDK_ROOT"
+          export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
+          test -x "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          test -x "/Users/builder/programs/gradle-8.14.1/bin/gradle"
+          sdkmanager --install "platforms;android-35" "build-tools;35.0.0"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$CM_ENV"
+          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$CM_ENV"
+          echo "PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:/Users/builder/programs/gradle-8.14.1/bin:$PATH" >> "$CM_ENV"
       - name: Configure Android SDK
         script: |
           printf 'sdk.dir=%s\n' "$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/android/local.properties"
@@ -46,7 +43,7 @@ workflows:
     artifacts:
       - android/app/build/outputs/apk/admin/debug/app-admin-debug.apk
       - android/app/build/outputs/apk/examination/debug/app-examination-debug.apk
-      - /tmp/gradle-*.log
+      - /tmp/*.log
     cache:
       cache_paths:
         - $HOME/.gradle/caches
