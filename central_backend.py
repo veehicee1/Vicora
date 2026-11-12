@@ -36,6 +36,18 @@ ROLE_MAP = {
 }
 MAX_REQUEST_BYTES = 8 * 1024 * 1024
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+_LOGIN_FAILURES = {}
+
+
+def _login_throttled(key, limit=10, window=300):
+    now = time.time()
+    attempts = [stamp for stamp in _LOGIN_FAILURES.get(key, []) if now - stamp < window]
+    _LOGIN_FAILURES[key] = attempts
+    return len(attempts) >= limit
+
+
+def _login_failed(key):
+    _LOGIN_FAILURES.setdefault(key, []).append(time.time())
 
 
 def _endpoint():
@@ -274,8 +286,12 @@ def install_central_backend_routes(app, db, err):
         password = str(body.get("password") or "")
         if not code or not email or not password:
             return err("Enter the School Code, email and password.")
+        login_key = str(request.remote_addr or "unknown")
+        if _login_throttled(login_key):
+            return err("Too many sign-in attempts. Wait five minutes before trying again.", 429)
         try:
             auth = _post_action("login", schoolCode=code, email=email, password=password)
+            _LOGIN_FAILURES.pop(login_key, None)
             school = auth.get("school") or {}
             user = auth.get("user") or {}
             if str(school.get("schoolCode") or "").upper() != code:
@@ -317,8 +333,11 @@ def install_central_backend_routes(app, db, err):
                            role=session["admin_role"], role_name="School Administrator" if session["admin_role"] == "super_admin" else session["admin_role"].replace("_", " ").title(),
                            school=school.get("name"), school_code=code,
                            expires_at=expires_text, central=True)
-        except (RuntimeError, ValueError, TypeError, KeyError) as exc:
+        except ValueError as exc:
+            _login_failed(login_key)
             return err(str(exc), 401)
+        except (RuntimeError, TypeError, KeyError) as exc:
+            return err(str(exc), 503)
 
     @app.post("/api/central/admin")
     def vicora_central_admin():
