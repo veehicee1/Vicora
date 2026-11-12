@@ -30,6 +30,12 @@ def _rebuild_without_global_unique(connection, table, column):
         raise RuntimeError(f"Required table {table} is missing its CREATE TABLE definition")
 
     original_sql = row[0]
+    scoped_index = f"ux_{table}_school_{column}"
+    if connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type='index' AND name=?",
+        (scoped_index,),
+    ).fetchone():
+        return
     # Capture user-created indexes and triggers. SQLite's implicit UNIQUE
     # auto-index is intentionally not copied; it is replaced below.
     objects = connection.execute(
