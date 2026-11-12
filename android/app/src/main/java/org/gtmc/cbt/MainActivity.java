@@ -364,6 +364,10 @@ public class MainActivity extends Activity {
         LinearLayout form = new LinearLayout(this);
         form.setOrientation(LinearLayout.VERTICAL);
         form.setPadding(dp(20), dp(8), dp(20), dp(8));
+        EditText schoolCode = new EditText(this);
+        schoolCode.setSingleLine(true);
+        schoolCode.setHint("School Code (VIC-XXXXXXXX)");
+        form.addView(schoolCode);
         EditText server = new EditText(this);
         server.setSingleLine(true);
         server.setHint("https://your-secure-server.example/");
@@ -375,11 +379,16 @@ public class MainActivity extends Activity {
         form.addView(code);
         new AlertDialog.Builder(this)
             .setTitle("Pair Android Host")
-            .setMessage("Enter the HTTPS address of your Windows CBT Server and the one-time code generated in Admin Settings. Completed exam results will be transferred securely to the paired Windows host.")
+            .setMessage("Enter your VICORA School Code, the HTTPS address of your Windows CBT Server and the one-time code generated in Admin Settings. Completed exam results will be transferred securely to the paired school host.")
             .setView(form)
             .setPositiveButton("Pair", (dialog, which) -> {
+                String schoolCodeValue = schoolCode.getText().toString().trim().toUpperCase();
                 String serverUrl = server.getText().toString().trim();
                 String pairingCode = code.getText().toString().trim();
+                if (!schoolCodeValue.matches("VIC-[A-F0-9]{8}")) {
+                    Toast.makeText(this, "Enter a valid VICORA School Code.", Toast.LENGTH_LONG).show();
+                    return;
+                }
                 android.net.Uri parsed = android.net.Uri.parse(serverUrl);
                 if (!"https".equalsIgnoreCase(parsed.getScheme()) || parsed.getHost() == null
                         || parsed.getUserInfo() != null || parsed.getQuery() != null || parsed.getFragment() != null) {
@@ -396,11 +405,11 @@ public class MainActivity extends Activity {
                 Toast.makeText(this, "Pairing with Windows Server…", Toast.LENGTH_SHORT).show();
                 new Thread(() -> {
                     try {
-                        AndroidHostPairing.pair(this, endpoint, secret);
+                        AndroidHostPairing.pair(this, endpoint, secret, schoolCodeValue);
                         Python.getInstance().getModule("android_sync").callAttr("reset_auth_errors",
                             getFilesDir().getAbsolutePath() + "/gtmc-cbt-data");
                         runOnUiThread(() -> {
-                            getPreferences(0).edit().putString("android_sync_server_url", endpoint).apply();
+                            getPreferences(0).edit().putString("android_sync_server_url", endpoint).putString("android_sync_school_code", schoolCodeValue).apply();
                             AndroidHostSyncScheduler.schedule(this);
                             Toast.makeText(this, "Android Host paired. Completed results will sync automatically when internet is available.", Toast.LENGTH_LONG).show();
                         });
