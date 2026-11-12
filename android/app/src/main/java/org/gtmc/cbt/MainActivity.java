@@ -539,20 +539,18 @@ public class MainActivity extends Activity {
         new Thread(() -> {
             boolean healthy = false;
             try {
-                if (Python.isStarted()) {
-                    String host = "host".equals(currentMode) ? "0.0.0.0" : "127.0.0.1";
+                if (!Python.isStarted()) Python.start(new AndroidPlatform(getApplicationContext()));
+                String host = "host".equals(currentMode) ? "0.0.0.0" : "127.0.0.1";
+                healthy = Python.getInstance().getModule("android_server")
+                        .callAttr("health_check", "127.0.0.1", 8765).toBoolean();
+                if (!healthy) {
+                    copyAssetFolder("web", new File(getFilesDir(), "web"));
+                    Python.getInstance().getModule("android_server").callAttr("start_server",
+                        getFilesDir().getAbsolutePath() + "/gtmc-cbt-data",
+                        new File(getFilesDir(), "web").getAbsolutePath(), host, 8765,
+                        getPreferences(0).getString("school_name", ""));
                     healthy = Python.getInstance().getModule("android_server")
-                            .callAttr("health_check", "127.0.0.1", 8765).toBoolean();
-                    if (!healthy) {
-                        if (!Python.isStarted()) Python.start(new AndroidPlatform(getApplicationContext()));
-                        copyAssetFolder("web", new File(getFilesDir(), "web"));
-                        Python.getInstance().getModule("android_server").callAttr("start_server",
-                            getFilesDir().getAbsolutePath() + "/gtmc-cbt-data",
-                            new File(getFilesDir(), "web").getAbsolutePath(), host, 8765,
-                            getPreferences(0).getString("school_name", ""));
-                        healthy = Python.getInstance().getModule("android_server")
-                            .callAttr("health_check", "127.0.0.1", 8765).toBoolean();
-                    }
+                        .callAttr("health_check", "127.0.0.1", 8765).toBoolean();
                 }
             } catch (Throwable ex) {
                 android.util.Log.e("VICORA-Recovery", "Local CBT server recovery failed", ex);
