@@ -107,6 +107,29 @@ class MultiTenantLoginIsolationTests(unittest.TestCase):
         self.assertEqual([exam["title"] for exam in alpha.get_json()["exams"]], ["Alpha Mathematics"])
         self.assertEqual([exam["title"] for exam in beta.get_json()["exams"]], ["Beta Mathematics"])
 
+    def test_android_host_pairing_code_is_bound_to_the_selected_school(self):
+        login = self.client.post("/api/admin/login", json={
+            "school_code": "VIC-AAAA1111", "username": "principal",
+            "password": "School-Password-2026!"
+        })
+        self.assertEqual(login.status_code, 200)
+        pairing = self.client.post("/api/admin/android-host/pairing-code")
+        self.assertEqual(pairing.status_code, 200)
+        device_id = str(uuid.uuid4())
+        paired = self.client.post("/api/android-host/pair", json={
+            "school_code": "VIC-AAAA1111",
+            "pairing_code": pairing.get_json()["pairing_code"],
+            "device_id": device_id,
+            "label": "Alpha Android Host",
+        })
+        self.assertEqual(paired.status_code, 200, paired.get_json())
+        db = cbt.raw()
+        row = db.execute(
+            "SELECT school_id FROM android_host_devices WHERE device_id=?", (device_id,)
+        ).fetchone()
+        db.close()
+        self.assertEqual(row["school_id"], self.school_a)
+
     def test_unknown_school_code_fails_closed(self):
         response = self.client.post("/api/student/login", json={
             "school_code": "VIC-DEADBEEF", "reg_no": "S001", "code": "PIN123"
