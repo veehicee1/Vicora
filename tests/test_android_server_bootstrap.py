@@ -6,7 +6,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
-from unittest.mock import patch, Mock
+from unittest.mock import patch, MagicMock
 
 PYTHON_DIR = Path(__file__).resolve().parents[1] / "android" / "app" / "src" / "main" / "python"
 sys.path.insert(0, str(PYTHON_DIR))
@@ -133,7 +133,7 @@ class AndroidServerBootstrapTests(unittest.TestCase):
             self.assertEqual(android_server._server_host, None)
 
     def test_health_check_uses_readiness_endpoint_and_requires_ready_database(self):
-        response = Mock()
+        response = MagicMock()
         response.status = 200
         response.read.return_value = b'{"ok":true,"database":"ready"}'
         response.__enter__.return_value = response
