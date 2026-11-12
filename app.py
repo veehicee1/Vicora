@@ -11,6 +11,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
+from tenant_migration import migrate_legacy_school
 import docx
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -99,6 +100,7 @@ def init_db():
     c = raw()
     c.execute('PRAGMA journal_mode=WAL')
     c.executescript(SCHEMA)
+    migrate_legacy_school(c)
     # Additive staff RBAC migration: existing administrators retain their credentials
     # and become Super Admins; no examination or student records are rewritten.
     admin_cols = {r['name'] for r in c.execute('PRAGMA table_info(admins)').fetchall()}
