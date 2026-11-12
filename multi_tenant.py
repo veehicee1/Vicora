@@ -133,6 +133,47 @@ def _migrate_settings_to_school_scope(connection):
     connection.execute("CREATE INDEX IF NOT EXISTS idx_settings_school ON settings(school_id)")
 
 
+def _tenant_relation_guard(table):
+    """Return SQL checks ensuring referenced records belong to the active tenant."""
+    checks = {
+        "students": (
+            "EXISTS(SELECT 1 FROM main.classes c WHERE c.id=NEW.class_id "
+            "AND c.school_id={tenant})",
+        ),
+        "questions": (
+            "EXISTS(SELECT 1 FROM main.subjects s WHERE s.id=NEW.subject_id "
+            "AND s.school_id={tenant})",
+        ),
+        "exams": (
+            "EXISTS(SELECT 1 FROM main.subjects s WHERE s.id=NEW.subject_id "
+            "AND s.school_id={tenant})",
+        ),
+        "sessions": (
+            "EXISTS(SELECT 1 FROM main.exams e WHERE e.id=NEW.exam_id AND e.school_id={tenant})",
+            "EXISTS(SELECT 1 FROM main.students s WHERE s.id=NEW.student_id AND s.school_id={tenant})",
+        ),
+        "messages": (
+            "EXISTS(SELECT 1 FROM main.students s WHERE s.id=NEW.student_id AND s.school_id={tenant})",
+            "(NEW.exam_id IS NULL OR EXISTS(SELECT 1 FROM main.exams e WHERE e.id=NEW.exam_id AND e.school_id={tenant}))",
+        ),
+        "answers": (
+            "EXISTS(SELECT 1 FROM main.sessions s WHERE s.id=NEW.session_id AND s.school_id={tenant})",
+            "EXISTS(SELECT 1 FROM main.questions q WHERE q.id=NEW.question_id AND q.school_id={tenant})",
+        ),
+        "theory_marks": (
+            "EXISTS(SELECT 1 FROM main.sessions s WHERE s.id=NEW.session_id AND s.school_id={tenant})",
+            "EXISTS(SELECT 1 FROM main.questions q WHERE q.id=NEW.question_id AND q.school_id={tenant})",
+        ),
+        "proctor_events": (
+            "EXISTS(SELECT 1 FROM main.sessions s WHERE s.id=NEW.session_id AND s.school_id={tenant})",
+        ),
+        "android_sync_receipts": (
+            "EXISTS(SELECT 1 FROM main.sessions s WHERE s.id=NEW.session_id AND s.school_id={tenant})",
+        ),
+    }
+    return checks.get(table, ())
+
+
 def _install_direct_tenant_view(connection, table, school_id):
     info = connection.execute(f"PRAGMA main.table_info({_qi(table)})").fetchall()
     if not info:
@@ -158,11 +199,18 @@ def _install_direct_tenant_view(connection, table, school_id):
             insert_values.append(f"COALESCE(NEW.{_qi(name)}, {default})")
         else:
             insert_values.append(f"NEW.{_qi(name)}")
+    relation_checks = _tenant_relation_guard(table)
+    relation_sql = "".join(
+        f"SELECT CASE WHEN NOT ({check.format(tenant=tenant)}) "
+        "THEN RAISE(ABORT,'VICORA cross-school relationship rejected') END; "
+        for check in relation_checks
+    )
     connection.execute(f"""
         CREATE TEMP TRIGGER {_qi('vt_i_' + table)}
         INSTEAD OF INSERT ON {_qi(table)} BEGIN
           SELECT CASE WHEN NEW.school_id IS NOT NULL AND NEW.school_id<>{tenant}
             THEN RAISE(ABORT,'VICORA tenant mismatch') END;
+          {relation_sql}
           INSERT INTO main.{_qi(table)} ({col_list})
           VALUES ({', '.join(insert_values)});
         END
@@ -178,6 +226,7 @@ def _install_direct_tenant_view(connection, table, school_id):
         INSTEAD OF UPDATE ON {_qi(table)} BEGIN
           SELECT CASE WHEN NEW.school_id IS NOT NULL AND NEW.school_id<>{tenant}
             THEN RAISE(ABORT,'VICORA tenant mismatch') END;
+          {relation_sql}
           UPDATE main.{_qi(table)} SET {', '.join(assignments)}
           WHERE {where_old} AND school_id={tenant};
         END
