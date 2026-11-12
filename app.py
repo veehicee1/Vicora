@@ -1451,10 +1451,9 @@ def android_host_pair():
         return err('Pairing code is invalid or expired.', 401)
     token = secrets.token_urlsafe(48)
     token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
+    db().execute('delete from android_host_devices where device_id=?', (device_id,))
     ex('''insert into android_host_devices(device_id,token_hash,label,created_ts,last_seen,revoked_ts)
-          values(?,?,?,?,?,0)
-          on conflict(device_id) do update set token_hash=excluded.token_hash,label=excluded.label,
-          created_ts=excluded.created_ts,last_seen=excluded.last_seen,revoked_ts=0''',
+          values(?,?,?,?,?,0)''',
        (device_id, token_hash, label, int(time.time()), int(time.time())))
     setset('android_host_pairing_hash', '')
     setset('android_host_pairing_expires', '0')
@@ -2230,10 +2229,9 @@ def theory_mark():
         except ValueError: words = []
         hits = sum(1 for word in words if str(word).casefold() in response.casefold())
         original_mark = float(q['marks']) * hits / len(words) if words else 0.0
+    db().execute('delete from theory_marks where session_id=? and question_id=?', (sid, qid))
     ex('''insert into theory_marks(session_id,question_id,mark,original_mark,feedback,marked_by,marked_ts)
-          values(?,?,?,?,?,?,?) on conflict(session_id,question_id) do update set
-          mark=excluded.mark,original_mark=excluded.original_mark,feedback=excluded.feedback,
-          marked_by=excluded.marked_by,marked_ts=excluded.marked_ts''',
+          values(?,?,?,?,?,?,?)''',
        (sid,qid,mark,round(original_mark,2),str(d.get('feedback') or '')[:2000],session.get('admin','Admin'),int(time.time())))
     # Recalculate the complete result, retaining objective and automatic theory marks.
     rows = qa('''select q.id,q.question_type,q.answer,q.answer_text,q.accepted_answers,q.keywords,
