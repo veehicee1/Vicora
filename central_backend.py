@@ -5,6 +5,7 @@ the CBT engine. Central school IDs are mirrored locally without touching legacy
 students, exams, attempts, answers, scores or reports.
 """
 import hashlib
+import hmac
 import json
 import os
 import re
@@ -290,6 +291,11 @@ def install_central_backend_routes(app, db, err):
         if not isinstance(body, dict):
             return err("Send a valid JSON request.")
         action = str(body.get("action") or "")
+        expected_platform_token = os.environ.get("VICORA_PLATFORM_ADMIN_TOKEN", "")
+        supplied_platform_token = request.headers.get("X-VICORA-PLATFORM-TOKEN", "")
+        if not (expected_platform_token and supplied_platform_token
+                and hmac.compare_digest(expected_platform_token, supplied_platform_token)):
+            return err("Platform Super Admin authorization required.", 401)
         admin_key = os.environ.get("VICORA_CENTRAL_ADMIN_KEY", "")
         if action not in ADMIN_ACTIONS:
             return err("This central administrator action is not available.", 403)
