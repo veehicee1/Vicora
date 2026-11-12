@@ -22,6 +22,22 @@ serverless functions are not the right place to store this SQLite database.
 6. Test the admin login, student login, question bank, exam open/close, autosave, submission,
    result publication, backups and restart persistence before inviting candidates.
 
+## Vercel gateway configuration
+
+- Set `VICORA_API_ORIGIN` in the Vercel project to the HTTPS origin of the approved persistent
+  VICORA API host. Do not include a path, username, password, query or fragment.
+- The older `ANDROID_HOST_ORIGIN` variable remains supported for a Cloudflare Access-protected
+  Android/Windows host tunnel.
+- For a public Render HTTPS origin, Cloudflare Access credentials are optional. If the upstream
+  is protected by Cloudflare Access, set both `CF_ACCESS_CLIENT_ID` and
+  `CF_ACCESS_CLIENT_SECRET`; never set only one.
+- Set `VICORA_PLATFORM_ADMIN_TOKEN` only as a backend environment secret. The platform review
+  page asks the authorized platform operator to enter that token for the current browser session.
+  Do not commit it or place it in public frontend code.
+- The Vercel gateway exposes only the explicitly allowed student, school onboarding and
+  platform-review API routes. It does not proxy general school administration, backup or sync
+  endpoints.
+
 ## Security
 
 - Remote Admin is allowed only when public hosting, HTTPS cookie protection and the explicit
