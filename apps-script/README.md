@@ -14,7 +14,7 @@ This folder contains the VICORA central school-management service. It is a separ
 - Idempotent host synchronisation event intake and pull.
 - Audit trail and Google Drive storage-folder provisioning.
 
-The current Flask application remains the examination engine for exam delivery, scoring and result processing. Do not send high-volume candidate answer traffic to Google Sheets. This Apps Script service is intended for school-management metadata and controlled sync coordination.
+The Apps Script project now provisions the first CBT pilot data tabs alongside the central school-management tabs. These tabs are schema preparation only: the student/exam API actions and the existing generated screen integration are not yet connected. The existing Flask application remains the active examination engine until that integration is implemented and tested. Do not treat the pilot tabs as production-ready for simultaneous candidates.
 
 ## Create the Apps Script project
 
@@ -24,7 +24,7 @@ The current Flask application remains the examination engine for exam delivery, 
 4. Add the `appsscript.json` manifest from this folder (enable **Show "appsscript.json" manifest file** in Project Settings).
 5. In **Project Settings → Script Properties**, add:
    - `VICORA_PLATFORM_ADMIN_KEY` = a long, randomly generated secret (at least 32 random characters).
-6. Run `initializeVicoraBackend` manually once and approve the Google Sheets and Drive permissions. It creates a dedicated spreadsheet called **VICORA Central Database**, its required tabs, and a **VICORA School Storage** Drive folder. It does not access GTMC spreadsheets.
+6. Run `initializeVicoraBackend` manually once and approve the Google Sheets and Drive permissions. It creates or extends a dedicated spreadsheet called **VICORA Central Database**, its required school-management and CBT pilot tabs, and a **VICORA School Storage** Drive folder. Existing tabs and records are preserved; missing columns are appended. It does not access GTMC spreadsheets.
 7. Deploy → New deployment → Web app:
    - Execute as: **Me**
    - Who has access: **Anyone**
@@ -72,6 +72,10 @@ Host endpoints use the `deviceId` and one-time `deviceToken` returned by `host.e
 - `host.heartbeat`
 - `sync.push` — up to 100 events per request; event IDs are idempotency keys.
 - `sync.pull` — returns up to 200 school-scoped events after a timestamp cursor.
+
+## CBT pilot status
+
+The first setup step adds these school-scoped tabs: `Exams`, `Questions`, `ExamSessions`, `ExamAnswers`, `ExamResults`, `ExamEvents`, `StudentSessions` and `Messages`. The `Students` tab also gains `access_code` and `created_at` columns. Existing student rows are not deleted or rewritten. The `initializeVicoraBackend` function must be run again manually after deploying this code to create the new tabs/columns. The current student and administrator screens still call the existing Flask API; this schema addition alone does not connect those screens to Apps Script. The next implementation step is the authenticated Apps Script exam API and a controlled gateway adapter, followed by a small pilot test.
 
 ## Important integration and operational notes
 
