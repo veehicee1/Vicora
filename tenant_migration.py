@@ -79,13 +79,14 @@ def migrate_legacy_school(connection):
                 (school_id,))
             c.execute(
                 f"CREATE INDEX IF NOT EXISTS idx_{table}_school_id ON {table}(school_id)")
-            c.execute(f"""CREATE TRIGGER IF NOT EXISTS trg_{table}_legacy_school_default
+            trigger_name = f"trg_{table}_legacy_school_default"
+            legacy_literal = "'" + school_id.replace("'", "''") + "'"
+            c.execute(f"DROP TRIGGER IF EXISTS {trigger_name}")
+            c.execute(f"""CREATE TRIGGER {trigger_name}
                 AFTER INSERT ON {table}
                 WHEN NEW.school_id IS NULL OR NEW.school_id=''
                 BEGIN
-                  UPDATE {table} SET school_id=(
-                    SELECT value FROM settings WHERE key='vicora_legacy_school_id'
-                  ) WHERE rowid=NEW.rowid;
+                  UPDATE {table} SET school_id={legacy_literal} WHERE rowid=NEW.rowid;
                 END""")
         c.execute("RELEASE SAVEPOINT vicora_legacy_school_bootstrap")
         return {"school_id": school_id, "school_code": school_code, "school_name": school_name}
