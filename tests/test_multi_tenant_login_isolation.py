@@ -130,6 +130,26 @@ class MultiTenantLoginIsolationTests(unittest.TestCase):
         db.close()
         self.assertEqual(row["school_id"], self.school_a)
 
+    def test_new_school_host_token_heartbeat_is_school_scoped(self):
+        login = self.client.post("/api/admin/login", json={
+            "school_code": "VIC-AAAA1111", "username": "principal",
+            "password": "School-Password-2026!"
+        })
+        self.assertEqual(login.status_code, 200)
+        device_id = "vicora-alpha-android-01"
+        enrolled = self.client.post("/api/admin/hosts/enroll", json={
+            "device_id": device_id, "platform": "android", "label": "Alpha Cloud Host"
+        })
+        self.assertEqual(enrolled.status_code, 200, enrolled.get_json())
+        credentials = enrolled.get_json()
+        self.assertEqual(credentials["school_code"], "VIC-AAAA1111")
+        heartbeat = self.client.post("/api/host/heartbeat", headers={
+            "X-VICORA-HOST-TOKEN": credentials["host_token"]
+        })
+        self.assertEqual(heartbeat.status_code, 200, heartbeat.get_json())
+        self.assertEqual(heartbeat.get_json()["school_id"], self.school_a)
+        self.assertEqual(heartbeat.get_json()["device_id"], device_id)
+
     def test_unknown_school_code_fails_closed(self):
         response = self.client.post("/api/student/login", json={
             "school_code": "VIC-DEADBEEF", "reg_no": "S001", "code": "PIN123"
