@@ -83,7 +83,7 @@ public final class AndroidHostService extends Service {
                 String bindHost = "host".equals(mode) ? "0.0.0.0" : "127.0.0.1";
                 Python.getInstance().getModule("android_server")
                         .callAttr("start_server", dataDir, webDir, bindHost, 8765,
-                                getSharedPreferences(MainActivity.class.getSimpleName() + "_preferences", MODE_PRIVATE)
+                                getSharedPreferences(MainActivity.class.getSimpleName(), MODE_PRIVATE)
                                         .getString("school_name", ""));
             } catch (Throwable ex) {
                 android.util.Log.e("VICORA-Host", "Could not restore the embedded CBT server.", ex);
