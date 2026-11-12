@@ -7,6 +7,31 @@ import hashlib
 import hmac
 import os
 import re
+import sqlite3
+
+class TenantAwareConnection(sqlite3.Connection):
+    """SQLite connection that routes legacy table SQL through tenant-filtered views."""
+
+    tenant_school_id = None
+
+    def execute(self, sql, parameters=()):
+        return super().execute(self._tenant_sql(sql), parameters)
+
+    def executemany(self, sql, seq_of_parameters):
+        return super().executemany(self._tenant_sql(sql), seq_of_parameters)
+
+    def _tenant_sql(self, sql):
+        school_id = getattr(self, "tenant_school_id", None)
+        if not school_id or not isinstance(sql, str):
+            return sql
+        names = (*TENANT_DIRECT_TABLES, "settings",
+                 "exam_classes", "session_questions", "staff_exam_assignments")
+        for table in names:
+            pattern = rf"(?i)(\\b(?:FROM|JOIN|UPDATE|INTO)\\s+)(?:(?:main)\\s*\\.\\s*)?[\"\x60]?{re.escape(table)}[\"\x60]?\\b"
+            sql = re.sub(pattern, rf"\\1tenant_{table}", sql)
+        return sql
+
+
 import secrets
 import time
 import uuid
@@ -174,6 +199,7 @@ def _tenant_relation_guard(table):
     return checks.get(table, ())
 
 
+
 def _install_direct_tenant_view(connection, table, school_id):
     info = connection.execute(f"PRAGMA main.table_info({_qi(table)})").fetchall()
     if not info:
@@ -185,9 +211,10 @@ def _install_direct_tenant_view(connection, table, school_id):
     if not primary:
         raise RuntimeError(f"Tenant table {table} has no stable primary key.")
     tenant = _ql(school_id)
+    view = "tenant_" + table
     col_list = ", ".join(_qi(c) for c in columns)
     connection.execute(
-        f"CREATE TEMP VIEW {_qi(table)} AS "
+        f"CREATE TEMP VIEW {_qi(view)} AS "
         f"SELECT {col_list} FROM main.{_qi(table)} WHERE school_id={tenant}"
     )
     insert_values = []
@@ -207,11 +234,11 @@ def _install_direct_tenant_view(connection, table, school_id):
     )
     connection.execute(f"""
         CREATE TEMP TRIGGER {_qi('vt_i_' + table)}
-        INSTEAD OF INSERT ON {_qi(table)} BEGIN
+        INSTEAD OF INSERT ON {_qi(view)} BEGIN
           SELECT CASE WHEN NEW.school_id IS NOT NULL AND NEW.school_id<>{tenant}
             THEN RAISE(ABORT,'VICORA tenant mismatch') END;
           {relation_sql}
-          INSERT INTO main.{_qi(table)} ({col_list})
+          INSERT INTO {_qi(table)} ({col_list})
           VALUES ({', '.join(insert_values)});
         END
     """)
@@ -223,18 +250,18 @@ def _install_direct_tenant_view(connection, table, school_id):
     where_old = " AND ".join(f"{_qi(c)}=OLD.{_qi(c)}" for c in primary)
     connection.execute(f"""
         CREATE TEMP TRIGGER {_qi('vt_u_' + table)}
-        INSTEAD OF UPDATE ON {_qi(table)} BEGIN
+        INSTEAD OF UPDATE ON {_qi(view)} BEGIN
           SELECT CASE WHEN NEW.school_id IS NOT NULL AND NEW.school_id<>{tenant}
             THEN RAISE(ABORT,'VICORA tenant mismatch') END;
           {relation_sql}
-          UPDATE main.{_qi(table)} SET {', '.join(assignments)}
+          UPDATE {_qi(table)} SET {', '.join(assignments)}
           WHERE {where_old} AND school_id={tenant};
         END
     """)
     connection.execute(f"""
         CREATE TEMP TRIGGER {_qi('vt_d_' + table)}
-        INSTEAD OF DELETE ON {_qi(table)} BEGIN
-          DELETE FROM main.{_qi(table)}
+        INSTEAD OF DELETE ON {_qi(view)} BEGIN
+          DELETE FROM {_qi(table)}
           WHERE {where_old} AND school_id={tenant};
         END
     """)
@@ -243,24 +270,24 @@ def _install_direct_tenant_view(connection, table, school_id):
 def _install_settings_view(connection, school_id):
     tenant = _ql(school_id)
     connection.execute(
-        f"CREATE TEMP VIEW settings AS "
+        f"CREATE TEMP VIEW tenant_settings AS "
         f"SELECT key,value FROM main.settings WHERE school_id={tenant}"
     )
-    connection.execute(f"""
-        CREATE TEMP TRIGGER vt_i_settings INSTEAD OF INSERT ON settings BEGIN
-          INSERT OR REPLACE INTO main.settings(key,value,school_id)
-          VALUES(NEW.key,NEW.value,{tenant});
+    connection.execute("""
+        CREATE TEMP TRIGGER vt_i_settings INSTEAD OF INSERT ON tenant_settings BEGIN
+          INSERT OR REPLACE INTO settings(key,value,school_id)
+          VALUES(NEW.key,NEW.value,""" + tenant + """);
         END
     """)
-    connection.execute(f"""
-        CREATE TEMP TRIGGER vt_u_settings INSTEAD OF UPDATE ON settings BEGIN
-          UPDATE main.settings SET key=NEW.key,value=NEW.value
-          WHERE key=OLD.key AND school_id={tenant};
+    connection.execute("""
+        CREATE TEMP TRIGGER vt_u_settings INSTEAD OF UPDATE ON tenant_settings BEGIN
+          UPDATE settings SET key=NEW.key,value=NEW.value
+          WHERE key=OLD.key AND school_id=""" + tenant + """;
         END
     """)
-    connection.execute(f"""
-        CREATE TEMP TRIGGER vt_d_settings INSTEAD OF DELETE ON settings BEGIN
-          DELETE FROM main.settings WHERE key=OLD.key AND school_id={tenant};
+    connection.execute("""
+        CREATE TEMP TRIGGER vt_d_settings INSTEAD OF DELETE ON tenant_settings BEGIN
+          DELETE FROM settings WHERE key=OLD.key AND school_id=""" + tenant + """;
         END
     """)
 
@@ -296,43 +323,39 @@ def _install_relationship_views(connection, school_id):
     for table, (select_sql, columns, valid_sql) in specs.items():
         if not _table_exists(connection, table):
             continue
+        view = "tenant_" + table
         col_list = ", ".join(_qi(c) for c in columns)
-        connection.execute(f"CREATE TEMP VIEW {_qi(table)} AS {select_sql}")
+        connection.execute(f"CREATE TEMP VIEW {_qi(view)} AS {select_sql}")
         connection.execute(f"""
             CREATE TEMP TRIGGER {_qi('vt_i_' + table)}
-            INSTEAD OF INSERT ON {_qi(table)} BEGIN
+            INSTEAD OF INSERT ON {_qi(view)} BEGIN
               SELECT CASE WHEN NOT ({valid_sql})
                 THEN RAISE(ABORT,'VICORA tenant relationship mismatch') END;
-              INSERT INTO main.{_qi(table)} ({col_list})
+              INSERT INTO {_qi(table)} ({col_list})
               VALUES ({', '.join('NEW.' + _qi(c) for c in columns)});
             END
         """)
         match_old = " AND ".join(f"{_qi(c)}=OLD.{_qi(c)}" for c in columns[:2])
         connection.execute(f"""
             CREATE TEMP TRIGGER {_qi('vt_d_' + table)}
-            INSTEAD OF DELETE ON {_qi(table)} BEGIN
-              DELETE FROM main.{_qi(table)} WHERE {match_old};
+            INSTEAD OF DELETE ON {_qi(view)} BEGIN
+              DELETE FROM {_qi(table)} WHERE {match_old};
             END
         """)
         connection.execute(f"""
             CREATE TEMP TRIGGER {_qi('vt_u_' + table)}
-            INSTEAD OF UPDATE ON {_qi(table)} BEGIN
-              DELETE FROM main.{_qi(table)} WHERE {match_old};
+            INSTEAD OF UPDATE ON {_qi(view)} BEGIN
+              DELETE FROM {_qi(table)} WHERE {match_old};
               SELECT CASE WHEN NOT ({valid_sql})
                 THEN RAISE(ABORT,'VICORA tenant relationship mismatch') END;
-              INSERT INTO main.{_qi(table)} ({col_list})
+              INSERT INTO {_qi(table)} ({col_list})
               VALUES ({', '.join('NEW.' + _qi(c) for c in columns)});
             END
         """)
 
 
 def activate_tenant_views(connection, school_id):
-    """Install connection-local row filters and write guards for one school.
-
-    The original SQL routes can then keep using their table names while SQLite
-    resolves them to tenant-filtered TEMP views. Every write is routed through
-    INSTEAD OF triggers that stamp or validate the authenticated school ID.
-    """
+    """Install connection-local row filters and write guards for one school."""
     school_id = str(school_id or "").strip()
     if not school_id:
         raise RuntimeError("A verified school identity is required before database access.")
@@ -349,16 +372,16 @@ def activate_tenant_views(connection, school_id):
     for row in connection.execute(
         "SELECT name FROM sqlite_temp_master WHERE type='view'"
     ).fetchall():
-        if row[0] in TENANT_DIRECT_TABLES or row[0] in (
-            "settings", "exam_classes", "session_questions", "staff_exam_assignments"
-        ):
+        if row[0].startswith("tenant_"):
             connection.execute(f"DROP VIEW temp.{_qi(row[0])}")
     connection.execute("DELETE FROM temp.__vicora_tenant_context")
     connection.execute("INSERT INTO temp.__vicora_tenant_context(school_id) VALUES(?)", (school_id,))
+    connection.tenant_school_id = school_id
     for table in TENANT_DIRECT_TABLES:
         _install_direct_tenant_view(connection, table, school_id)
     _install_settings_view(connection, school_id)
     _install_relationship_views(connection, school_id)
+
 
 def _platform_log(connection, action, application_id=None, school_id=None):
     connection.execute(
