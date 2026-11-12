@@ -44,3 +44,44 @@ def test_school_status_control_is_scoped_to_existing_schools_and_revokes_session
     assert "revoked: 'true'" in source
     assert "school.suspended" in source
     assert "school.reactivated" in source
+
+
+
+def test_subscription_admin_actions_are_allowlisted_and_validated():
+    source = Path("api/central/admin.js").read_text(encoding="utf-8")
+    for action in (
+        "admin.listSubscriptionData",
+        "admin.saveSubscriptionPlan",
+        "admin.assignSubscription",
+        "admin.setSubscriptionStatus",
+        "admin.recordSubscriptionPayment",
+    ):
+        assert f'"{action}"' in source
+    assert "payload.durationDays" in source
+    assert "payload.billingCycle" in source
+    assert "payload.subscriptionId" in source
+
+
+def test_subscription_backend_enforces_expiry_grace_and_plan_limits():
+    source = Path("apps-script/Code.gs").read_text(encoding="utf-8")
+    assert "SubscriptionPlans:" in source
+    assert "Subscriptions:" in source
+    assert "SubscriptionPayments:" in source
+    assert "assertSubscriptionAccess_(school.school_id)" in source
+    assert "assertSubscriptionAccess_(sessionRow.school_id)" in source
+    assert "enforcePlanLimit_(auth.schoolId, 'students')" in source
+    assert "enforcePlanLimit_(auth.schoolId, 'staff')" in source
+    assert "graceEnd=end+" in source
+    assert "subscription.expired" not in source  # expiry is evaluated at request time, not by a scheduled job
+
+
+def test_platform_admin_page_exposes_plan_assignment_and_payment_controls():
+    page = Path("public/platform-admin.html").read_text(encoding="utf-8")
+    assert "Subscriptions & payments" in page
+    assert "Create a subscription plan" in page
+    assert "Assign or renew a school subscription" in page
+    assert "Record a payment" in page
+    assert "admin.saveSubscriptionPlan" in page
+    assert "admin.assignSubscription" in page
+    assert "admin.recordSubscriptionPayment" in page
+    assert "Monthly" in page and "Termly" in page and "Yearly" in page
