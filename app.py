@@ -1505,9 +1505,11 @@ def _build_android_host_package(exam_id):
     ex('update exams set sync_revision_hash=? where id=?', (revision_hash, exam_id))
     exam['sync_revision_hash'] = revision_hash
     class_uuid_by_id = {row['id']: row['sync_uuid'] for row in classes}
+    school_identity = q1("SELECT school_code,name FROM schools WHERE school_id=?", (exam['school_id'],))
     package = {
         'schema_version': 1,
-        'school_name': getset('school_name'),
+        'school_name': (school_identity['name'] if school_identity else getset('school_name')),
+        'school_code': (school_identity['school_code'] if school_identity else ''),
         'exported_at': int(time.time()),
         'subject': {'sync_uuid': subject['sync_uuid'], 'name': subject['name']},
         'classes': [{'sync_uuid': row['sync_uuid'], 'name': row['name']} for row in classes],
