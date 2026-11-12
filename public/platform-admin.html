@@ -118,11 +118,31 @@ async function loadSubscriptions(){
 async function saveSubscriptionPlan(){
   const features=$("planFeatures").value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
   try{
-    await api("admin.saveSubscriptionPlan",{planName:$("planName").value,billingCycle:$("billingCycle").value,
+    await api("admin.saveSubscriptionPlan",{planId:$("planId").value,planName:$("planName").value,billingCycle:$("billingCycle").value,
       durationDays:Number($("durationDays").value),amount:Number($("planAmount").value),currency:$("planCurrency").value,
       graceDays:Number($("graceDays").value),maxStudents:Number($("maxStudents").value),maxStaff:Number($("maxStaff").value),features:features,active:true});
     setStatus("Subscription plan saved.");await loadSubscriptions();
   }catch(error){setStatus(error.message)}
+}
+function editSubscriptionPlan(id){
+  api("admin.listSubscriptionData").then(data=>{
+    const p=data.plans.find(x=>x.plan_id===id);if(!p)return;
+    $("planId").value=p.plan_id;$("planName").value=p.plan_name;$("billingCycle").value=p.billing_cycle;
+    $("durationDays").value=p.duration_days;$("planAmount").value=p.amount;$("planCurrency").value=p.currency;
+    $("graceDays").value=p.grace_days;$("maxStudents").value=p.max_students;$("maxStaff").value=p.max_staff;
+    try{$("planFeatures").value=JSON.parse(p.features_json||"[]").join("\n")}catch(_){$("planFeatures").value=""}
+    $("planName").scrollIntoView({behavior:"smooth",block:"center"});setStatus("Editing plan: "+p.plan_name);
+  }).catch(error=>setStatus(error.message));
+}
+async function setPlanActive(planId,active){
+  try{await api("admin.setSubscriptionPlanStatus",{planId:planId,active:active==="true"});setStatus("Plan status updated.");await loadSubscriptions()}
+  catch(error){setStatus(error.message)}
+}
+async function updatePaymentStatus(paymentId,status){
+  const verb=status==="verified"?"verify":"reject";
+  if(!confirm("Are you sure you want to "+verb+" this payment record? Verify the actual funds before marking it verified."))return;
+  try{await api("admin.updateSubscriptionPayment",{paymentId:paymentId,status:status});setStatus("Payment record updated.");await loadSubscriptions()}
+  catch(error){setStatus(error.message)}
 }
 async function assignSubscription(){
   const schoolId=$("assignSchool").value,planId=$("assignPlan").value;
