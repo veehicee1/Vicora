@@ -54,10 +54,17 @@ def migrate_legacy_school(connection):
         if not existing:
             raise RuntimeError("Legacy school identity conflicts with an existing school")
         school_code = existing[0]
-        c.execute("INSERT OR REPLACE INTO settings(key,value) VALUES('vicora_legacy_school_id',?)",
-                  (school_id,))
-        c.execute("INSERT OR REPLACE INTO settings(key,value) VALUES('vicora_legacy_school_code',?)",
-                  (school_code,))
+        settings_columns = {row[1] for row in c.execute("PRAGMA table_info(settings)")}
+        if "school_id" in settings_columns:
+            c.execute("INSERT OR REPLACE INTO settings(key,value,school_id) VALUES('vicora_legacy_school_id',?,?)",
+                      (school_id, school_id))
+            c.execute("INSERT OR REPLACE INTO settings(key,value,school_id) VALUES('vicora_legacy_school_code',?,?)",
+                      (school_code, school_id))
+        else:
+            c.execute("INSERT OR REPLACE INTO settings(key,value) VALUES('vicora_legacy_school_id',?)",
+                      (school_id,))
+            c.execute("INSERT OR REPLACE INTO settings(key,value) VALUES('vicora_legacy_school_code',?)",
+                      (school_code,))
 
         for table in LEGACY_SCHOOL_TABLES:
             if not c.execute(
