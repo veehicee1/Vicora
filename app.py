@@ -1084,7 +1084,7 @@ def import_file(kind):
     if kind == 'questions':
         valid, errors = validate_questions(rows, request.form.get('default_subject', ''))
         tok = secrets.token_hex(8)
-        IMPORTS[tok] = dict(valid=valid, errors=errors, ts=time.time())
+        IMPORTS[tok] = dict(valid=valid, errors=errors, ts=time.time(), school_id=session.get('school_id'))
         for k in [k for k, v in IMPORTS.items() if time.time() - v['ts'] > 3600]:
             IMPORTS.pop(k, None)
         return jsonify(token=tok, valid=len(valid), errors=[dict(row=a, reason=b) for a, b in errors[:200]],
@@ -1123,8 +1123,8 @@ def import_file(kind):
 @admin
 def import_commit():
     imp = IMPORTS.get((request.get_json() or {}).get('token'))
-    if not imp:
-        return err('Import session expired. Upload the file again.')
+    if not imp or imp.get('school_id') != session.get('school_id'):
+        return err('Import session expired or belongs to another school. Upload the file again.', 404)
     n = 0
     imp['valid'], valid = [], imp['valid']  # a second commit of the same token imports nothing
     for v in valid:
@@ -1141,8 +1141,8 @@ def import_commit():
 @admin
 def import_errors(tok):
     imp = IMPORTS.get(tok)
-    if not imp:
-        return err('Expired', 404)
+    if not imp or imp.get('school_id') != session.get('school_id'):
+        return err('Expired or unavailable for this school', 404)
     return xlsx_resp([('Errors', ['Row', 'Reason'], imp['errors'])], 'import_errors.xlsx')
 
 
