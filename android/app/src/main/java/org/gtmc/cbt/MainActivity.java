@@ -22,6 +22,8 @@ import android.widget.Button;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.io.InputStream;
 import java.net.NetworkInterface;
 import java.net.Inet4Address;
@@ -245,13 +247,26 @@ public class MainActivity extends Activity {
                 runOnUiThread(() -> {
                     currentMode = requestedMode;
                     getPreferences(0).edit().putString("mode",requestedMode).apply();
-                    if ("host".equals(requestedMode)) startHostingService(); else stopHostingService();
+                    startHostingService(requestedMode);
                     loadUrl(appHomeUrl());
                     if ("host".equals(requestedMode)) showStudentAccess();
                 });
-            } catch (Exception ex) {
+            } catch (Throwable ex) {
+                android.util.Log.e("VICORA-Startup", "VICORA Android server startup failed", ex);
+                StringWriter trace = new StringWriter();
+                ex.printStackTrace(new PrintWriter(trace));
+                String details = trace.toString();
+                try {
+                    File diagnostic = new File(getFilesDir(), "vicora-startup-error.txt");
+                    try (FileOutputStream out = new FileOutputStream(diagnostic, false)) {
+                        out.write(details.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                    }
+                } catch (Exception logError) {
+                    android.util.Log.e("VICORA-Startup", "Could not save startup diagnostics", logError);
+                }
                 runOnUiThread(() -> new AlertDialog.Builder(this).setTitle("Could not start VICORA CBT")
-                    .setMessage(ex.getMessage() == null ? "Unknown startup error" : ex.getMessage())
+                    .setMessage((ex.getMessage() == null ? ex.getClass().getSimpleName() : ex.getMessage())
+                        + "\n\nFull diagnostic saved inside VICORA app storage. Check Android logs using tag VICORA-Startup.")
                     .setPositiveButton("Retry",(d,w)->startStandalone()).setNegativeButton("Close",(d,w)->finish()).show());
             }
         }).start();
@@ -426,8 +441,9 @@ public class MainActivity extends Activity {
         }).start();
     }
 
-    private void startHostingService() {
+    private void startHostingService(String mode) {
         Intent intent = new Intent(this, AndroidHostService.class);
+        intent.putExtra(AndroidHostService.EXTRA_MODE, mode);
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) startForegroundService(intent);
         else startService(intent);
     }
@@ -511,6 +527,48 @@ public class MainActivity extends Activity {
             return;
         }
         super.onActivityResult(requestCode, resultCode, data);
+    }
+
+    private volatile boolean recoveryInProgress = false;
+
+    @Override protected void onResume() {
+        super.onResume();
+        String savedMode = getPreferences(0).getString("mode", "");
+        if (webView == null || !("standalone".equals(currentMode) || "host".equals(currentMode))
+                || !("standalone".equals(savedMode) || "host".equals(savedMode))
+                || recoveryInProgress) return;
+        recoveryInProgress = true;
+        new Thread(() -> {
+            boolean healthy = false;
+            try {
+                if (!Python.isStarted()) Python.start(new AndroidPlatform(getApplicationContext()));
+                String host = "host".equals(currentMode) ? "0.0.0.0" : "127.0.0.1";
+                healthy = Python.getInstance().getModule("android_server")
+                        .callAttr("health_check", "127.0.0.1", 8765).toBoolean();
+                if (!healthy) {
+                    copyAssetFolder("web", new File(getFilesDir(), "web"));
+                    Python.getInstance().getModule("android_server").callAttr("start_server",
+                        getFilesDir().getAbsolutePath() + "/gtmc-cbt-data",
+                        new File(getFilesDir(), "web").getAbsolutePath(), host, 8765,
+                        getPreferences(0).getString("school_name", ""));
+                    healthy = Python.getInstance().getModule("android_server")
+                        .callAttr("health_check", "127.0.0.1", 8765).toBoolean();
+                }
+            } catch (Throwable ex) {
+                android.util.Log.e("VICORA-Recovery", "Local CBT server recovery failed", ex);
+            }
+            final boolean recovered = healthy;
+            runOnUiThread(() -> {
+                recoveryInProgress = false;
+                if (recovered && webView != null
+                        && ("standalone".equals(currentMode) || "host".equals(currentMode))) {
+                    startHostingService(currentMode);
+                    if (webView.getUrl() == null || webView.getUrl().startsWith("file:")) loadUrl(appHomeUrl());
+                } else if (!recovered) {
+                    android.util.Log.w("VICORA-Recovery", "Local server is not responding after resume.");
+                }
+            });
+        }, "vicora-resume-health").start();
     }
 
     @Override public void onBackPressed() {
