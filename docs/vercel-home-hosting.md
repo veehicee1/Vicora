@@ -1,11 +1,9 @@
-# GTMC student portal on Vercel
+# VICORA web examination and school portal on Vercel
 
 ## Scope
 
-Vercel serves the existing GTMC student examination page and its PWA shell at `/home/`.
-A Vercel Node function proxies only `/api/student/*` and `/api/public/info` to the Android host.
-It is deliberately not a general reverse proxy. Admin pages, admin APIs, pairing, result sync,
-device management, backups, and database routes are not exposed.
+Vercel serves the public VICORA student examination page and PWA shell, the school registration/activation pages, and the school Admin page at `/admin/`.
+The Node gateway remains a strict allowlist. Student/public/platform/Android-host routes are separately constrained. School Admin API forwarding is **disabled by default** and is enabled only when `VICORA_ENABLE_ADMIN_GATEWAY=1` is set in Vercel. Even then, the upstream Flask application must authenticate the Admin session and enforce staff roles/tenant scope on every request. The gateway is not a general-purpose open proxy.
 
 The Windows Server remains the authoritative results server. Android remains the temporary
 examination host and retains its durable result outbox and acknowledgement-based sync.
@@ -25,6 +23,14 @@ Do not create or promote a production deployment until the school has completed 
 gateway setup and approved a test deployment. Vercel Git integration can automatically
 create Preview deployments for pushes and pull requests, so connect the project only
 when ready to allow those previews.
+
+## School Admin portal
+
+- The school Admin UI is served from `/admin/` as a static copy of the maintained `web/admin.html`.
+- To enable it, set `VICORA_ENABLE_ADMIN_GATEWAY=1` in the Vercel project environment. Leave it unset or set to `0` to keep the Admin API blocked.
+- Configure `VICORA_API_ORIGIN` to a trusted HTTPS persistent API origin. The gateway forwards only the browser session cookie and expected headers; Flask remains responsible for login, CSRF protections where configured, role checks, school context and data isolation.
+- The Admin page is not operational until a persistent backend is deployed and configured. Vercel static hosting alone does not host the Flask process or SQLite database.
+- Do not use the Android student-only tunnel as the Admin API origin. Use a separately protected, persistent backend origin with server-side access controls.
 
 ## Android-side Cloudflare Tunnel ingress
 
@@ -94,12 +100,16 @@ The Vercel function adds the service-token headers server-side; browser clients 
 3. Confirm `/api/public/info` and student login work through the Vercel hostname.
 4. Confirm student exam retrieval, timer, autosave, objective answers, theory text/drawings,
    submit, and result acknowledgement work.
-5. Confirm admin routes, pairing, sync endpoints, backups, and database paths return 404
-   through the Vercel hostname.
-6. Test camera Off, Optional, and Required on supported HTTPS browsers.
-7. Disconnect the phone/network during a test and verify Android outbox retry and Windows
+5. With `VICORA_ENABLE_ADMIN_GATEWAY` unset, confirm `/api/admin/*` returns 404.
+6. On a separate protected Preview with the flag set, verify Admin login, session cookie,
+   role restrictions, school isolation, and logout. Confirm backups remain blocked while
+   more than one approved school exists until school-scoped backup/restore is complete.
+7. Confirm pairing, device management, backup and database paths remain unavailable unless
+   explicitly required and protected by the upstream application.
+8. Test camera Off, Optional, and Required on supported HTTPS browsers.
+9. Disconnect the phone/network during a test and verify Android outbox retry and Windows
    acknowledgement behaviour.
-8. Benchmark 1, 5, 10, and 20 simultaneous candidates before increasing load.
+10. Benchmark 1, 5, 10, and 20 simultaneous candidates before increasing load.
 
 No live deployment, Android configuration, Windows Server configuration, database, or router
 change is performed by this repository preparation.
