@@ -728,7 +728,12 @@ def a_login():
     session['admin'] = r['username']
     session['school_id'] = school['school_id']
     session['admin_role'] = r['role']
-    audit('Staff logged in: ' + r['username'] + ' (' + ROLE_NAMES.get(r['role'], r['role']) + ')')
+    if school['school_id'] == getset('vicora_legacy_school_id', ''):
+        audit('Staff logged in: ' + r['username'] + ' (' + ROLE_NAMES.get(r['role'], r['role']) + ')')
+    else:
+        db().execute("INSERT INTO platform_audit(ts,actor,action,school_id) VALUES(?,?,?,?)",
+                     (int(time.time()), r['username'], 'School administrator logged in', school['school_id']))
+        db().commit()
     return jsonify(ok=True, user=r['username'], role=r['role'], role_name=ROLE_NAMES.get(r['role'], r['role']))
 
 
