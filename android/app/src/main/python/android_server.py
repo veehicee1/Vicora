@@ -41,7 +41,7 @@ def health_check(host="127.0.0.1", port=8765, timeout=2.5):
         return False
 
 
-def start_server(data_dir, web_dir, host="0.0.0.0", port=8765, school_name=None):
+def start_server(data_dir, web_dir, host="0.0.0.0", port=8765, school_name=None, school_code=None):
     """Start (or reuse) the Android-local CBT host and return its address."""
     global _server, _server_thread, _server_host, _server_port, _worker_started
     with _lock:
@@ -73,14 +73,40 @@ def start_server(data_dir, web_dir, host="0.0.0.0", port=8765, school_name=None)
                 os.environ["CBT_INITIAL_SCHOOL_NAME"] = " ".join(str(school_name).split())[:120]
 
             cbt = importlib.import_module("app")
-            if school_name and str(school_name).strip():
+            if (school_name and str(school_name).strip()) or (school_code and str(school_code).strip()):
                 conn = cbt.raw()
                 try:
-                    conn.execute(
-                        "UPDATE settings SET value=? WHERE key='school_name' AND "
-                        "value IN ('', 'CBT Examination Centre')",
-                        (" ".join(str(school_name).split())[:120],),
-                    )
+                    school = conn.execute(
+                        "SELECT school_id,school_code FROM schools WHERE is_legacy_default=1 LIMIT 1"
+                    ).fetchone()
+                    if not school:
+                        raise RuntimeError("The Android Host has no initialized school identity.")
+                    school_id = school["school_id"]
+                    if school_name and str(school_name).strip():
+                        normalized_name = " ".join(str(school_name).split())[:120]
+                        conn.execute("UPDATE schools SET name=? WHERE school_id=?", (normalized_name, school_id))
+                        conn.execute(
+                            "UPDATE settings SET value=? WHERE key='school_name' AND school_id=? "
+                            "AND value IN ('', 'CBT Examination Centre')",
+                            (normalized_name, school_id),
+                        )
+                    if school_code and str(school_code).strip():
+                        import re
+                        normalized_code = str(school_code).strip().upper()
+                        if not re.fullmatch(r"VIC-[A-F0-9]{8}", normalized_code):
+                            raise ValueError("School Code must use the format VIC-XXXXXXXX.")
+                        collision = conn.execute(
+                            "SELECT school_id FROM schools WHERE upper(school_code)=? AND school_id<>?",
+                            (normalized_code, school_id),
+                        ).fetchone()
+                        if collision:
+                            raise ValueError("This School Code is already assigned to another local school.")
+                        conn.execute("UPDATE schools SET school_code=? WHERE school_id=?",
+                                     (normalized_code, school_id))
+                        conn.execute(
+                            "INSERT OR REPLACE INTO settings(key,value,school_id) VALUES('vicora_legacy_school_code',?,?)",
+                            (normalized_code, school_id),
+                        )
                     conn.commit()
                 finally:
                     conn.close()
