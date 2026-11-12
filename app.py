@@ -13,7 +13,7 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 from tenant_migration import migrate_legacy_school
 from school_scoped_migration import migrate_school_scoped_unique_keys
-from multi_tenant import migrate_multi_tenant_schema, install_multi_tenant_routes, school_context, activate_tenant_views
+from multi_tenant import migrate_multi_tenant_schema, install_multi_tenant_routes, school_context, activate_tenant_views, TenantAwareConnection
 import docx
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);
 
 
 def raw():
-    c = sqlite3.connect(DB_PATH, timeout=15)
+    c = sqlite3.connect(DB_PATH, timeout=15, factory=TenantAwareConnection)
     c.row_factory = sqlite3.Row
     c.execute('PRAGMA foreign_keys=ON')
     c.execute('PRAGMA synchronous=NORMAL')  # safe with WAL, much faster commits
