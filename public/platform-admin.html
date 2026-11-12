@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>VICORA Platform Administration</title>
+<style>
+:root{font-family:system-ui,Segoe UI,Arial,sans-serif;color:#18324a;background:#f1f5fa}
+*{box-sizing:border-box}body{margin:0;padding:22px}.wrap{max-width:1050px;margin:auto}
+header{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:18px}
+h1{color:#102b50;margin:0;font-size:25px}p{color:#61738a}
+.panel,.application{background:#fff;border:1px solid #dbe5ef;border-radius:14px;padding:18px;margin:14px 0;box-shadow:0 8px 28px #102b500c}
+label{display:block;font-weight:650;margin:10px 0 5px}input,textarea,select{width:100%;padding:11px;border:1px solid #cbd8e6;border-radius:8px;font:inherit}
+button{border:0;border-radius:8px;padding:10px 15px;font-weight:700;cursor:pointer;background:#2878c8;color:#fff}
+button.secondary{background:#e8eef6;color:#18324a}button.reject{background:#a92d3b}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.muted{font-size:13px;color:#61738a}.status{white-space:pre-wrap;margin-top:10px}.token{background:#f7fafc;border:1px dashed #8ca6c1;padding:12px;border-radius:8px;overflow-wrap:anywhere}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:650px){body{padding:12px}.grid{grid-template-columns:1fr}header{align-items:flex-start;flex-direction:column}}
+</style>
+</head>
+<body><main class="wrap">
+<header><div><h1>VICORA Platform Admin</h1><p>Review school applications and issue School Codes.</p></div><a href="/">Student portal</a></header>
+<section class="panel">
+<h2>Platform authorization</h2>
+<label for="token">Platform Super Admin token</label>
+<input id="token" type="password" autocomplete="off" placeholder="Enter the server-side VICORA_PLATFORM_ADMIN_TOKEN">
+<p class="muted">The token is kept only in this page's memory and is not saved to browser storage. Never share it with a school.</p>
+<div class="actions"><button id="load">Load pending applications</button><button class="secondary" id="all">Show all applications</button></div>
+<div id="status" class="status" role="status"></div>
+</section>
+<section><h2>Applications</h2><div id="apps"><p class="muted">Authorize above to load applications.</p></div></section>
+<section id="issued" class="panel" hidden><h2>School approved — save activation details</h2><p>These details are shown once. Send them securely to the school's authorized contact.</p><p><b>School Code</b></p><div class="token" id="code"></div><p><b>One-time activation token</b></p><div class="token" id="activation"></div><p class="muted" id="expiry"></p><div class="actions"><button id="copy">Copy activation details</button></div></section>
+</main>
+<script>
+let platformToken="";
+const $=id=>document.getElementById(id);
+function authHeaders(){return {"Content-Type":"application/json","X-VICORA-PLATFORM-TOKEN":platformToken}}
+async function api(path,options={}){const r=await fetch("/api/platform"+path,{...options,headers:{...authHeaders(),...(options.headers||{})}});const j=await r.json().catch(()=>({error:"Invalid server response"}));if(!r.ok)throw Error(j.error||"Request failed");return j}
+function showStatus(message){$("status").textContent=message}
+function esc(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+async function load(status){platformToken=$("token").value.trim();if(!platformToken){showStatus("Enter the platform token first.");return}showStatus("Loading…");try{const j=await api("/applications?status="+encodeURIComponent(status));$("apps").innerHTML=j.applications.length?j.applications.map(a=>`<article class="application"><h3>${esc(a.school_name)}</h3><p><b>Contact:</b> ${esc(a.contact_name)} · ${esc(a.email)} · ${esc(a.phone)}</p><p><b>Location:</b> ${esc(a.address)} · ${esc(a.country)}</p><p><b>Status:</b> ${esc(a.status)} · <b>Submitted:</b> ${new Date(a.submitted_ts*1000).toLocaleString()}</p><p>${esc(a.review_note||"")}</p>${a.status==="pending"?`<label>Review note</label><textarea id="note-${a.id}" rows="2" placeholder="Optional note"></textarea><div class="actions"><button onclick="decide(${a.id},'approve')">Approve and issue School Code</button><button class="reject" onclick="decide(${a.id},'reject')">Reject application</button></div>`:""}</article>`).join(""):"<p>No applications found.</p>";showStatus("Loaded "+j.applications.length+" application(s).")}catch(e){showStatus(e.message)}}
+async function decide(id,decision){const note=$("note-"+id)?.value||"";if(!confirm((decision==="approve"?"Approve this school and issue a School Code?":"Reject this application?")))return;try{const j=await api("/applications/"+id+"/decision",{method:"POST",body:JSON.stringify({decision,note})});if(decision==="approve"){$("code").textContent=j.school_code;$("activation").textContent=j.activation_token;$("expiry").textContent="Expires: "+new Date(j.activation_expires_ts*1000).toLocaleString();$("issued").hidden=false;}showStatus(j.message||"Decision saved.");await load("pending")}catch(e){showStatus(e.message)}}
+$("load").onclick=()=>load("pending");$("all").onclick=()=>load("all");
+$("copy").onclick=async()=>{const text="VICORA School Code: "+$("code").textContent+"\nActivation token: "+$("activation").textContent+"\n"+$("expiry").textContent;try{await navigator.clipboard.writeText(text);showStatus("Activation details copied. Store and send them securely.")}catch(_){showStatus("Copy is unavailable on this browser. Select and copy the details manually.")}};
+</script></body></html>
