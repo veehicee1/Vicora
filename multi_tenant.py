@@ -374,13 +374,14 @@ def activate_tenant_views(connection, school_id):
     ).fetchall():
         if row[0].startswith("tenant_"):
             connection.execute(f"DROP VIEW temp.{_qi(row[0])}")
+    connection.tenant_school_id = None
     connection.execute("DELETE FROM temp.__vicora_tenant_context")
     connection.execute("INSERT INTO temp.__vicora_tenant_context(school_id) VALUES(?)", (school_id,))
-    connection.tenant_school_id = school_id
     for table in TENANT_DIRECT_TABLES:
         _install_direct_tenant_view(connection, table, school_id)
     _install_settings_view(connection, school_id)
     _install_relationship_views(connection, school_id)
+    connection.tenant_school_id = school_id
 
 
 def _platform_log(connection, action, application_id=None, school_id=None):
