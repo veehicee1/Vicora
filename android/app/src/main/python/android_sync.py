@@ -274,10 +274,17 @@ def _import_exam_package(conn, package):
     if exam.get("camera_policy", "off") not in ("off", "optional", "required"):
         raise ValueError("The package contains an invalid proctor policy.")
     remote_school = str(package.get("school_name") or "").strip()
+    remote_school_code = str(package.get("school_code") or "").strip().upper()
     local_school_row = conn.execute("SELECT value FROM settings WHERE key='school_name'").fetchone()
     local_school = str(local_school_row["value"] if local_school_row else "").strip()
+    local_code_row = conn.execute(
+        "SELECT value FROM settings WHERE key='vicora_legacy_school_code' ORDER BY rowid LIMIT 1"
+    ).fetchone()
+    local_school_code = str(local_code_row["value"] if local_code_row else "").strip().upper()
     if remote_school and local_school and remote_school.casefold() != local_school.casefold():
         raise ValueError("This Android Host belongs to a different school identity. Do not mix school databases.")
+    if remote_school_code and local_school_code and remote_school_code != local_school_code:
+        raise ValueError("This Android Host has a different VICORA School Code. Do not mix school databases.")
     if remote_school and not local_school:
         setting_columns = {row[1] for row in conn.execute("PRAGMA table_info(settings)")}
         if "school_id" in setting_columns:
