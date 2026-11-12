@@ -172,6 +172,7 @@ public class MainActivity extends Activity {
                 currentMode = "host";
                 startStandalone();
             });
+            addModeButton(choices, dialog, "Configure VICORA Cloud Sync", () -> configureCloudHostEnrollment());
             addModeButton(choices, dialog, "Connect to School Server", () -> enterServerAddress());
             addModeButton(choices, dialog, "Standalone Offline (This Device Only)", () -> {
                 currentMode = "standalone";
