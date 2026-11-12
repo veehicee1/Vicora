@@ -136,7 +136,7 @@ jobs:
             if (!(Test-Path $setup)) { throw "Installer was not produced: $setup" }
             if ((Get-Item $setup).Length -lt 1048576) { throw "Installer is unexpectedly small: $setup" }
           }
-      - name: Verify installer packages are not compressed
+      - name: Verify installers use LZMA2 compression
         shell: pwsh
         run: |
           $scripts = @(
@@ -146,18 +146,35 @@ jobs:
           )
           foreach ($script in $scripts) {
             $content = (Get-Content $script -Raw) -replace "`r`n", "`n"
-            if ($content -notmatch '(?m)^Compression=none$' -or $content -notmatch '(?m)^SolidCompression=no$') {
-              throw "Compression must be disabled in $script"
+            if ($content -notmatch '(?m)^Compression=lzma2/ultra64$' -or $content -notmatch '(?m)^SolidCompression=yes$') {
+              throw "LZMA2 compression must be enabled in $script"
             }
           }
-      - name: Upload VICORA Windows host and installers
+      - name: Upload VICORA Admin installer separately
         uses: actions/upload-artifact@v4
         with:
-          name: VICORA-CBT-Windows-Installers
-          path: |
-            dist/VICORA-CBT-Server.exe
-            dist-installer/VICORA-CBT-Admin-Fresh-Installation-Windows.exe
-            dist-installer/VICORA-CBT-Examination-Fresh-Installation-Windows.exe
-            dist-installer/VICORA-CBT-Complete-Update-Windows.exe
+          name: VICORA-Windows-Admin-Installer
+          path: dist-installer/VICORA-CBT-Admin-Fresh-Installation-Windows.exe
+          if-no-files-found: error
+          retention-days: 90
+      - name: Upload VICORA Examination installer separately
+        uses: actions/upload-artifact@v4
+        with:
+          name: VICORA-Windows-Examination-Installer
+          path: dist-installer/VICORA-CBT-Examination-Fresh-Installation-Windows.exe
+          if-no-files-found: error
+          retention-days: 90
+      - name: Upload VICORA Complete Update installer separately
+        uses: actions/upload-artifact@v4
+        with:
+          name: VICORA-Windows-Complete-Update
+          path: dist-installer/VICORA-CBT-Complete-Update-Windows.exe
+          if-no-files-found: error
+          retention-days: 90
+      - name: Upload VICORA Windows Host server separately
+        uses: actions/upload-artifact@v4
+        with:
+          name: VICORA-Windows-Host-Server
+          path: dist/VICORA-CBT-Server.exe
           if-no-files-found: error
           retention-days: 90
