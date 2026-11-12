@@ -38,6 +38,16 @@ class TenantSqlViewIsolationTests(unittest.TestCase):
               PRIMARY KEY(session_id,pos));
             CREATE TABLE staff_exam_assignments(staff_id INTEGER,exam_id INTEGER,assigned_by TEXT,
               assigned_ts INTEGER,PRIMARY KEY(staff_id,exam_id));
+            CREATE TABLE messages(id INTEGER PRIMARY KEY,student_id INTEGER,exam_id INTEGER,title TEXT,
+              body TEXT,school_id TEXT);
+            CREATE TABLE answers(session_id INTEGER,question_id INTEGER,choice TEXT,response_text TEXT,
+              response_drawing TEXT,flagged INTEGER,ts INTEGER,school_id TEXT,PRIMARY KEY(session_id,question_id));
+            CREATE TABLE theory_marks(session_id INTEGER,question_id INTEGER,mark REAL,school_id TEXT,
+              PRIMARY KEY(session_id,question_id));
+            CREATE TABLE proctor_events(id INTEGER PRIMARY KEY,session_id INTEGER,request_id TEXT,
+              event_type TEXT,server_ts INTEGER,school_id TEXT);
+            CREATE TABLE android_sync_receipts(id INTEGER PRIMARY KEY,attempt_uuid TEXT,device_id TEXT,
+              session_id INTEGER,payload_hash TEXT,synced_ts INTEGER,school_id TEXT);
             INSERT INTO admins(id,username,password_hash,school_id) VALUES(1,'principal','hash-a','school-a');
             INSERT INTO admins(id,username,password_hash,school_id) VALUES(2,'principal','hash-b','school-b');
             INSERT INTO classes VALUES(10,'JSS1','school-a');
@@ -89,6 +99,24 @@ class TenantSqlViewIsolationTests(unittest.TestCase):
             self.db.execute("INSERT INTO exam_classes VALUES(90,20)")
         with self.assertRaises(sqlite3.IntegrityError):
             self.db.execute("INSERT INTO session_questions VALUES(110,2,80,'AB')")
+
+    def test_core_foreign_keys_cannot_cross_school_boundaries(self):
+        activate_tenant_views(self.db, "school-a")
+        invalid = [
+            ("INSERT INTO students(reg_no,name,class_id,access_code) VALUES('A002','Bad Student',20,'X')", ()),
+            ("INSERT INTO questions(subject_id,text,school_id) VALUES(40,'Cross subject question','school-a')", ()),
+            ("INSERT INTO exams(title,subject_id,school_id) VALUES('Cross subject exam',40,'school-a')", ()),
+            ("INSERT INTO sessions(exam_id,student_id,school_id) VALUES(90,60,'school-a')", ()),
+            ("INSERT INTO messages(student_id,title,body,school_id) VALUES(60,'Bad','Cross student','school-a')", ()),
+            ("INSERT INTO answers(session_id,question_id,school_id) VALUES(110,80,'school-a')", ()),
+            ("INSERT INTO theory_marks(session_id,question_id,school_id) VALUES(110,80,'school-a')", ()),
+            ("INSERT INTO proctor_events(session_id,request_id,event_type,server_ts,school_id) VALUES(120,'x','test',1,'school-a')", ()),
+            ("INSERT INTO android_sync_receipts(attempt_uuid,device_id,session_id,payload_hash,synced_ts,school_id) VALUES('attempt-x','dev',120,'hash',1,'school-a')", ()),
+        ]
+        for sql, params in invalid:
+            with self.subTest(sql=sql):
+                with self.assertRaises(sqlite3.IntegrityError):
+                    self.db.execute(sql, params)
 
     def test_explicit_foreign_school_id_is_rejected_and_context_can_switch(self):
         activate_tenant_views(self.db, "school-a")
