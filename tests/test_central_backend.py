@@ -1,6 +1,7 @@
 import json
 import os
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from flask import Flask
@@ -26,6 +27,19 @@ class CentralBackendBridgeTests(unittest.TestCase):
         response.__enter__.return_value = response
         response.__exit__.return_value = False
         return response
+
+    def test_public_pages_use_central_registration_activation_and_login(self):
+        registration = Path("public/register-school.html").read_text(encoding="utf-8")
+        activation = Path("public/activate-school.html").read_text(encoding="utf-8")
+        admin = Path("public/admin/index.html").read_text(encoding="utf-8")
+        web_admin = Path("web/admin.html").read_text(encoding="utf-8")
+        platform = Path("public/platform-admin.html").read_text(encoding="utf-8")
+        self.assertIn("/api/central/request", registration)
+        self.assertIn("/api/central/activate", activation)
+        self.assertIn("/api/central/login", admin)
+        self.assertEqual(admin, web_admin)
+        self.assertIn("/api/central/admin", platform)
+        self.assertNotIn("/api/platform", platform)
 
     def test_health_reports_connected_when_apps_script_is_healthy(self):
         with patch.dict(os.environ, {"VICORA_CENTRAL_APPS_SCRIPT_URL": self.url}):
