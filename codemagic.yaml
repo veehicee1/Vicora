@@ -42,7 +42,7 @@ workflows:
           "$SDKMANAGER" --version
           yes | "$SDKMANAGER" --licenses >/dev/null
           "$SDKMANAGER" --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
-          printf 'sdk.dir=%s\\n' "$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/android/local.properties"
+          printf 'sdk.dir=%s\n' "$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/android/local.properties"
       - name: Install compatible Gradle
         script: |
           set -e
