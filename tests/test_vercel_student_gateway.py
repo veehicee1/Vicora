@@ -9,7 +9,7 @@ def test_vercel_gateway_is_not_an_open_proxy_and_only_exposes_explicit_routes():
         "/api/public/school-activation"
     ):
         assert route in source
-    assert 'const ALLOWED_PREFIXES = ["/api/student/", "/api/platform/", "/api/android-host/"]' in source
+    assert 'const ALLOWED_PREFIXES = ["/api/student/", "/api/platform/", "/api/android-host/", "/api/central/"]' in source
     assert 'process.env.VICORA_ENABLE_ADMIN_GATEWAY === "1"' in source
     assert 'path.startsWith("/api/admin/")' in source
     assert "x-vicora-platform-token" in source
