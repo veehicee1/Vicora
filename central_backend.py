@@ -100,6 +100,8 @@ def install_central_backend_routes(app, err):
             return err("This central backend action is not available through this endpoint.", 403)
         try:
             result, status = _call(payload=body)
+            if status == 200 and result.get("ok") is False:
+                status = 400
             return jsonify(result), status
         except (RuntimeError, ValueError) as exc:
             return err(str(exc), 503)
@@ -121,6 +123,8 @@ def install_central_backend_routes(app, err):
         forwarded["adminKey"] = admin_key
         try:
             result, status = _call(payload=forwarded)
+            if status == 200 and result.get("ok") is False:
+                status = 400
             return jsonify(result), status
         except (RuntimeError, ValueError) as exc:
             return err(str(exc), 503)
