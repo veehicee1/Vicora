@@ -133,7 +133,7 @@ button:focus-visible,.opt:focus-visible{outline:3px solid #3b8bd2;outline-offset
 </style></head><body>
 <div id="v-login" class="v on"><div class="center"><div class="vicora-brand"><img src="/vicora-logo.svg" alt="VICORA"></div><h1 id="school">VICORA CBT Examination</h1><p class="mu">Enter your details to begin.</p>
 <label>School Code</label><input id="schoolCode" autocomplete="off" placeholder="e.g. VIC-1234AB" style="text-transform:uppercase"><label>Registration number</label><input id="reg" autocomplete="off"><label>Access code</label><input id="code" autocomplete="off" style="text-transform:uppercase" onkeydown="if(event.key==='Enter')login()">
-<button class="pr full" onclick="login()">Continue</button><div class="err" id="lerr"></div></div></div>
+<button class="pr full" onclick="login()">Continue</button><div class="err" id="lerr"></div><p class="mu" style="font-size:13px;text-align:center;margin-top:14px">School administrator? <a href="/register-school.html">Register your school</a> · <a href="/activate-school.html">Activate account</a></p></div></div>
 
 <div id="v-exams" class="v"><div class="center"><h2 id="hello"></h2><p class="mu" id="hmeta"></p><div class="bar" style="display:flex;gap:8px"><button onclick="showGrades()">My Grades</button><button onclick="showMessages()">Messages <span id="msgCount"></span></button></div><div id="exlist"></div><div id="gradePanel"></div><div id="messagePanel"></div><button class="full" onclick="logoutUI()">Back</button><div class="err" id="eerr"></div></div></div>
 
