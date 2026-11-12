@@ -306,11 +306,23 @@ function saveStudent_(b) {
   const className = required_(b.className, 'Class', 80);
   const sheet = sheet_('Students');
   const existing = readObjects_('Students').find(function(s) { return s.school_id === auth.schoolId && s.admission_number === admission; });
-  const values = { record_id: existing ? existing.record_id : Utilities.getUuid(), school_id: auth.schoolId, admission_number: admission, full_name: name, class_name: className, active: 'true', updated_at: new Date().toISOString() };
+  const accessCode = existing && existing.access_code ? String(existing.access_code) : generateStudentAccessCode_(auth.schoolId);
+  const values = { record_id: existing ? existing.record_id : Utilities.getUuid(), school_id: auth.schoolId, admission_number: admission, full_name: name, class_name: className, access_code: accessCode, active: 'true', updated_at: new Date().toISOString() };
   if (existing) updateObjectRow_(sheet, rowNumberByValue_(sheet, 'record_id', existing.record_id), values);
   else appendObject_('Students', values);
   audit_(auth.schoolId, 'student.saved', { admissionNumber: admission });
-  return { recordId: values.record_id, saved: true };
+  return { recordId: values.record_id, saved: true, accessCode: accessCode };
+}
+
+function generateStudentAccessCode_(schoolId) {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const students = scoped_('Students', schoolId);
+  let code = '';
+  do {
+    code = '';
+    for (let i = 0; i < 8; i++) code += alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+  } while (students.some(function(s) { return String(s.access_code || '').toUpperCase() === code; }));
+  return code;
 }
 
 function enrollHost_(b) {
