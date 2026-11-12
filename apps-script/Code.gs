@@ -319,7 +319,7 @@ function generateStudentAccessCode_(schoolId) {
   const students = scoped_('Students', schoolId);
   let code = '';
   do {
-    code = randomToken_().replace(/[^A-Z0-9]/gi, '').toUpperCase().slice(0, 8);
+    code = randomToken_().slice(0, 10).split('').map(function(n) { return alphabet.charAt(parseInt(n, 16)); }).join('');
   } while (students.some(function(s) { return String(s.access_code || '').toUpperCase() === code; }));
   return code;
 }
