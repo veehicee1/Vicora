@@ -29,7 +29,7 @@ class WebHostEntryTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         payload = response.get_json()
         self.assertTrue(payload.get("school"))
-        self.assertEqual(payload.get("school_logo_url"), "/api/public/school-logo")
+        self.assertEqual(payload.get("school_logo_url"), "/api/public/school-logo?school_code=" + payload["school_code"])
         self.assertIsInstance(payload.get("theme"), dict)
 
 
