@@ -1,10 +1,16 @@
 from pathlib import Path
 
 
-def test_vercel_student_gateway_is_not_an_open_proxy():
+def test_vercel_gateway_is_not_an_open_proxy_and_only_exposes_explicit_routes():
     source = Path("api/[...path].js").read_text(encoding="utf-8")
-    assert 'new Set(["/api/public/info"])' in source
-    assert '["/api/student/"]' in source
+    for route in (
+        "/api/public/info", "/api/public/school-logo",
+        "/api/public/schools/resolve", "/api/public/school-applications",
+        "/api/public/school-activation"
+    ):
+        assert route in source
+    assert 'const ALLOWED_PREFIXES = ["/api/student/", "/api/platform/"]' in source
+    assert "x-vicora-platform-token" in source
     assert "CF-Access-Client-Id" in source
     assert "CF-Access-Client-Secret" in source
     assert 'origin.protocol !== "https:"' in source
