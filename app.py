@@ -14,7 +14,7 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from tenant_migration import migrate_legacy_school
 from school_scoped_migration import migrate_school_scoped_unique_keys
 from multi_tenant import migrate_multi_tenant_schema, install_multi_tenant_routes, school_context, activate_tenant_views, TenantAwareConnection
-from central_backend import install_central_backend_routes
+from central_backend import install_central_backend_routes, central_logout
 import docx
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -478,6 +478,11 @@ def admin(f):
         username = session.get('admin')
         if not username:
             return err('Not logged in', 401)
+        central_expiry = session.get('central_expires_ts')
+        if central_expiry and time.time() >= float(central_expiry):
+            central_logout(session.get('central_session_token'))
+            session.clear()
+            return err('Your VICORA Central session has expired. Sign in again.', 401)
         legacy_school_id = getset('vicora_legacy_school_id', '')
         # Existing signed-in browsers predate School Code sessions. Their old
         # cookie belongs to the original installation and is safely mapped to
@@ -813,6 +818,7 @@ def a_login():
 
 @app.post('/api/admin/logout')
 def a_logout():
+    central_logout(session.get('central_session_token'))
     session.clear()
     return jsonify(ok=True)
 
@@ -2768,7 +2774,7 @@ def serve(host=None, port=None):
 
 
 install_multi_tenant_routes(app, db, err)
-install_central_backend_routes(app, err)
+install_central_backend_routes(app, db, err)
 
 if __name__ == '__main__':
     start_background()
