@@ -208,6 +208,7 @@ def sync_once(data_dir, server_url, device_id, device_token):
                     endpoint, data=body, method="POST",
                     headers={
                         "Authorization": "Bearer " + device_token,
+                        "X-VICORA-HOST-TOKEN": device_token,
                         "Content-Type": "application/json; charset=utf-8",
                         "Accept": "application/json",
                     },
@@ -453,6 +454,7 @@ def pull_packages_once(data_dir, server_url, device_id, device_token):
         req = urllib.request.Request(
             server_url.rstrip("/") + "/api/android-host/sync-pull", data=body, method="POST",
             headers={"Authorization": "Bearer " + device_token,
+                     "X-VICORA-HOST-TOKEN": device_token,
                      "Content-Type": "application/json; charset=utf-8", "Accept": "application/json"})
         try:
             with urllib.request.urlopen(req, timeout=35) as response:
