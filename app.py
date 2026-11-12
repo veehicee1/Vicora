@@ -162,8 +162,20 @@ def init_db():
         c.execute('insert into admins(username,password_hash) values(?,?)', ('admin', generate_password_hash('admin123')))
         c.execute("insert or replace into settings values('default_pw','1')")
     defaults = {'secret': secrets.token_hex(32), 'school_name': os.environ.get('CBT_INITIAL_SCHOOL_NAME', 'CBT Examination Centre').strip()[:120] or 'CBT Examination Centre', 'allow_remote_admin': '0'}
-    for k, v in defaults.items():
-        c.execute('insert or ignore into settings values(?,?)', (k, v))
+    settings_columns = {r['name'] for r in c.execute('PRAGMA table_info(settings)').fetchall()}
+    if 'school_id' in settings_columns:
+        legacy_row = c.execute("SELECT value FROM settings WHERE key='vicora_legacy_school_id' ORDER BY rowid LIMIT 1").fetchone()
+        legacy_school = legacy_row['value'] if legacy_row else ''
+        if not legacy_school:
+            legacy_school_row = c.execute("SELECT school_id FROM schools WHERE is_legacy_default=1 LIMIT 1").fetchone()
+            legacy_school = legacy_school_row['school_id'] if legacy_school_row else ''
+        if not legacy_school:
+            raise RuntimeError('Legacy school identity is missing from the settings migration.')
+        for k, v in defaults.items():
+            c.execute('INSERT OR IGNORE INTO settings(key,value,school_id) VALUES(?,?,?)', (k, v, legacy_school))
+    else:
+        for k, v in defaults.items():
+            c.execute('insert or ignore into settings values(?,?)', (k, v))
     migrate_legacy_school(c)
     c.commit()
     migrate_school_scoped_unique_keys(c)
@@ -437,8 +449,10 @@ def admin(f):
         if not staff or not staff['active']:
             session.clear()
             return err('Staff account is inactive or unavailable. Sign in again.', 401)
-        if request.path.startswith('/api/admin/backups') and session.get('school_id') != getset('vicora_legacy_school_id', ''):
-            return err('School-specific backup and restore is being completed. Cross-school database backups are blocked.', 503)
+        if request.path.startswith('/api/admin/backups'):
+            approved_schools = db().execute("SELECT COUNT(*) FROM main.schools WHERE status='approved'").fetchone()[0]
+            if approved_schools > 1:
+                return err('School-specific backup and restore is being completed. Shared-database downloads are blocked while multiple schools are registered.', 503)
         role = staff['role'] if staff['role'] in ROLE_NAMES else 'super_admin'
         session['admin_role'] = role
         if not staff_permission(role, request.path, request.method):
