@@ -9,13 +9,37 @@ import os
 import re
 import sqlite3
 
+class TenantCursor:
+    def __init__(self, cursor, lastrowid=None):
+        self._cursor = cursor
+        self.lastrowid = cursor.lastrowid if lastrowid is None else lastrowid
+
+    def __getattr__(self, name):
+        return getattr(self._cursor, name)
+
+
 class TenantAwareConnection(sqlite3.Connection):
     """SQLite connection that routes legacy table SQL through tenant-filtered views."""
 
     tenant_school_id = None
 
     def execute(self, sql, parameters=()):
-        return super().execute(self._tenant_sql(sql), parameters)
+        rewritten = self._tenant_sql(sql)
+        cursor = super().execute(rewritten, parameters)
+        match = re.match(r"(?is)^\\s*INSERT(?:\\s+OR\\s+\\w+)?\\s+INTO\\s+tenant_([a-z_]+)\\b", rewritten)
+        if self.tenant_school_id and match:
+            table = match.group(1)
+            info = sqlite3.Connection.execute(
+                self, f"PRAGMA main.table_info({_qi(table)})"
+            ).fetchall()
+            primary = [row[1] for row in sorted(info, key=lambda row: row[5]) if row[5]]
+            if primary == ["id"]:
+                last_id = sqlite3.Connection.execute(
+                    self, f"SELECT MAX(id) FROM main.{_qi(table)} WHERE school_id=?",
+                    (self.tenant_school_id,)
+                ).fetchone()[0]
+                return TenantCursor(cursor, last_id)
+        return cursor
 
     def executemany(self, sql, seq_of_parameters):
         return super().executemany(self._tenant_sql(sql), seq_of_parameters)
