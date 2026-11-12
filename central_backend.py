@@ -159,6 +159,10 @@ def _ensure_local_admin(connection, school_id, user):
             "UPDATE main.admins SET role=?,active=1 WHERE username=? AND school_id=?",
             (local_role, username, school_id)
         )
+        connection.execute(
+            "UPDATE main.central_user_map SET email=?,central_role=? WHERE central_user_id=? AND school_id=?",
+            (email, central_role, user_id, school_id)
+        )
         connection.commit()
         return username
     # Stable synthetic local username avoids collisions where two schools share
