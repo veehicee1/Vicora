@@ -1,5 +1,5 @@
-// Vercel server-side gateway for the GTMC Android student host.
-// Never expose admin, pairing, sync, backup, or database endpoints here.
+// Vercel server-side gateway for VICORA public onboarding, platform review and student APIs.
+// Never expose general school admin, pairing, sync, backup, or database endpoints here.
 const { Readable } = require("node:stream");
 
 const ALLOWED_EXACT = new Set(["/api/public/info", "/api/public/school-logo", "/api/public/schools/resolve", "/api/public/school-applications", "/api/public/school-activation"]);
@@ -51,7 +51,7 @@ module.exports = async function handler(req, res) {
 
   const target = new URL(path + incoming.search, origin);
   const headers = new Headers();
-  for (const key of ["accept", "content-type", "cookie", "user-agent", "accept-language"]) {
+  for (const key of ["accept", "content-type", "cookie", "user-agent", "accept-language", "x-vicora-platform-token"]) {
     const value = req.headers[key];
     if (typeof value === "string") headers.set(key, value);
   }
