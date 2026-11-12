@@ -31,11 +31,11 @@ module.exports = async function handler(req, res) {
     return sendJson(res, 405, { error: "Method not allowed" });
   }
 
-  const originValue = process.env.ANDROID_HOST_ORIGIN || "";
+  const originValue = process.env.VICORA_API_ORIGIN || process.env.ANDROID_HOST_ORIGIN || "";
   const accessId = process.env.CF_ACCESS_CLIENT_ID || "";
   const accessSecret = process.env.CF_ACCESS_CLIENT_SECRET || "";
-  if (!originValue || !accessId || !accessSecret) {
-    return sendJson(res, 503, { error: "The secure examination gateway is not configured yet." });
+  if (!originValue || Boolean(accessId) !== Boolean(accessSecret)) {
+    return sendJson(res, 503, { error: "The VICORA API gateway is not configured correctly." });
   }
 
   let origin;
@@ -55,8 +55,12 @@ module.exports = async function handler(req, res) {
     const value = req.headers[key];
     if (typeof value === "string") headers.set(key, value);
   }
-  headers.set("CF-Access-Client-Id", accessId);
-  headers.set("CF-Access-Client-Secret", accessSecret);
+  // Public persistent hosts such as Render can be reached directly over HTTPS.
+  // A private Android/Windows LAN host can continue using Cloudflare Access.
+  if (accessId && accessSecret) {
+    headers.set("CF-Access-Client-Id", accessId);
+    headers.set("CF-Access-Client-Secret", accessSecret);
+  }
 
   const hasBody = !["GET", "HEAD"].includes(req.method);
   try {
