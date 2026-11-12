@@ -35,13 +35,14 @@ public final class AndroidHostPairing {
     private AndroidHostPairing() { }
 
     public static synchronized JSONObject pair(Context context, String serverBaseUrl,
-                                                 String oneTimeCode) throws Exception {
+                                                 String oneTimeCode, String schoolCode) throws Exception {
         if (serverBaseUrl == null || !serverBaseUrl.startsWith("https://")) {
             throw new IllegalArgumentException("A trusted HTTPS server address is required.");
         }
         String deviceId = getOrCreateDeviceId(context);
         JSONObject request = new JSONObject();
         request.put("pairing_code", oneTimeCode);
+        request.put("school_code", schoolCode == null ? "" : schoolCode.trim().toUpperCase());
         request.put("device_id", deviceId);
         request.put("label", "VICORA Android Host");
 
@@ -77,6 +78,7 @@ public final class AndroidHostPairing {
             }
             JSONObject record = new JSONObject();
             record.put("device_id", deviceId);
+            record.put("school_code", schoolCode == null ? "" : schoolCode.trim().toUpperCase());
             record.put("device_token", token);
             record.put("server_url", serverBaseUrl.replaceAll("/+$", ""));
             saveEncrypted(context, record.toString());
@@ -85,6 +87,32 @@ public final class AndroidHostPairing {
         } finally {
             connection.disconnect();
         }
+    }
+
+    /** Store a host credential created by the VICORA School Admin dashboard. */
+    public static synchronized JSONObject saveCloudEnrollment(Context context, String serverBaseUrl,
+            String deviceId, String hostToken, String schoolCode) throws Exception {
+        if (serverBaseUrl == null || !serverBaseUrl.startsWith("https://")) {
+            throw new IllegalArgumentException("A trusted HTTPS VICORA API address is required.");
+        }
+        if (deviceId == null || !deviceId.matches("[A-Za-z0-9._:-]{8,100}")) {
+            throw new IllegalArgumentException("Enter the exact device ID shown by the School Admin dashboard.");
+        }
+        if (hostToken == null || hostToken.trim().length() < 32) {
+            throw new IllegalArgumentException("The host token is incomplete.");
+        }
+        String code = schoolCode == null ? "" : schoolCode.trim().toUpperCase();
+        if (!code.matches("VIC-[A-F0-9]{8}")) {
+            throw new IllegalArgumentException("Enter the approved School Code in the format VIC-XXXXXXXX.");
+        }
+        JSONObject record = new JSONObject();
+        record.put("device_id", deviceId.trim());
+        record.put("school_code", code);
+        record.put("device_token", hostToken.trim());
+        record.put("server_url", serverBaseUrl.replaceAll("/+$", ""));
+        saveEncrypted(context, record.toString());
+        AndroidHostSyncScheduler.schedule(context);
+        return record;
     }
 
     private static String getOrCreateDeviceId(Context context) throws Exception {

@@ -169,6 +169,16 @@ class AndroidAutomaticExamSyncTests(unittest.TestCase):
                 # this disposable test database before importing the paired school.
                 blank = cbt.raw()
                 blank.execute("UPDATE settings SET value='' WHERE key='school_name'")
+                local_school = blank.execute(
+                    "SELECT school_id FROM schools WHERE is_legacy_default=1 LIMIT 1"
+                ).fetchone()
+                if self.package.get("school_code") and local_school:
+                    blank.execute("UPDATE schools SET school_code=? WHERE school_id=?",
+                                  (self.package["school_code"], local_school["school_id"]))
+                    blank.execute(
+                        "UPDATE settings SET value=? WHERE key='vicora_legacy_school_code' AND school_id=?",
+                        (self.package["school_code"], local_school["school_id"]),
+                    )
                 blank.commit()
                 blank.close()
                 conn = android_sync._connect(target_dir)

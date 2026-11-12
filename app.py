@@ -6,13 +6,14 @@ Students      : http://SERVER-IP:8000/
 import os, sys, io, csv, re, time, random, secrets, sqlite3, socket, threading, glob, json, uuid, hashlib, hmac, base64, urllib.request, urllib.error
 from datetime import datetime
 from functools import wraps
-from flask import Flask, g, request, jsonify, session, send_file, send_from_directory
+from flask import Flask, g, request, jsonify, session, send_file, send_from_directory, has_request_context
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.middleware.proxy_fix import ProxyFix
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 from tenant_migration import migrate_legacy_school
 from school_scoped_migration import migrate_school_scoped_unique_keys
+from multi_tenant import migrate_multi_tenant_schema, install_multi_tenant_routes, school_context, activate_tenant_views, TenantAwareConnection
 import docx
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -90,7 +91,7 @@ CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);
 
 
 def raw():
-    c = sqlite3.connect(DB_PATH, timeout=15)
+    c = sqlite3.connect(DB_PATH, timeout=15, factory=TenantAwareConnection)
     c.row_factory = sqlite3.Row
     c.execute('PRAGMA foreign_keys=ON')
     c.execute('PRAGMA synchronous=NORMAL')  # safe with WAL, much faster commits
@@ -157,15 +158,34 @@ def init_db():
     for col, definition in [('paused_at', 'INTEGER DEFAULT 0'), ('paused_total_sec', 'INTEGER DEFAULT 0')]:
         if col not in session_cols:
             c.execute(f'ALTER TABLE sessions ADD COLUMN {col} {definition}')
+    settings_columns = {r['name'] for r in c.execute('PRAGMA table_info(settings)').fetchall()}
     if not c.execute('select 1 from admins').fetchone():
         c.execute('insert into admins(username,password_hash) values(?,?)', ('admin', generate_password_hash('admin123')))
-        c.execute("insert or replace into settings values('default_pw','1')")
+        if 'school_id' in settings_columns:
+            legacy = c.execute("SELECT school_id FROM schools WHERE is_legacy_default=1 LIMIT 1").fetchone()
+            if not legacy:
+                raise RuntimeError('Cannot initialize the default administrator without a legacy school.')
+            c.execute("INSERT OR REPLACE INTO settings(key,value,school_id) VALUES('default_pw','1',?)", (legacy[0],))
+        else:
+            c.execute("insert or replace into settings(key,value) values('default_pw','1')")
     defaults = {'secret': secrets.token_hex(32), 'school_name': os.environ.get('CBT_INITIAL_SCHOOL_NAME', 'CBT Examination Centre').strip()[:120] or 'CBT Examination Centre', 'allow_remote_admin': '0'}
-    for k, v in defaults.items():
-        c.execute('insert or ignore into settings values(?,?)', (k, v))
+    if 'school_id' in settings_columns:
+        legacy_row = c.execute("SELECT value FROM settings WHERE key='vicora_legacy_school_id' ORDER BY rowid LIMIT 1").fetchone()
+        legacy_school = legacy_row['value'] if legacy_row else ''
+        if not legacy_school:
+            legacy_school_row = c.execute("SELECT school_id FROM schools WHERE is_legacy_default=1 LIMIT 1").fetchone()
+            legacy_school = legacy_school_row['school_id'] if legacy_school_row else ''
+        if not legacy_school:
+            raise RuntimeError('Legacy school identity is missing from the settings migration.')
+        for k, v in defaults.items():
+            c.execute('INSERT OR IGNORE INTO settings(key,value,school_id) VALUES(?,?,?)', (k, v, legacy_school))
+    else:
+        for k, v in defaults.items():
+            c.execute('insert or ignore into settings values(?,?)', (k, v))
     migrate_legacy_school(c)
     c.commit()
     migrate_school_scoped_unique_keys(c)
+    migrate_multi_tenant_schema(c)
     c.commit()
     c.close()
 
@@ -275,12 +295,45 @@ def ex(sql, a=()):
 
 
 def getset(k, d=''):
-    r = db().execute('select value from settings where key=?', (k,)).fetchone()
+    connection = db()
+    school_id = getattr(connection, 'tenant_school_id', None) or (session.get('school_id') if has_request_context() else None)
+    if school_id and not getattr(connection, 'tenant_school_id', None):
+        activate_tenant_views(connection, school_id)
+    if getattr(connection, 'tenant_school_id', None):
+        r = connection.execute('select value from settings where key=?', (k,)).fetchone()
+    else:
+        legacy = connection.execute(
+            "SELECT value FROM main.settings WHERE key='vicora_legacy_school_id' ORDER BY rowid LIMIT 1"
+        ).fetchone()
+        if legacy and legacy[0]:
+            r = connection.execute(
+                "SELECT value FROM main.settings WHERE key=? AND school_id=?", (k, legacy[0])
+            ).fetchone()
+        else:
+            r = connection.execute('select value from main.settings where key=?', (k,)).fetchone()
     return r[0] if r else d
 
 
 def setset(k, v):
-    ex('insert or replace into settings values(?,?)', (k, str(v)))
+    connection = db()
+    school_id = getattr(connection, 'tenant_school_id', None) or (session.get('school_id') if has_request_context() else None)
+    if school_id and not getattr(connection, 'tenant_school_id', None):
+        activate_tenant_views(connection, school_id)
+    if getattr(connection, 'tenant_school_id', None):
+        ex('insert into settings(key,value) values(?,?)', (k, str(v)))
+        if k == 'school_name':
+            ex('UPDATE schools SET name=? WHERE school_id=?', (str(v)[:120], connection.tenant_school_id))
+        return
+    legacy = connection.execute(
+        "SELECT value FROM main.settings WHERE key='vicora_legacy_school_id' ORDER BY rowid LIMIT 1"
+    ).fetchone()
+    if legacy and legacy[0]:
+        ex('insert or replace into main.settings(key,value,school_id) values(?,?,?)',
+           (k, str(v), legacy[0]))
+        if k == 'school_name':
+            ex('UPDATE schools SET name=? WHERE school_id=?', (str(v)[:120], legacy[0]))
+    else:
+        ex('insert or replace into settings(key,value) values(?,?)', (k, str(v)))
 
 
 def audit(action):
@@ -424,10 +477,21 @@ def admin(f):
         username = session.get('admin')
         if not username:
             return err('Not logged in', 401)
-        staff = q1('SELECT username, role, active FROM admins WHERE username=?', (username,))
+        legacy_school_id = getset('vicora_legacy_school_id', '')
+        # Existing signed-in browsers predate School Code sessions. Their old
+        # cookie belongs to the original installation and is safely mapped to
+        # the immutable legacy school during this compatibility transition.
+        if not session.get('school_id') and legacy_school_id:
+            session['school_id'] = legacy_school_id
+        activate_tenant_views(db(), session['school_id'])
+        staff = q1('SELECT username, role, active, school_id FROM admins WHERE username=? AND school_id=?', (username, session.get('school_id')))
         if not staff or not staff['active']:
             session.clear()
             return err('Staff account is inactive or unavailable. Sign in again.', 401)
+        if request.path.startswith('/api/admin/backups'):
+            approved_schools = db().execute("SELECT COUNT(*) FROM main.schools WHERE status='approved'").fetchone()[0]
+            if approved_schools > 1:
+                return err('School-specific backup and restore is being completed. Shared-database downloads are blocked while multiple schools are registered.', 503)
         role = staff['role'] if staff['role'] in ROLE_NAMES else 'super_admin'
         session['admin_role'] = role
         if not staff_permission(role, request.path, request.method):
@@ -670,6 +734,10 @@ def vicora_icon():
 
 
 def school_logo_response(fallback):
+    school = school_context(db(), request.args.get('school_code'))
+    if not school:
+        return send_from_directory(WEB, fallback, mimetype='image/svg+xml')
+    activate_tenant_views(db(), school['school_id'])
     logo_data = getset('school_logo_data', '')
     logo_mime = getset('school_logo_mime', '')
     if logo_mime not in ('image/png', 'image/jpeg', 'image/webp') or not logo_data:
@@ -697,7 +765,20 @@ def public_info():
         theme = json.loads(getset('school_theme', '{}') or '{}')
     except (TypeError, ValueError):
         theme = {}
-    return jsonify(school=getset('school_name'), theme=theme, school_logo_url='/api/public/school-logo')
+    school = school_context(db(), request.args.get('school_code'))
+    if school:
+        activate_tenant_views(db(), school['school_id'])
+        school_name = getset('school_name') or school['name']
+        school_theme = getset('school_theme', '{}') or '{}'
+        try:
+            theme = json.loads(school_theme)
+        except (TypeError, ValueError):
+            theme = {}
+        return jsonify(school=school_name, school_code=school['school_code'],
+                       school_id=school['school_id'], theme=theme,
+                       school_logo_url='/api/public/school-logo?school_code=' + school['school_code'])
+    return jsonify(school='VICORA CBT', school_code='', school_id='',
+                   theme={}, school_logo_url='/vicora-icon.svg')
 
 
 # ---------------------------------------------------------------- admin: auth & settings
@@ -707,14 +788,25 @@ def a_login():
     key = 'adm|' + str(request.remote_addr)
     if throttled(key):
         return err('Too many attempts. Wait 5 minutes.', 429)
-    r = q1('select * from admins where username=?', (d.get('username', '').strip(),))
+    school = school_context(db(), d.get('school_code'))
+    if not school:
+        add_fail(key)
+        return err('Enter a valid School Code. A School Code is required when more than one school is registered.', 401)
+    activate_tenant_views(db(), school['school_id'])
+    r = q1('select * from admins where lower(username)=lower(?) and school_id=?', (d.get('username', '').strip(), school['school_id']))
     if not r or not r['active'] or not check_password_hash(r['password_hash'], d.get('password', '')):
         add_fail(key)
         return err('Wrong username or password', 401)
     session.permanent = True
     session['admin'] = r['username']
+    session['school_id'] = school['school_id']
     session['admin_role'] = r['role']
-    audit('Staff logged in: ' + r['username'] + ' (' + ROLE_NAMES.get(r['role'], r['role']) + ')')
+    if school['school_id'] == getset('vicora_legacy_school_id', ''):
+        audit('Staff logged in: ' + r['username'] + ' (' + ROLE_NAMES.get(r['role'], r['role']) + ')')
+    else:
+        db().execute("INSERT INTO platform_audit(ts,actor,action,school_id) VALUES(?,?,?,?)",
+                     (int(time.time()), r['username'], 'School administrator logged in', school['school_id']))
+        db().commit()
     return jsonify(ok=True, user=r['username'], role=r['role'], role_name=ROLE_NAMES.get(r['role'], r['role']))
 
 
@@ -727,11 +819,19 @@ def a_logout():
 @app.get('/api/admin/me')
 def a_me():
     username = session.get('admin')
-    staff = q1('SELECT username, role, active FROM admins WHERE username=?', (username,)) if username else None
+    legacy_school_id = getset('vicora_legacy_school_id', '')
+    if username and not session.get('school_id') and legacy_school_id:
+        session['school_id'] = legacy_school_id
+    if username and session.get('school_id'):
+        activate_tenant_views(db(), session['school_id'])
+    staff = q1('SELECT username, role, active, school_id FROM admins WHERE username=? AND school_id=?', (username, session.get('school_id'))) if username and session.get('school_id') else None
     if not staff or not staff['active']:
         session.clear()
         return jsonify(user=None, role=None, school=getset('school_name'))
-    return jsonify(user=staff['username'], role=staff['role'], role_name=ROLE_NAMES.get(staff['role'], staff['role']), school=getset('school_name'))
+    school = q1('SELECT name, school_code FROM schools WHERE school_id=?', (staff['school_id'],))
+    return jsonify(user=staff['username'], role=staff['role'], role_name=ROLE_NAMES.get(staff['role'], staff['role']),
+                   school=school['name'] if school else getset('school_name'),
+                   school_id=staff['school_id'], school_code=school['school_code'] if school else '')
 
 
 @app.post('/api/admin/password')
@@ -1023,7 +1123,7 @@ def import_file(kind):
     if kind == 'questions':
         valid, errors = validate_questions(rows, request.form.get('default_subject', ''))
         tok = secrets.token_hex(8)
-        IMPORTS[tok] = dict(valid=valid, errors=errors, ts=time.time())
+        IMPORTS[tok] = dict(valid=valid, errors=errors, ts=time.time(), school_id=session.get('school_id'))
         for k in [k for k, v in IMPORTS.items() if time.time() - v['ts'] > 3600]:
             IMPORTS.pop(k, None)
         return jsonify(token=tok, valid=len(valid), errors=[dict(row=a, reason=b) for a, b in errors[:200]],
@@ -1062,8 +1162,8 @@ def import_file(kind):
 @admin
 def import_commit():
     imp = IMPORTS.get((request.get_json() or {}).get('token'))
-    if not imp:
-        return err('Import session expired. Upload the file again.')
+    if not imp or imp.get('school_id') != session.get('school_id'):
+        return err('Import session expired or belongs to another school. Upload the file again.', 404)
     n = 0
     imp['valid'], valid = [], imp['valid']  # a second commit of the same token imports nothing
     for v in valid:
@@ -1080,8 +1180,8 @@ def import_commit():
 @admin
 def import_errors(tok):
     imp = IMPORTS.get(tok)
-    if not imp:
-        return err('Expired', 404)
+    if not imp or imp.get('school_id') != session.get('school_id'):
+        return err('Expired or unavailable for this school', 404)
     return xlsx_resp([('Errors', ['Row', 'Reason'], imp['errors'])], 'import_errors.xlsx')
 
 
@@ -1343,11 +1443,15 @@ def android_host_pair():
         return err('Android Host pairing requires HTTPS.', 400)
     d = request.get_json(silent=True) or {}
     code = str(d.get('pairing_code') or '')
+    school = school_context(db(), d.get('school_code'))
+    if not school:
+        return err('Enter the approved school School Code before pairing this host.', 401)
+    activate_tenant_views(db(), school['school_id'])
     try:
         device_id = str(uuid.UUID(str(d.get('device_id') or '')))
     except (ValueError, TypeError, AttributeError):
         return err('A valid device ID is required.')
-    label = str(d.get('label') or 'GTMC Android Host')[:100]
+    label = str(d.get('label') or 'VICORA Android Host')[:100]
     expected = getset('android_host_pairing_hash', '')
     expires = int(getset('android_host_pairing_expires', '0') or 0)
     supplied = hashlib.sha256(code.encode('utf-8')).hexdigest() if code else ''
@@ -1355,10 +1459,9 @@ def android_host_pair():
         return err('Pairing code is invalid or expired.', 401)
     token = secrets.token_urlsafe(48)
     token_hash = hashlib.sha256(token.encode('utf-8')).hexdigest()
+    db().execute('delete from android_host_devices where device_id=?', (device_id,))
     ex('''insert into android_host_devices(device_id,token_hash,label,created_ts,last_seen,revoked_ts)
-          values(?,?,?,?,?,0)
-          on conflict(device_id) do update set token_hash=excluded.token_hash,label=excluded.label,
-          created_ts=excluded.created_ts,last_seen=excluded.last_seen,revoked_ts=0''',
+          values(?,?,?,?,?,0)''',
        (device_id, token_hash, label, int(time.time()), int(time.time())))
     setset('android_host_pairing_hash', '')
     setset('android_host_pairing_expires', '0')
@@ -1367,12 +1470,30 @@ def android_host_pair():
 
 def _android_device_from_request():
     auth = request.headers.get('Authorization', '')
-    token = auth[7:].strip() if auth.lower().startswith('bearer ') else ''
+    bearer = auth[7:].strip() if auth.lower().startswith('bearer ') else ''
+    token = request.headers.get('X-VICORA-HOST-TOKEN', '').strip() or bearer
     device_id = str((request.get_json(silent=True) or {}).get('device_id') or '')
     if not token or not device_id:
         return None
-    row = q1('select * from android_host_devices where device_id=? and revoked_ts=0', (device_id,))
     digest = hashlib.sha256(token.encode('utf-8')).hexdigest()
+    # New school-scoped host credentials are preferred. Legacy paired Android
+    # devices remain supported during the transition.
+    host = q1('select * from main.school_hosts where device_id=? and revoked_ts=0', (device_id,))
+    if host and hmac.compare_digest(host['token_hash'], digest):
+        activate_tenant_views(db(), host['school_id'])
+        host = q1('select * from school_hosts where device_id=? and revoked_ts=0', (device_id,))
+        if not host or not hmac.compare_digest(host['token_hash'], digest):
+            return None
+        ex('update school_hosts set last_seen=? where device_id=?',
+           (int(time.time()), device_id))
+        return host
+    # Legacy Windows/Android pairing credentials are still accepted, but only
+    # after their stored school ID has been verified and activated.
+    row = q1('select * from main.android_host_devices where device_id=? and revoked_ts=0', (device_id,))
+    if not row or not hmac.compare_digest(row['token_hash'], digest):
+        return None
+    activate_tenant_views(db(), row['school_id'])
+    row = q1('select * from android_host_devices where device_id=? and revoked_ts=0', (device_id,))
     if not row or not hmac.compare_digest(row['token_hash'], digest):
         return None
     ex('update android_host_devices set last_seen=? where device_id=?', (int(time.time()), device_id))
@@ -1400,9 +1521,11 @@ def _build_android_host_package(exam_id):
     ex('update exams set sync_revision_hash=? where id=?', (revision_hash, exam_id))
     exam['sync_revision_hash'] = revision_hash
     class_uuid_by_id = {row['id']: row['sync_uuid'] for row in classes}
+    school_identity = q1("SELECT school_code,name FROM schools WHERE school_id=?", (exam['school_id'],))
     package = {
         'schema_version': 1,
-        'school_name': getset('school_name'),
+        'school_name': (school_identity['name'] if school_identity else getset('school_name')),
+        'school_code': (school_identity['school_code'] if school_identity else ''),
         'exported_at': int(time.time()),
         'subject': {'sync_uuid': subject['sync_uuid'], 'name': subject['name']},
         'classes': [{'sync_uuid': row['sync_uuid'], 'name': row['name']} for row in classes],
@@ -2134,10 +2257,9 @@ def theory_mark():
         except ValueError: words = []
         hits = sum(1 for word in words if str(word).casefold() in response.casefold())
         original_mark = float(q['marks']) * hits / len(words) if words else 0.0
+    db().execute('delete from theory_marks where session_id=? and question_id=?', (sid, qid))
     ex('''insert into theory_marks(session_id,question_id,mark,original_mark,feedback,marked_by,marked_ts)
-          values(?,?,?,?,?,?,?) on conflict(session_id,question_id) do update set
-          mark=excluded.mark,original_mark=excluded.original_mark,feedback=excluded.feedback,
-          marked_by=excluded.marked_by,marked_ts=excluded.marked_ts''',
+          values(?,?,?,?,?,?,?)''',
        (sid,qid,mark,round(original_mark,2),str(d.get('feedback') or '')[:2000],session.get('admin','Admin'),int(time.time())))
     # Recalculate the complete result, retaining objective and automatic theory marks.
     rows = qa('''select q.id,q.question_type,q.answer,q.answer_text,q.accepted_answers,q.keywords,
@@ -2323,7 +2445,12 @@ def student_by_creds(d):
     key = f'stu|{request.remote_addr}|{reg.lower()}'
     if throttled(key, 8):
         return None, err('Too many wrong attempts. Wait 5 minutes or ask the invigilator.', 429)
-    st = q1('select s.*, c.name cls from students s join classes c on c.id=s.class_id where lower(s.reg_no)=lower(?)', (reg,))
+    school = school_context(db(), d.get('school_code'))
+    if not school:
+        add_fail(key)
+        return None, err('Enter a valid School Code. A School Code is required when more than one school is registered.', 401)
+    activate_tenant_views(db(), school['school_id'])
+    st = q1('select s.*, c.name cls from students s join classes c on c.id=s.class_id where lower(s.reg_no)=lower(?) and s.school_id=?', (reg, school['school_id']))
     if not st or st['access_code'].upper() != code:
         add_fail(key)
         return None, err('Invalid registration number or access code', 401)
@@ -2487,6 +2614,10 @@ def sauth(f):
         s = q1("select * from sessions where token=? and token is not null and token<>''", (tok,)) if tok else None
         if not s:
             return err('Session expired. Please log in again.', 401)
+        activate_tenant_views(db(), s['school_id'])
+        s = q1("select * from sessions where token=? and token is not null and token<>''", (tok,))
+        if not s:
+            return err('Session expired. Please log in again.', 401)
         e = q1('select * from exams where id=?', (s['exam_id'],))
         g.ses, g.exam = s, e
         if s['status'] == 'submitted':
@@ -2517,8 +2648,13 @@ def s_paper():
              response_drawing=r['response_drawing'] or '', flagged=r['flagged'])
            for r in qa('select * from answers where session_id=?', (g.ses['id'],))}
     st = q1('select s.name,s.reg_no,c.name cls from students s join classes c on c.id=s.class_id where s.id=?', (g.ses['student_id'],))
+    school_row = q1('SELECT name FROM schools WHERE school_id=?', (g.ses['school_id'],))
+    if g.ses['school_id'] == getset('vicora_legacy_school_id', ''):
+        school_name = getset('school_name') or 'VICORA CBT'
+    else:
+        school_name = (school_row['name'] if school_row else '') or 'VICORA CBT'
     return jsonify(title=g.exam['title'], exam_id=g.exam['id'], remaining=time_left(g.ses, g.exam['duration_min']), questions=qs, answers=ans,
-                   student=st, school=getset('school_name'))
+                   student=st, school=school_name)
 
 
 @app.post('/api/student/answer')
@@ -2536,11 +2672,12 @@ def s_answer():
         return err('Bad choice')
     if q['question_type'] == 'theory':
         choice = ''
-    ex('''insert into answers(session_id,question_id,choice,response_text,response_drawing,flagged,ts) values(?,?,?,?,?,?,?)
-          on conflict(session_id,question_id) do update set choice=excluded.choice,
-          response_text=excluded.response_text, response_drawing=excluded.response_drawing,
-          flagged=excluded.flagged, ts=excluded.ts''',
-       (g.ses['id'], qid, choice, response_text, response_drawing, 1 if d.get('flagged') else 0, int(time.time())))
+    db().execute('DELETE FROM answers WHERE session_id=? AND question_id=?',
+                 (g.ses['id'], qid))
+    ex('''insert into answers(session_id,question_id,choice,response_text,response_drawing,flagged,ts)
+          values(?,?,?,?,?,?,?)''',
+       (g.ses['id'], qid, choice, response_text, response_drawing,
+        1 if d.get('flagged') else 0, int(time.time())))
     return jsonify(ok=True, remaining=time_left(g.ses, g.exam['duration_min']))
 
 
@@ -2628,6 +2765,8 @@ def serve(host=None, port=None):
         return
     wserve(app, host=host, port=port, threads=32)
 
+
+install_multi_tenant_routes(app, db, err)
 
 if __name__ == '__main__':
     start_background()

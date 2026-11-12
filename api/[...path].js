@@ -1,9 +1,9 @@
-// Vercel server-side gateway for the GTMC Android student host.
-// Never expose admin, pairing, sync, backup, or database endpoints here.
+// Vercel server-side gateway for VICORA public onboarding, platform review and student APIs.
+// Never expose general school admin, pairing, sync, backup, or database endpoints here.
 const { Readable } = require("node:stream");
 
-const ALLOWED_EXACT = new Set(["/api/public/info", "/api/public/school-logo"]);
-const ALLOWED_PREFIXES = ["/api/student/"];
+const ALLOWED_EXACT = new Set(["/api/public/info", "/api/public/school-logo", "/api/public/schools/resolve", "/api/public/school-applications", "/api/public/school-activation"]);
+const ALLOWED_PREFIXES = ["/api/student/", "/api/platform/", "/api/android-host/"];
 const ALLOWED_METHODS = new Set(["GET", "POST", "PUT", "PATCH", "DELETE"]);
 
 function sendJson(res, status, body) {
@@ -31,11 +31,11 @@ module.exports = async function handler(req, res) {
     return sendJson(res, 405, { error: "Method not allowed" });
   }
 
-  const originValue = process.env.ANDROID_HOST_ORIGIN || "";
+  const originValue = process.env.VICORA_API_ORIGIN || process.env.ANDROID_HOST_ORIGIN || "";
   const accessId = process.env.CF_ACCESS_CLIENT_ID || "";
   const accessSecret = process.env.CF_ACCESS_CLIENT_SECRET || "";
-  if (!originValue || !accessId || !accessSecret) {
-    return sendJson(res, 503, { error: "The secure examination gateway is not configured yet." });
+  if (!originValue || Boolean(accessId) !== Boolean(accessSecret)) {
+    return sendJson(res, 503, { error: "The VICORA API gateway is not configured correctly." });
   }
 
   let origin;
@@ -51,12 +51,16 @@ module.exports = async function handler(req, res) {
 
   const target = new URL(path + incoming.search, origin);
   const headers = new Headers();
-  for (const key of ["accept", "content-type", "cookie", "user-agent", "accept-language"]) {
+  for (const key of ["accept", "content-type", "cookie", "user-agent", "accept-language", "x-vicora-platform-token", "x-vicora-host-token", "authorization"]) {
     const value = req.headers[key];
     if (typeof value === "string") headers.set(key, value);
   }
-  headers.set("CF-Access-Client-Id", accessId);
-  headers.set("CF-Access-Client-Secret", accessSecret);
+  // Public persistent hosts such as Render can be reached directly over HTTPS.
+  // A private Android/Windows LAN host can continue using Cloudflare Access.
+  if (accessId && accessSecret) {
+    headers.set("CF-Access-Client-Id", accessId);
+    headers.set("CF-Access-Client-Secret", accessSecret);
+  }
 
   const hasBody = !["GET", "HEAD"].includes(req.method);
   try {

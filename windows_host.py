@@ -64,6 +64,38 @@ def collect_school_name(existing=""):
         root.destroy()
 
 
+def collect_school_code(existing=""):
+    """Collect the immutable VICORA School Code for this local host."""
+    import re
+    supplied = (os.environ.get("CBT_HOST_SCHOOL_CODE") or "").strip().upper()
+    if supplied:
+        if not re.fullmatch(r"VIC-[A-F0-9]{8}", supplied):
+            raise ValueError("CBT_HOST_SCHOOL_CODE must use the format VIC-XXXXXXXX.")
+        return supplied
+    import tkinter as tk
+    from tkinter import simpledialog, messagebox
+    root = tk.Tk()
+    root.withdraw()
+    try:
+        while True:
+            value = simpledialog.askstring(
+                "VICORA School Code",
+                "Enter the School Code issued when your school was approved on VICORA. "
+                "For local-only testing, you may keep the prefilled code:",
+                initialvalue=existing or "",
+                parent=root,
+            )
+            if value is None:
+                raise SystemExit("VICORA School Code setup was cancelled.")
+            value = value.strip().upper()
+            if re.fullmatch(r"VIC-[A-F0-9]{8}", value):
+                return value
+            messagebox.showwarning("Valid School Code required",
+                                   "Enter a code in the format VIC-XXXXXXXX.", parent=root)
+    finally:
+        root.destroy()
+
+
 def local_addresses(port=8000):
     values = set()
     try:
@@ -90,13 +122,35 @@ def main():
     try:
         import app as cbt
         current = cbt.raw()
-        row = current.execute("SELECT value FROM settings WHERE key='school_name'").fetchone()
-        current_name = row[0] if row else ""
+        school_row = current.execute(
+            "SELECT school_id,school_code,name FROM schools WHERE is_legacy_default=1 LIMIT 1"
+        ).fetchone()
+        if not school_row:
+            current.close()
+            raise RuntimeError("The Windows Host has no initialized school identity.")
+        school_id = school_row["school_id"]
+        name_row = current.execute(
+            "SELECT value FROM settings WHERE key='school_name' AND school_id=?", (school_id,)
+        ).fetchone()
+        current_name = name_row["value"] if name_row else school_row["name"]
+        configured = current.execute(
+            "SELECT value FROM settings WHERE key='host_school_code_configured' AND school_id=?",
+            (school_id,),
+        ).fetchone()
         current.close()
         school_name = collect_school_name(current_name)
+        school_code = school_row["school_code"]
+        if not configured or configured["value"] != "1":
+            school_code = collect_school_code(school_code)
         c = cbt.raw()
-        c.execute("INSERT OR IGNORE INTO settings(key,value) VALUES('school_name',?)", (school_name,))
-        c.execute("UPDATE settings SET value=? WHERE key='school_name'", (school_name,))
+        c.execute("UPDATE schools SET name=?,school_code=? WHERE school_id=?",
+                  (school_name, school_code, school_id))
+        c.execute("INSERT OR REPLACE INTO settings(key,value,school_id) VALUES('school_name',?,?)",
+                  (school_name, school_id))
+        c.execute("INSERT OR REPLACE INTO settings(key,value,school_id) VALUES('vicora_legacy_school_code',?,?)",
+                  (school_code, school_id))
+        c.execute("INSERT OR REPLACE INTO settings(key,value,school_id) VALUES('host_school_code_configured','1',?)",
+                  (school_id,))
         c.commit()
         c.close()
 

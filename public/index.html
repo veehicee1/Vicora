@@ -132,8 +132,8 @@ button:focus-visible,.opt:focus-visible{outline:3px solid #3b8bd2;outline-offset
 
 </style></head><body>
 <div id="v-login" class="v on"><div class="center"><div class="vicora-brand"><img src="/vicora-logo.svg" alt="VICORA"></div><h1 id="school">VICORA CBT Examination</h1><p class="mu">Enter your details to begin.</p>
-<label>Registration number</label><input id="reg" autocomplete="off"><label>Access code</label><input id="code" autocomplete="off" style="text-transform:uppercase" onkeydown="if(event.key==='Enter')login()">
-<button class="pr full" onclick="login()">Continue</button><div class="err" id="lerr"></div></div></div>
+<label>School Code</label><input id="schoolCode" autocomplete="off" placeholder="e.g. VIC-1234AB" style="text-transform:uppercase"><label>Registration number</label><input id="reg" autocomplete="off"><label>Access code</label><input id="code" autocomplete="off" style="text-transform:uppercase" onkeydown="if(event.key==='Enter')login()">
+<button class="pr full" onclick="login()">Continue</button><div class="err" id="lerr"></div><p class="mu" style="font-size:13px;text-align:center;margin-top:14px">School administrator? <a href="/register-school.html">Register your school</a> · <a href="/activate-school.html">Activate account</a></p></div></div>
 
 <div id="v-exams" class="v"><div class="center"><h2 id="hello"></h2><p class="mu" id="hmeta"></p><div class="bar" style="display:flex;gap:8px"><button onclick="showGrades()">My Grades</button><button onclick="showMessages()">Messages <span id="msgCount"></span></button></div><div id="exlist"></div><div id="gradePanel"></div><div id="messagePanel"></div><button class="full" onclick="logoutUI()">Back</button><div class="err" id="eerr"></div></div></div>
 
@@ -173,7 +173,7 @@ async function api(p,body,method){const h={'Content-Type':'application/json'};if
  if(!r.ok)throw {message:j.error||'Error '+r.status,status:r.status};return j}
 fetch('/api/public/info').then(r=>r.json()).then(j=>{$('#school').textContent=j.school;const root=document.documentElement;if(j.school_logo_url)root.style.setProperty('--school-logo','url("'+j.school_logo_url+'?v='+Date.now()+'")');const t=j.theme||{};[['--pr',t.primary],['--bg',t.background],['--pn',t.surface],['--tx',t.text]].forEach(([k,v])=>{if(v)root.style.setProperty(k,v)});if(t.mode==='dark'){root.style.setProperty('--mu','#a6b4c5');root.style.setProperty('--bd','#344456')} }).catch(()=>{});
 
-async function login(){$('#lerr').textContent='';try{S.creds={reg_no:$('#reg').value.trim(),code:$('#code').value.trim()};const j=await api('/login',S.creds);S.exams=j.exams;
+async function login(){$('#lerr').textContent='';try{S.creds={school_code:$('#schoolCode').value.trim().toUpperCase(),reg_no:$('#reg').value.trim(),code:$('#code').value.trim()};const j=await api('/login',S.creds);S.exams=j.exams;
  S.student=j.student;$('#hello').textContent='Welcome, '+j.student.name;$('#hmeta').textContent=j.student.reg_no+' · '+j.student.cls;pollMessages();
  $('#exlist').innerHTML=j.exams.length?j.exams.map((e,i)=>`<button class="ex" ${e.state==='done'?'disabled':''} onclick="pick(${i})"><b>${esc(e.title)}</b><small>${esc(e.subject)} · ${e.duration_min} min · ${e.num_questions} questions · ${e.state==='done'?'Already submitted':e.state==='resume'?'Continue where you stopped':'Not started'}</small></button>`).join(''):'<p class="mu">No exam is open for you right now. Please wait for the invigilator.</p>';
  if(j.exams.length===1&&j.exams[0].state!=='done')pick(0);else show('v-exams')}catch(e){$('#lerr').textContent=e.message}}
