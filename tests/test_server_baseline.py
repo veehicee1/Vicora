@@ -167,19 +167,17 @@ class ServerBaselineTests(unittest.TestCase):
 
     def test_public_web_host_allows_admin_only_over_explicit_https_configuration(self):
         from unittest.mock import patch
-        with self.client.session_transaction() as sess:
-            sess["admin"] = "admin"
         with patch("app.PUBLIC_HOSTING", True), \
              patch("app.PUBLIC_HOSTING_ADMIN", True), \
              patch("app.COOKIE_SECURE", True), \
              patch("app.TRUST_PROXY", False):
             secure = self.client.get(
-                "/api/admin/dashboard",
+                "/admin",
                 base_url="https://school.example",
                 environ_overrides={"REMOTE_ADDR": "192.0.2.25"},
             )
             insecure = self.client.get(
-                "/api/admin/dashboard",
+                "/admin",
                 base_url="http://school.example",
                 environ_overrides={"REMOTE_ADDR": "192.0.2.25"},
             )
