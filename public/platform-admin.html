@@ -1,44 +1,78 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>VICORA Platform Administration</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#102b50">
+<title>VICORA Platform Admin</title>
 <style>
-:root{font-family:system-ui,Segoe UI,Arial,sans-serif;color:#18324a;background:#f1f5fa}
-*{box-sizing:border-box}body{margin:0;padding:22px}.wrap{max-width:1050px;margin:auto}
-header{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-bottom:18px}
-h1{color:#102b50;margin:0;font-size:25px}p{color:#61738a}
-.panel,.application{background:#fff;border:1px solid #dbe5ef;border-radius:14px;padding:18px;margin:14px 0;box-shadow:0 8px 28px #102b500c}
-label{display:block;font-weight:650;margin:10px 0 5px}input,textarea{width:100%;padding:11px;border:1px solid #cbd8e6;border-radius:8px;font:inherit}
-button{border:0;border-radius:8px;padding:10px 15px;font-weight:700;cursor:pointer;background:#2878c8;color:#fff}
-button.secondary{background:#e8eef6;color:#18324a}button.reject{background:#a92d3b}
-.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
-.muted{font-size:13px;color:#61738a}.status{white-space:pre-wrap;margin-top:10px}.token{background:#f7fafc;border:1px dashed #8ca6c1;padding:12px;border-radius:8px;overflow-wrap:anywhere}
-@media(max-width:650px){body{padding:12px}header{align-items:flex-start;flex-direction:column}}
+:root{font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:#18324a;background:#f1f5fa}
+*{box-sizing:border-box}body{margin:0;padding:18px}.wrap{max-width:1080px;margin:auto}
+header{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:4px 0 18px}
+.brand{display:flex;align-items:center;gap:12px}.mark{width:44px;height:44px;border-radius:12px;background:#102b50;color:white;display:grid;place-items:center;font-weight:800;letter-spacing:-1px}
+h1{font-size:23px;color:#102b50;margin:0}h2{font-size:18px;margin:0 0 12px}p{color:#61738a;margin:7px 0}
+.panel,.application,.school{background:white;border:1px solid #dbe5ef;border-radius:14px;padding:17px;margin:14px 0;box-shadow:0 8px 28px #102b500b}
+label{display:block;font-weight:650;margin:10px 0 6px}input,textarea{width:100%;padding:12px;border:1px solid #cbd8e6;border-radius:9px;font:inherit}
+button{border:0;border-radius:9px;padding:11px 15px;font-weight:700;cursor:pointer;background:#2878c8;color:white}
+button:disabled{opacity:.55;cursor:wait}.secondary{background:#e8eef6;color:#18324a}.reject{background:#a92d3b}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.muted{font-size:13px;color:#61738a}
+.status{white-space:pre-wrap;margin-top:10px;min-height:22px}.token{background:#f7fafc;border:1px dashed #8ca6c1;padding:12px;border-radius:9px;overflow-wrap:anywhere;user-select:all}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0}
+.stat{background:#fff;border:1px solid #dbe5ef;border-radius:12px;padding:14px}.stat b{display:block;font-size:25px;color:#102b50}.stat span{font-size:13px;color:#61738a}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}.tabs button[aria-pressed=true]{background:#102b50}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.meta{font-size:14px;overflow-wrap:anywhere}
+@media(max-width:650px){body{padding:11px}header{align-items:flex-start;flex-direction:column}.stats{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}.panel,.application,.school{padding:14px}}
 </style>
 </head>
-<body><main class="wrap">
-<header><div><h1>VICORA Platform Admin</h1><p>Review applications stored in the central VICORA Apps Script database.</p></div><a href="/">Student portal</a></header>
+<body>
+<main class="wrap">
+<header><div class="brand"><div class="mark">V</div><div><h1>VICORA Platform Admin</h1><p>Central school registration and platform management</p></div></div><a href="/">Public portal</a></header>
 <section class="panel">
-<h2>Platform authorization</h2>
-<label for="token">Platform Super Admin token</label>
-<input id="token" type="password" autocomplete="off" placeholder="Enter platform authorization token">
-<p class="muted">This is the platform gateway token, not the Apps Script admin key. It is used for this page session only. Never share it with a school.</p>
-<div class="actions"><button id="load">Load pending applications</button><button class="secondary" id="all">Show all applications</button></div>
-<div id="status" class="status" role="status"></div>
+<h2>Platform administrator sign-in</h2>
+<label for="token">Platform authorization token</label>
+<input id="token" type="password" autocomplete="current-password" placeholder="Enter your platform admin token">
+<p class="muted">The token is held only in this page's memory for this session. It is not saved in browser storage. Never share it with a school.</p>
+<div class="actions"><button id="connect">Connect to platform</button><button id="clear" class="secondary">Clear token</button></div>
+<div id="status" class="status" role="status" aria-live="polite"></div>
 </section>
-<section><h2>Applications</h2><div id="apps"><p class="muted">Authorize above to load applications.</p></div></section>
-<section id="issued" class="panel" hidden><h2>School approved — save activation details</h2><p>These details are shown once. Send them securely to the school's authorized contact.</p><p><b>School Code</b></p><div class="token" id="code"></div><p><b>One-time activation token</b></p><div class="token" id="activation"></div><p class="muted" id="delivery"></p><div class="actions"><button id="copy">Copy activation details</button></div></section>
+<div id="workspace" hidden>
+<div class="stats">
+<div class="stat"><b id="pendingCount">—</b><span>Pending applications</span></div>
+<div class="stat"><b id="schoolCount">—</b><span>Registered schools</span></div>
+<div class="stat"><b id="approvedCount">—</b><span>Approved applications</span></div>
+</div>
+<nav class="tabs" aria-label="Platform sections">
+<button id="pendingTab" aria-pressed="true">Pending applications</button>
+<button id="allTab" class="secondary" aria-pressed="false">All applications</button>
+<button id="schoolsTab" class="secondary" aria-pressed="false">Registered schools</button>
+</nav>
+<section><div id="content"><p class="muted">Connect to load platform records.</p></div></section>
+<section id="issued" class="panel" hidden>
+<h2>School approved — activation details</h2>
+<p>Save these details and deliver them securely to the school's authorized contact. The activation token is shown only in this session.</p>
+<p><b>School Code</b></p><div class="token" id="code"></div>
+<p><b>School ID</b></p><div class="token" id="schoolId"></div>
+<p><b>One-time activation token</b></p><div class="token" id="activation"></div>
+<p class="muted" id="delivery"></p>
+<div class="actions"><button id="copy">Copy activation details</button></div>
+</section>
+</div>
 </main>
 <script>
 let platformToken="";
 const $=id=>document.getElementById(id);
-function authHeaders(){return {"Content-Type":"application/json","X-VICORA-PLATFORM-TOKEN":platformToken}}
-async function api(action,fields={}){const r=await fetch("/api/central/admin",{method:"POST",headers:authHeaders(),body:JSON.stringify({action,...fields})});const j=await r.json().catch(()=>({error:"Invalid server response"}));if(!r.ok||j.ok!==true)throw Error(j.error||"Request failed");return j.data}
-function showStatus(message){$("status").textContent=message}
+function setStatus(message){$("status").textContent=message}
 function esc(value){return String(value??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
-async function load(status){platformToken=$("token").value.trim();if(!platformToken){showStatus("Enter the platform token first.");return}showStatus("Loading…");try{const rows=await api("admin.listApplications");const filtered=status==="all"?rows:rows.filter(a=>a.status==="pending");$("apps").innerHTML=filtered.length?filtered.map(a=>{const date=a.submitted_at?new Date(a.submitted_at).toLocaleString():"";return `<article class="application"><h3>${esc(a.school_name)}</h3><p><b>Contact:</b> ${esc(a.contact_name)} · ${esc(a.contact_email)} · ${esc(a.contact_phone)}</p><p><b>Location:</b> ${esc(a.address)} · ${esc(a.country)} · ${esc(a.state)}</p><p><b>Status:</b> ${esc(a.status)} · <b>Submitted:</b> ${esc(date)}</p><p>${esc(a.decision_note||"")}</p>${a.status==="pending"?`<label>Review note</label><textarea id="note-${esc(a.application_id)}" rows="2" placeholder="Optional note"></textarea><div class="actions"><button onclick="decide('${esc(a.application_id)}','approve')">Approve and issue School Code</button><button class="reject" onclick="decide('${esc(a.application_id)}','reject')">Reject application</button></div>`:""}</article>`}).join(""):"<p>No applications found.</p>";showStatus("Loaded "+filtered.length+" application(s).")}catch(e){showStatus(e.message)}}
-async function decide(id,decision){const note=$("note-"+id)?.value||"";if(!confirm((decision==="approve"?"Approve this school and issue a School Code?":"Reject this application?")))return;try{const j=await api("admin.decideApplication",{applicationId:id,decision,note});if(decision==="approve"){$("code").textContent=j.schoolCode;$("activation").textContent=j.activationToken;$("delivery").textContent=j.emailSent?"Activation email sent to "+j.contactEmail+". The token is shown here only once.":"Email delivery was not confirmed. Send the token securely to "+j.contactEmail+". The token is shown here only once.";$("issued").hidden=false;}showStatus(decision==="approve"?"School approved in VICORA Central.":"Application rejected.");await load("pending")}catch(e){showStatus(e.message)}}
-$("load").onclick=()=>load("pending");$("all").onclick=()=>load("all");
-$("copy").onclick=async()=>{const text="VICORA School Code: "+$("code").textContent+"\nActivation token: "+$("activation").textContent+"\n"+$("delivery").textContent;try{await navigator.clipboard.writeText(text);showStatus("Activation details copied. Store and send them securely.")}catch(_){showStatus("Copy is unavailable on this browser. Select and copy the details manually.")}};
-</script></body></html>
+function authHeaders(){return {"Content-Type":"application/json","X-VICORA-PLATFORM-TOKEN":platformToken}}
+async function api(action,fields={}){const response=await fetch("/api/central/admin",{method:"POST",headers:authHeaders(),body:JSON.stringify({action,...fields})});const result=await response.json().catch(()=>({error:"Invalid server response"}));if(!response.ok||result.ok!==true)throw Error(result.error||"Platform request failed.");return result.data}
+function activateTab(id){for(const tab of ["pendingTab","allTab","schoolsTab"]){$(tab).setAttribute("aria-pressed",String(tab===id));$(tab).classList.toggle("secondary",tab!==id)}}
+async function loadApplications(mode){activateTab(mode==="all"?"allTab":"pendingTab");$("content").innerHTML="<p>Loading applications…</p>";try{const rows=await api("admin.listApplications");const pending=rows.filter(a=>a.status==="pending");const approved=rows.filter(a=>a.status==="approved");$("pendingCount").textContent=pending.length;$("approvedCount").textContent=approved.length;const shown=mode==="all"?rows:pending;$("content").innerHTML=shown.length?shown.map(a=>'<article class="application"><h3>'+esc(a.school_name)+'</h3><p class="meta"><b>Contact:</b> '+esc(a.contact_name)+' · '+esc(a.contact_email)+' · '+esc(a.contact_phone)+'</p><p class="meta"><b>Location:</b> '+esc([a.address,a.state,a.country].filter(Boolean).join(", "))+'</p><p class="meta"><b>Status:</b> '+esc(a.status)+' · <b>Submitted:</b> '+esc(a.submitted_at?new Date(a.submitted_at).toLocaleString():"")+'</p>'+(a.decision_note?'<p><b>Review note:</b> '+esc(a.decision_note)+'</p>':"")+(a.status==="pending"?'<label for="note-'+esc(a.application_id)+'">Review note (optional)</label><textarea id="note-'+esc(a.application_id)+'" rows="2" maxlength="500" placeholder="Add a review note"></textarea><div class="actions"><button onclick="decide(\''+esc(a.application_id)+'\',\'approve\')">Approve and issue School Code</button><button class="reject" onclick="decide(\''+esc(a.application_id)+'\',\'reject\')">Reject</button></div>':"")+'</article>').join(""):"<p>No applications found in this view.</p>";setStatus("Loaded "+shown.length+" application(s).")}catch(error){$("content").innerHTML="";setStatus(error.message);throw error}}
+async function loadSchools(){activateTab("schoolsTab");$("content").innerHTML="<p>Loading registered schools…</p>";try{const rows=await api("admin.listSchools");$("schoolCount").textContent=rows.length;$("content").innerHTML=rows.length?rows.map(s=>'<article class="school"><h3>'+esc(s.name)+'</h3><div class="grid"><p class="meta"><b>School Code</b><br>'+esc(s.schoolCode)+'</p><p class="meta"><b>School ID</b><br>'+esc(s.schoolId)+'</p><p class="meta"><b>Type</b><br>'+esc(s.schoolType)+'</p><p class="meta"><b>Location</b><br>'+esc([s.state,s.country].filter(Boolean).join(", "))+'</p><p class="meta"><b>Status</b><br>'+esc(s.status)+'</p></div></article>').join(""):"<p>No schools are registered yet.</p>";setStatus("Loaded "+rows.length+" registered school(s).")}catch(error){$("content").innerHTML="";setStatus(error.message)}}
+async function decide(id,decision){const note=$("note-"+id)?.value||"";if(!confirm(decision==="approve"?"Approve this school and issue its School Code?":"Reject this school application?"))return;try{const result=await api("admin.decideApplication",{applicationId:id,decision,note});if(decision==="approve"){$("code").textContent=result.schoolCode;$("schoolId").textContent=result.schoolId;$("activation").textContent=result.activationToken;$("delivery").textContent=result.emailSent?"Activation email sent to "+result.contactEmail+". Keep these details private.":"Email delivery was not confirmed. Send the activation details securely to "+result.contactEmail+".";$("issued").hidden=false;}setStatus(decision==="approve"?"School approved and provisioned.":"Application rejected.");await loadApplications("pending")}catch(error){setStatus(error.message)}}
+$("connect").onclick=async()=>{platformToken=$("token").value.trim();if(!platformToken){setStatus("Enter your platform authorization token.");return}setStatus("Connecting…");try{await loadApplications("pending");$("workspace").hidden=false;setStatus("Connected to VICORA Central.")}catch(error){setStatus(error.message)}};
+$("clear").onclick=()=>{platformToken="";$("token").value="";$("workspace").hidden=true;$("issued").hidden=true;setStatus("Platform token cleared from this page session.")};
+$("pendingTab").onclick=()=>loadApplications("pending");$("allTab").onclick=()=>loadApplications("all");$("schoolsTab").onclick=loadSchools;
+$("copy").onclick=async()=>{const details="VICORA School Code: "+$("code").textContent+"\nSchool ID: "+$("schoolId").textContent+"\nActivation token: "+$("activation").textContent+"\n"+$("delivery").textContent;try{await navigator.clipboard.writeText(details);setStatus("Activation details copied. Store and send them securely.")}catch(_){setStatus("Copy is unavailable here. Select and copy the activation details manually.")}};
+</script>
+</body>
+</html>

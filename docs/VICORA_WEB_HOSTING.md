@@ -63,3 +63,28 @@ are complete. Do not copy SQLite files between devices.
 The blueprint has `autoDeploy: false`. Creating this file does not create a Render service,
 incur hosting charges, configure a domain, or publish the school database. Production
 deployment requires owner approval.
+
+
+## VICORA Platform Admin dashboard (Apps Script central registry)
+
+The mobile-friendly platform dashboard is served at `/platform-admin.html`. It uses the dedicated Vercel function at `/api/central/admin`; the Apps Script platform key is injected only by that server-side function and is never sent to browser code.
+
+Configure these three Vercel environment variables as encrypted server-side secrets for the intended Preview/Production environment:
+
+- `VICORA_CENTRAL_APPS_SCRIPT_URL`: the deployed Apps Script Web App URL ending in `/exec`.
+- `VICORA_PLATFORM_ADMIN_KEY`: the same secret configured as `VICORA_PLATFORM_ADMIN_KEY` in the Apps Script project's Script Properties.
+- `VICORA_PLATFORM_ADMIN_TOKEN`: a separate strong operator token that the platform owner enters on the dashboard. Do not reuse the Apps Script key.
+
+The dashboard supports listing pending/all applications, approving or rejecting applications, and viewing registered schools. Approval creates the School ID, School Code and pending school administrator in the Apps Script central spreadsheet. The one-time activation token is displayed to the authorized operator and may also be emailed by Apps Script.
+
+Do not place either secret in HTML, JavaScript, GitHub source, or a mobile app. The platform operator token is held only in page memory for the active browser session. Use a unique random value for each secret and restrict access to Vercel project environment settings.
+
+Before enabling real school onboarding:
+1. Confirm the Apps Script deployment's health endpoint reports the intended source version.
+2. Confirm the Apps Script Script Properties contain the platform key and that the key matches the Vercel secret without sharing either value.
+3. Configure the three Vercel secrets and deploy a Preview.
+4. Open `/platform-admin.html`, enter the separate operator token, and verify the application list and registered-school list.
+5. Submit one clearly marked test school application and verify approval, generated IDs, pending admin record and one-time activation flow.
+6. Do not approve production schools until the central backend version mismatch and tenant onboarding readiness have been resolved.
+
+This dashboard does not create a Vercel deployment, set environment variables, modify the live Google spreadsheet, or approve any school by itself.
