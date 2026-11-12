@@ -81,7 +81,7 @@ class MultiTenantLoginIsolationTests(unittest.TestCase):
         self.assertEqual(first.status_code, 200, first.get_json())
         classes_a = self.client.get("/api/admin/classes").get_json()
         students_a = self.client.get("/api/admin/students").get_json()
-        self.assertEqual([row["name"] for row in classes_a["rows"]], ["JSS1"])
+        self.assertEqual([row["name"] for row in classes_a], ["JSS1"])
         self.assertEqual([row["name"] for row in students_a["rows"]], ["Alpha Student"])
 
         self.client.post("/api/admin/logout")
@@ -92,7 +92,7 @@ class MultiTenantLoginIsolationTests(unittest.TestCase):
         self.assertEqual(second.status_code, 200, second.get_json())
         classes_b = self.client.get("/api/admin/classes").get_json()
         students_b = self.client.get("/api/admin/students").get_json()
-        self.assertEqual([row["name"] for row in classes_b["rows"]], ["JSS1"])
+        self.assertEqual([row["name"] for row in classes_b], ["JSS1"])
         self.assertEqual([row["name"] for row in students_b["rows"]], ["Beta Student"])
 
     def test_student_login_with_school_code_returns_only_that_school_exams(self):
