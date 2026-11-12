@@ -76,7 +76,12 @@ tasks.register('syncCbtWebAssets', Copy) {
     into(new File(projectDir, 'src/main/assets/web'))
 }
 tasks.register('syncCbtBackend', Copy) {
+    // app.py imports these local modules at startup. Copy every module into
+    // Chaquopy's Python source root so Android can import the tenant layer.
     from(new File(repoRoot, 'app.py'))
+    from(new File(repoRoot, 'tenant_migration.py'))
+    from(new File(repoRoot, 'school_scoped_migration.py'))
+    from(new File(repoRoot, 'multi_tenant.py'))
     into(generatedPythonDir)
 }
 tasks.register('syncCbtRestoreBackend', Copy) {
