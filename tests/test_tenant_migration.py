@@ -45,6 +45,18 @@ class LegacySchoolMigrationTests(unittest.TestCase):
         row = self.db.execute("SELECT school_id FROM students WHERE label='New legacy-path student'").fetchone()
         self.assertEqual(row[0], result["school_id"])
 
+    def test_relationship_tables_keep_their_original_shape(self):
+        before = {
+            table: [row[1] for row in self.db.execute(f"PRAGMA table_info({table})")]
+            for table in ("exam_classes", "session_questions", "staff_exam_assignments")
+        }
+        migrate_legacy_school(self.db)
+        after = {
+            table: [row[1] for row in self.db.execute(f"PRAGMA table_info({table})")]
+            for table in before
+        }
+        self.assertEqual(after, before)
+
     def test_explicit_school_id_is_not_overwritten(self):
         migrate_legacy_school(self.db)
         self.db.execute("INSERT INTO students(label,school_id) VALUES('Explicit tenant row','school-2')")
