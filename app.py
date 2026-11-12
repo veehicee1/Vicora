@@ -13,7 +13,7 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 from tenant_migration import migrate_legacy_school
 from school_scoped_migration import migrate_school_scoped_unique_keys
-from multi_tenant import migrate_multi_tenant_schema, install_multi_tenant_routes, school_context
+from multi_tenant import migrate_multi_tenant_schema, install_multi_tenant_routes, school_context, activate_tenant_views
 import docx
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -432,13 +432,13 @@ def admin(f):
         # the immutable legacy school during this compatibility transition.
         if not session.get('school_id') and legacy_school_id:
             session['school_id'] = legacy_school_id
+        activate_tenant_views(db(), session['school_id'])
         staff = q1('SELECT username, role, active, school_id FROM admins WHERE username=? AND school_id=?', (username, session.get('school_id')))
         if not staff or not staff['active']:
             session.clear()
             return err('Staff account is inactive or unavailable. Sign in again.', 401)
-        legacy_school_id = getset('vicora_legacy_school_id', '')
-        if not session.get('school_id') or session.get('school_id') != legacy_school_id:
-            return err('This school is approved, but its examination workspace is being activated. Existing legacy APIs are blocked until tenant-scoped access is complete.', 503)
+        if request.path.startswith('/api/admin/backups') and session.get('school_id') != getset('vicora_legacy_school_id', ''):
+            return err('School-specific backup and restore is being completed. Cross-school database backups are blocked.', 503)
         role = staff['role'] if staff['role'] in ROLE_NAMES else 'super_admin'
         session['admin_role'] = role
         if not staff_permission(role, request.path, request.method):
@@ -681,6 +681,10 @@ def vicora_icon():
 
 
 def school_logo_response(fallback):
+    school = school_context(db(), request.args.get('school_code'))
+    if not school:
+        return send_from_directory(WEB, fallback, mimetype='image/svg+xml')
+    activate_tenant_views(db(), school['school_id'])
     logo_data = getset('school_logo_data', '')
     logo_mime = getset('school_logo_mime', '')
     if logo_mime not in ('image/png', 'image/jpeg', 'image/webp') or not logo_data:
@@ -709,10 +713,19 @@ def public_info():
     except (TypeError, ValueError):
         theme = {}
     school = school_context(db(), request.args.get('school_code'))
-    return jsonify(school=school['name'] if school else getset('school_name'),
-                   school_code=school['school_code'] if school else getset('vicora_legacy_school_code'),
-                   school_id=school['school_id'] if school else getset('vicora_legacy_school_id'),
-                   theme=theme, school_logo_url='/api/public/school-logo')
+    if school:
+        activate_tenant_views(db(), school['school_id'])
+        school_name = getset('school_name') or school['name']
+        school_theme = getset('school_theme', '{}') or '{}'
+        try:
+            theme = json.loads(school_theme)
+        except (TypeError, ValueError):
+            theme = {}
+        return jsonify(school=school_name, school_code=school['school_code'],
+                       school_id=school['school_id'], theme=theme,
+                       school_logo_url='/api/public/school-logo?school_code=' + school['school_code'])
+    return jsonify(school='VICORA CBT', school_code='', school_id='',
+                   theme={}, school_logo_url='/vicora-icon.svg')
 
 
 # ---------------------------------------------------------------- admin: auth & settings
@@ -726,6 +739,7 @@ def a_login():
     if not school:
         add_fail(key)
         return err('Enter a valid School Code. A School Code is required when more than one school is registered.', 401)
+    activate_tenant_views(db(), school['school_id'])
     r = q1('select * from admins where lower(username)=lower(?) and school_id=?', (d.get('username', '').strip(), school['school_id']))
     if not r or not r['active'] or not check_password_hash(r['password_hash'], d.get('password', '')):
         add_fail(key)
@@ -755,6 +769,8 @@ def a_me():
     legacy_school_id = getset('vicora_legacy_school_id', '')
     if username and not session.get('school_id') and legacy_school_id:
         session['school_id'] = legacy_school_id
+    if username and session.get('school_id'):
+        activate_tenant_views(db(), session['school_id'])
     staff = q1('SELECT username, role, active, school_id FROM admins WHERE username=? AND school_id=?', (username, session.get('school_id'))) if username and session.get('school_id') else None
     if not staff or not staff['active']:
         session.clear()
@@ -2358,6 +2374,7 @@ def student_by_creds(d):
     if not school:
         add_fail(key)
         return None, err('Enter a valid School Code. A School Code is required when more than one school is registered.', 401)
+    activate_tenant_views(db(), school['school_id'])
     st = q1('select s.*, c.name cls from students s join classes c on c.id=s.class_id where lower(s.reg_no)=lower(?) and s.school_id=?', (reg, school['school_id']))
     if not st or st['access_code'].upper() != code:
         add_fail(key)
@@ -2522,6 +2539,10 @@ def sauth(f):
         s = q1("select * from sessions where token=? and token is not null and token<>''", (tok,)) if tok else None
         if not s:
             return err('Session expired. Please log in again.', 401)
+        activate_tenant_views(db(), s['school_id'])
+        s = q1("select * from sessions where token=? and token is not null and token<>''", (tok,))
+        if not s:
+            return err('Session expired. Please log in again.', 401)
         e = q1('select * from exams where id=?', (s['exam_id'],))
         g.ses, g.exam = s, e
         if s['status'] == 'submitted':
@@ -2576,11 +2597,12 @@ def s_answer():
         return err('Bad choice')
     if q['question_type'] == 'theory':
         choice = ''
-    ex('''insert into answers(session_id,question_id,choice,response_text,response_drawing,flagged,ts) values(?,?,?,?,?,?,?)
-          on conflict(session_id,question_id) do update set choice=excluded.choice,
-          response_text=excluded.response_text, response_drawing=excluded.response_drawing,
-          flagged=excluded.flagged, ts=excluded.ts''',
-       (g.ses['id'], qid, choice, response_text, response_drawing, 1 if d.get('flagged') else 0, int(time.time())))
+    db().execute('DELETE FROM answers WHERE session_id=? AND question_id=?',
+                 (g.ses['id'], qid))
+    ex('''insert into answers(session_id,question_id,choice,response_text,response_drawing,flagged,ts)
+          values(?,?,?,?,?,?,?)''',
+       (g.ses['id'], qid, choice, response_text, response_drawing,
+        1 if d.get('flagged') else 0, int(time.time())))
     return jsonify(ok=True, remaining=time_left(g.ses, g.exam['duration_min']))
 
 
