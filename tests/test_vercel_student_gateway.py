@@ -9,8 +9,10 @@ def test_vercel_gateway_is_not_an_open_proxy_and_only_exposes_explicit_routes():
         "/api/public/school-activation"
     ):
         assert route in source
-    assert 'const ALLOWED_PREFIXES = ["/api/student/", "/api/platform/"]' in source
+    assert 'const ALLOWED_PREFIXES = ["/api/student/", "/api/platform/", "/api/android-host/"]' in source
     assert "x-vicora-platform-token" in source
+    assert "x-vicora-host-token" in source
+    assert '"authorization"' in source
     assert "VICORA_API_ORIGIN" in source
     assert "ANDROID_HOST_ORIGIN" in source  # backward compatibility for protected local hosts
     assert "Boolean(accessId) !== Boolean(accessSecret)" in source
