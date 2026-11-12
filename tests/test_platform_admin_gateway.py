@@ -39,7 +39,7 @@ def test_school_status_control_is_scoped_to_existing_schools_and_revokes_session
     assert "case 'admin.setSchoolStatus': requirePlatformAdmin_(body); result = setSchoolStatus_(body); break;" in source
     assert "function setSchoolStatus_(b)" in source
     assert "['approved','suspended']" in source
-    assert "school.status !== status" in source
+    assert "school.status === status" in source
     assert "school_id === schoolId" in source
     assert "revoked: 'true'" in source
     assert "school.suspended" in source
