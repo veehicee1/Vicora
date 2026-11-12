@@ -12,7 +12,8 @@ module.exports = async function handler(req, res) {
     return sendJson(res, 405, { ok: false, error: "Method not allowed." });
   }
 
-  const endpoint = String(process.env.VICORA_CENTRAL_APPS_SCRIPT_URL || "").trim();
+  const defaultEndpoint = "https://script.google.com/macros/s/AKfycby6wIxnHhFRyCdGDrt6EDJUoxVBEk1LZILu9O3hNoAI4VV0vkCAlcFHJzwGtCOJA6Kp/exec";
+  const endpoint = String(process.env.VICORA_CENTRAL_APPS_SCRIPT_URL || defaultEndpoint).trim();
   if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(endpoint)) {
     return sendJson(res, 503, { ok: false, error: "School registration service is not configured. Please contact VICORA support." });
   }
