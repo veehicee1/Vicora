@@ -1,6 +1,5 @@
-# Free-plan Android test build for VICORA.
-# Uses Codemagic's personal macOS M2 free allowance only.
-# Do not enable billing or select Linux/Windows paid runners.
+# VICORA Android debug test builds.
+# Uses the Codemagic macOS M2 runner. Do not enable paid billing.
 workflows:
   vicora-android-test:
     name: VICORA Android Admin + Examination (debug)
@@ -12,35 +11,48 @@ workflows:
       events:
         - push
       branch_patterns:
-        - pattern: work/finish-vicora-platform
+        - pattern: main
+          include: true
+          source: true
+        - pattern: fix/codemagic-main-android-test
           include: true
           source: true
       cancel_previous_builds: true
     scripts:
-      - name: Verify free Mac build environment and Android SDK
+      - name: Check build tools
         script: |
+          set -e
           java -version
-          export ANDROID_SDK_ROOT=/usr/local/share/android-sdk
-          export ANDROID_HOME="$ANDROID_SDK_ROOT"
-          export PATH="$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$PATH"
-          test -x "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
-          test -x "/Users/builder/programs/gradle-8.14.1/bin/gradle"
-          yes | sdkmanager --licenses >/dev/null
-          sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> "$CM_ENV"
-          echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$CM_ENV"
-          echo "PATH=$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:/Users/builder/programs/gradle-8.14.1/bin:$PATH" >> "$CM_ENV"
-      - name: Configure Android SDK
+          : "${ANDROID_SDK_ROOT:?Codemagic did not provide ANDROID_SDK_ROOT}"
+          echo "Android SDK: $ANDROID_SDK_ROOT"
+          command -v curl
+          command -v unzip
+      - name: Install Android SDK components
         script: |
+          set -e
+          SDKMANAGER="$(find "$ANDROID_SDK_ROOT" -type f -name sdkmanager -print -quit)"
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null
+          "$SDKMANAGER" --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
           printf 'sdk.dir=%s\n' "$ANDROID_SDK_ROOT" > "$CM_BUILD_DIR/android/local.properties"
+      - name: Install compatible Gradle
+        script: |
+          set -e
+          GRADLE_VERSION=8.11.1
+          curl -fL "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" -o /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /tmp
+          /tmp/gradle-${GRADLE_VERSION}/bin/gradle --version
       - name: Build both VICORA Android test apps
         script: |
+          set -e
           cd "$CM_BUILD_DIR/android"
-          gradle --no-daemon --stacktrace assembleAdminDebug assembleExaminationDebug
-      - name: Verify both APKs exist
+          /tmp/gradle-8.11.1/bin/gradle --no-daemon --stacktrace assembleAdminDebug assembleExaminationDebug
+      - name: Verify both APKs
         script: |
+          set -e
           test -s "$CM_BUILD_DIR/android/app/build/outputs/apk/admin/debug/app-admin-debug.apk"
           test -s "$CM_BUILD_DIR/android/app/build/outputs/apk/examination/debug/app-examination-debug.apk"
+          ls -lh "$CM_BUILD_DIR"/android/app/build/outputs/apk/{admin,examination}/debug/*.apk
     artifacts:
       - android/app/build/outputs/apk/admin/debug/app-admin-debug.apk
       - android/app/build/outputs/apk/examination/debug/app-examination-debug.apk
