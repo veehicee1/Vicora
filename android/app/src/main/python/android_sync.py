@@ -279,8 +279,26 @@ def _import_exam_package(conn, package):
     if remote_school and local_school and remote_school.casefold() != local_school.casefold():
         raise ValueError("This Android Host belongs to a different school identity. Do not mix school databases.")
     if remote_school and not local_school:
-        conn.execute("""INSERT INTO settings(key,value) VALUES('school_name',?)
-                        ON CONFLICT(key) DO UPDATE SET value=excluded.value""", (remote_school,))
+        setting_columns = {row[1] for row in conn.execute("PRAGMA table_info(settings)")}
+        if "school_id" in setting_columns:
+            legacy = conn.execute(
+                "SELECT value FROM settings WHERE key='vicora_legacy_school_id' ORDER BY rowid LIMIT 1"
+            ).fetchone()
+            legacy_school_id = legacy["value"] if legacy else ""
+            if not legacy_school_id:
+                school_row = conn.execute(
+                    "SELECT school_id FROM schools WHERE is_legacy_default=1 LIMIT 1"
+                ).fetchone()
+                legacy_school_id = school_row["school_id"] if school_row else ""
+            if not legacy_school_id:
+                raise ValueError("This Android Host has no initialized school identity.")
+            conn.execute(
+                "INSERT OR REPLACE INTO settings(key,value,school_id) VALUES('school_name',?,?)",
+                (remote_school, legacy_school_id),
+            )
+        else:
+            conn.execute("""INSERT INTO settings(key,value) VALUES('school_name',?)
+                            ON CONFLICT(key) DO UPDATE SET value=excluded.value""", (remote_school,))
 
     existing_exam = conn.execute("SELECT id FROM exams WHERE sync_uuid=?", (exam_uuid,)).fetchone()
     exam_unchanged = False
