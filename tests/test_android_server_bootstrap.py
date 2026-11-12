@@ -94,7 +94,7 @@ class AndroidServerBootstrapTests(unittest.TestCase):
              patch("werkzeug.serving.make_server", return_value=self.server) as make_server, \
              patch.object(importlib, "import_module", return_value=self.backend) as importer, \
              patch.object(android_server, "health_check", return_value=True):
-            result = android_server.start_server(self.data_dir, self.web_dir, "0.0.0.0", 8765, "VICORA Demo School")
+            result = android_server.start_server(self.data_dir, self.web_dir, "0.0.0.0", 8765, "VICORA Demo School", "VIC-AABBCCDD")
 
             self.assertEqual(result["port"], 8765)
             self.assertFalse(result["already_running"])
@@ -103,6 +103,8 @@ class AndroidServerBootstrapTests(unittest.TestCase):
             self.assertEqual(os.environ["CBT_HOST"], "0.0.0.0")
             self.assertEqual(os.environ["CBT_PORT"], "8765")
             self.assertEqual(os.environ["CBT_INITIAL_SCHOOL_NAME"], "VICORA Demo School")
+            self.assertTrue(any("UPDATE schools SET school_code" in sql for sql, _ in self.backend.connection.executed))
+            self.assertTrue(any("vicora_legacy_school_code" in sql for sql, _ in self.backend.connection.executed))
             importer.assert_called_once_with("app")
             make_server.assert_called_once_with("0.0.0.0", 8765, self.backend.app, threaded=True)
             self.assertEqual(self.backend.worker_starts, 1)
