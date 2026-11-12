@@ -480,7 +480,7 @@ def admin(f):
             return err('Not logged in', 401)
         central_expiry = session.get('central_expires_ts')
         if central_expiry and time.time() >= float(central_expiry):
-            central_logout(session.get('central_session_token'))
+            central_logout(session.get('central_session_key'), db())
             session.clear()
             return err('Your VICORA Central session has expired. Sign in again.', 401)
         legacy_school_id = getset('vicora_legacy_school_id', '')
@@ -818,13 +818,18 @@ def a_login():
 
 @app.post('/api/admin/logout')
 def a_logout():
-    central_logout(session.get('central_session_token'))
+    central_logout(session.get('central_session_key'), db())
     session.clear()
     return jsonify(ok=True)
 
 
 @app.get('/api/admin/me')
 def a_me():
+    central_expiry = session.get('central_expires_ts')
+    if central_expiry and time.time() >= float(central_expiry):
+        central_logout(session.get('central_session_key'), db())
+        session.clear()
+        return jsonify(user=None, role=None, school=getset('school_name'))
     username = session.get('admin')
     legacy_school_id = getset('vicora_legacy_school_id', '')
     if username and not session.get('school_id') and legacy_school_id:
@@ -837,7 +842,7 @@ def a_me():
         return jsonify(user=None, role=None, school=getset('school_name'))
     school = q1('SELECT name, school_code FROM schools WHERE school_id=?', (staff['school_id'],))
     display_user = staff['username']
-    if session.get('central_session_token'):
+    if session.get('central_session_key'):
         central_user = db().execute(
             "SELECT email FROM main.central_user_map WHERE local_username=? AND school_id=?",
             (staff['username'], staff['school_id'])
