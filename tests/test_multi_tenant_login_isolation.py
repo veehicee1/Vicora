@@ -191,6 +191,18 @@ class MultiTenantLoginIsolationTests(unittest.TestCase):
         db.close()
         self.assertIsNotNone(still_there, "A school-A administrator must not delete a school-B student.")
 
+    def test_shared_database_backup_routes_fail_closed_for_multiple_schools(self):
+        login = self.client.post("/api/admin/login", json={
+            "school_code": "VIC-AAAA1111", "username": "principal",
+            "password": "School-Password-2026!"
+        })
+        self.assertEqual(login.status_code, 200)
+        listing = self.client.get("/api/admin/backups")
+        creation = self.client.post("/api/admin/backups")
+        self.assertEqual(listing.status_code, 503, listing.get_json())
+        self.assertEqual(creation.status_code, 503, creation.get_json())
+        self.assertIn("School-specific backup", listing.get_json()["error"])
+
     def test_android_cloud_host_token_cannot_pull_another_school_exams(self):
         login = self.client.post("/api/admin/login", json={
             "school_code": "VIC-AAAA1111", "username": "principal",
