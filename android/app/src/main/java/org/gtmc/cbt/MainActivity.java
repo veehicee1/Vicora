@@ -420,6 +420,7 @@ public class MainActivity extends Activity {
         menu.add("Check for updates");
         if (!isAdminApp()) return true;
         menu.add("Admin Console");
+        menu.add("VICORA Platform Admin (Online)");
         menu.add("Student access URL");
         menu.add("Open Wi-Fi / Hotspot settings");
         menu.add("Change connection mode");
@@ -605,6 +606,10 @@ public class MainActivity extends Activity {
                     .setMessage("Remote Admin access must be enabled by the school administrator. Use only the school's trusted LAN or HTTPS connection.")
                     .setPositiveButton("Continue",(d,w)->loadUrl(appHomeUrl())).setNegativeButton("Cancel",null).show();
             } else loadUrl(appHomeUrl());
+            return true;
+        }
+        if ("VICORA Platform Admin (Online)".contentEquals(item.getTitle()) && isAdminApp()) {
+            loadUrl("https://vicora-w3ie.vercel.app/platform-admin.html");
             return true;
         }
         if ("Student access URL".contentEquals(item.getTitle()) && isAdminApp()) { showStudentAccess(); return true; }
