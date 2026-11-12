@@ -103,6 +103,6 @@ Subscription enforcement runs during school login, authenticated school API requ
 
 **Payment boundary:** the payment ledger records payments entered and verified by a platform operator. It does not connect to Paystack, Flutterwave or a bank, does not independently verify transfers, and does not automatically renew a subscription when a payment is recorded. Verify funds externally, record the payment as Verified, then assign/renew the subscription.
 
-**Duration defaults:** the dashboard suggests 30 days for monthly, 90 days for termly and 365 days for yearly plans. The operator can edit the duration to match the school's actual academic calendar and commercial terms. Prices are intentionally not pre-filled; the platform owner sets them.
+**Duration defaults:** the dashboard suggests 30 days for monthly, 90 days for termly and 365 days for yearly plans. The operator can edit the duration to match the school's actual academic calendar and commercial terms. Renewing an unexpired active subscription starts the next term at its existing end date, preserving the remaining paid time. Prices are intentionally not pre-filled; the platform owner sets them.
 
 After the Apps Script source is deployed as a new Web App version and the central sheet is safely initialized, test with a clearly marked test school and a low-value test plan before applying subscriptions to real schools. Expiry and grace are evaluated at request time; no time-triggered expiry job is required.
