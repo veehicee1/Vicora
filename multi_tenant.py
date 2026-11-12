@@ -51,7 +51,7 @@ class TenantAwareConnection(sqlite3.Connection):
         names = (*TENANT_DIRECT_TABLES, "settings",
                  "exam_classes", "session_questions", "staff_exam_assignments")
         for table in names:
-            pattern = rf"(?i)(\b(?:FROM|JOIN|UPDATE|INTO)\s+)(?:main\s*\.\s*)?{re.escape(table)}\b"
+            pattern = rf"(?i)(\b(?:FROM|JOIN|UPDATE|INTO|DELETE\s+FROM)\s+)(?:main\s*\.\s*)?{re.escape(table)}\b"
             sql = re.sub(pattern, rf"\1tenant_{table}", sql)
         return sql
 
