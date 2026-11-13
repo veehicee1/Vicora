@@ -24,6 +24,11 @@ const VICORA = Object.freeze({
     Classes: ['record_id','school_id','name','level','active','updated_at'],
     Subjects: ['record_id','school_id','name','code','level','active','updated_at'],
     Students: ['record_id','school_id','admission_number','full_name','class_name','active','updated_at'],
+    Questions: ['question_id','school_id','subject_id','question_type','question_text','option_a','option_b','option_c','option_d','correct_answer','explanation','marks','difficulty','status','created_by','created_at','updated_at'],
+    Exams: ['exam_id','school_id','title','subject_id','duration_minutes','total_marks','instructions','status','start_at','end_at','shuffle_questions','shuffle_options','show_result','created_by','created_at','updated_at','published_at'],
+    ExamQuestions: ['record_id','school_id','exam_id','question_id','question_order','marks','created_at'],
+    ExamAssignments: ['assignment_id','school_id','exam_id','class_name','candidate_count','created_at'],
+    ExamAudit: ['event_id','school_id','exam_id','actor_id','action','details_json','created_at'],
     Devices: ['device_id','school_id','device_name','platform','device_token_hash','status','last_seen','created_at'],
     SyncEvents: ['event_id','school_id','device_id','entity_type','entity_id','operation','payload_json','created_at'],
     Audit: ['audit_id','school_id','actor_id','action','details_json','created_at']
