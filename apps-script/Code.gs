@@ -395,6 +395,9 @@ function requireHost_(b) {
   const token = required_(b.deviceToken, 'Device token', 300);
   const device = findOne_('Devices', 'device_id', id);
   if (!device || device.status !== 'active' || device.device_token_hash !== sha256_(token)) throw new Error('Host credentials are invalid or revoked.');
+  const school = findOne_('Schools', 'school_id', device.school_id);
+  if (!school) throw new Error('School account was not found.');
+  assertSchoolTrialActive_(school);
   return { deviceId: id, schoolId: device.school_id };
 }
 
