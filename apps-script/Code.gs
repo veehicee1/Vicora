@@ -511,7 +511,7 @@ function listExams_(b) {
       totalMarks:Number(e.total_marks || 0), instructions:e.instructions, status:e.status,
       startAt:e.start_at, endAt:e.end_at, shuffleQuestions:e.shuffle_questions === 'true',
       shuffleOptions:e.shuffle_options === 'true', showResult:e.show_result === 'true',
-      questionCount:questionRows.length, assignedClasses:assignments.map(function(a) { return a.class_name; }),
+      questionCount:questionRows.length, questionIds:questionRows.map(function(q) { return q.question_id; }), assignedClasses:assignments.map(function(a) { return a.class_name; }),
       createdAt:e.created_at, updatedAt:e.updated_at
     };
   }) };
