@@ -48,7 +48,7 @@ async function loadSchools(){
 }
 async function assignTrial(id){
  const trialDays=Number($("days-"+id).value);if(!confirm("Assign/restart a "+trialDays+"-day free trial from today?"))return;
- try{const j=await api("/schools/"+encodeURIComponent(id)+"/trial",{method:"POST",body:JSON.stringify({trialDays})});showStatus("Trial assigned. Expires: "+new Date(j.trial_expires_at).toLocaleString());await loadSchools()}catch(e){showStatus(e.message)}
+ try{const j=await api("/schools/trial",{method:"POST",body:JSON.stringify({schoolId:id,trialDays})});showStatus("Trial assigned. Expires: "+new Date(j.trial_expires_at).toLocaleString());await loadSchools()}catch(e){showStatus(e.message)}
 }
 
 $("load").onclick=()=>load("pending");$("all").onclick=()=>load("all");$("approved").onclick=()=>load("approved");$("rejected").onclick=()=>load("rejected");
