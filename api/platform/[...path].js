@@ -118,9 +118,9 @@ module.exports = async function handler(req, res) {
       return sendJson(res, 200, { schools: data });
     }
 
-    if (route.length === 3 && route[0] === "schools" && route[2] === "trial" && req.method === "POST") {
-      const schoolId = String(route[1] || "").trim();
+    if (route.length === 2 && route[0] === "schools" && route[1] === "trial" && req.method === "POST") {
       const input = parseBody(req.body);
+      const schoolId = String(input && input.schoolId || "").trim();
       const trialDays = Number(input && input.trialDays);
       if (!schoolId || schoolId.length > 100) return sendJson(res, 400, { error: "Invalid school ID." });
       if (!Number.isInteger(trialDays) || trialDays < 1 || trialDays > 365) return sendJson(res, 400, { error: "Choose a trial period between 1 and 365 days." });
