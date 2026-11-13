@@ -16,7 +16,7 @@
 - No camera image or continuous video is uploaded or stored.
 - Face counting, face absence, and head-direction detection are not implemented. The current release records browser/camera state events only; it must not claim to perform visual identity or gaze monitoring.
 - A school-approved evidence retention duration and notice wording still need to be agreed before any image evidence is introduced.
-- Android WebView camera permission bridging and Windows Electron camera permission handling are not yet implemented. This increment is for the browser/PWA student client.
+- Android WebView camera permission bridging is now implemented in the Android app: the app declares CAMERA, requests runtime permission only when the exam page asks for video capture, and grants video capture only to the app's configured trusted origin. Windows Electron camera permission handling is not yet implemented. Android device verification is still required before enabling Required mode in production.
 - The browser camera API requires HTTPS outside localhost. Do not enable Required mode on a non-HTTPS remote address.
 
 ## Verification required
