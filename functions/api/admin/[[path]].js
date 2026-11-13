@@ -32,7 +32,7 @@ function encodeIdentity(value) {
   const bytes = new TextEncoder().encode(JSON.stringify(value));
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/=/g, "").replace(/\\+/g, "-").replace(/\\//g, "_");
+  return btoa(binary).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
 }
 function decodeIdentity(value) {
   try {
@@ -73,10 +73,10 @@ async function central(endpoint, payload) {
 export async function onRequest(context) {
   const { request, env } = context;
   const url = new URL(request.url);
-  const path = "/" + url.pathname.replace(/^\\/api\\/admin\\/?/, "").split("/").filter(Boolean).map(decodeURIComponent).join("/");
+  const path = "/" + url.pathname.replace(/^\/api\/admin\/?/, "").split("/").filter(Boolean).map(decodeURIComponent).join("/");
   const endpoint = String(env.VICORA_CENTRAL_APPS_SCRIPT_URL || env.VICORA_APPS_SCRIPT_URL || DEFAULT_ENDPOINT).trim();
 
-  if (!/^https:\\/\\/script\\.google\\.com\\/macros\\/s\\/[^/]+\\/exec$/.test(endpoint)) {
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[^/]+\/exec$/.test(endpoint)) {
     return json({ error: "VICORA Central Apps Script URL is not configured correctly." }, 503);
   }
 
