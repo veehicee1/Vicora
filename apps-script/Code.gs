@@ -18,7 +18,7 @@ const VICORA = Object.freeze({
   SCHOOL_CODE_PREFIX: 'VIC',
   SHEETS: {
     Applications: ['application_id','school_name','school_type','country','state','address','contact_name','contact_email','contact_phone','status','submitted_at','reviewed_at','reviewed_by','decision_note'],
-    Schools: ['school_id','school_code','school_name','school_type','country','state','address','contact_name','contact_email','contact_phone','status','created_at','approved_at'],
+    Schools: ['school_id','school_code','school_name','school_type','country','state','address','contact_name','contact_email','contact_phone','status','created_at','approved_at','plan_name','trial_days','trial_started_at','trial_expires_at','subscription_status'],
     Users: ['user_id','school_id','name','email','role','password_salt','password_hash','active','created_at','last_login'],
     Sessions: ['session_id','token_hash','user_id','school_id','expires_at','created_at','revoked'],
     Classes: ['record_id','school_id','name','level','active','updated_at'],
@@ -53,7 +53,7 @@ function doPost(e) {
       case 'applySchool': result = applySchool_(body); break;
       case 'admin.listApplications': requirePlatformAdmin_(body); result = listApplications_(); break;
       case 'admin.decideApplication': requirePlatformAdmin_(body); result = decideApplication_(body); break;
-      case 'admin.listSchools': requirePlatformAdmin_(body); result = listSchools_(); break;
+      case 'admin.listSchools': requirePlatformAdmin_(body); result = listSchools_(); break;\n      case 'admin.assignTrial': requirePlatformAdmin_(body); result = assignTrial_(body); break;
       case 'activateSchool': result = activateSchool_(body); break;
       case 'login': result = login_(body); break;
       case 'logout': result = logout_(body); break;
