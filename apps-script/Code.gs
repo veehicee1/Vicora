@@ -68,6 +68,7 @@ function doPost(e) {
       case 'sync.push': result = syncPush_(body); break;
       case 'sync.pull': result = syncPull_(body); break;
       case 'school.profile': result = schoolProfile_(body); break;
+      case 'auth.context': result = authContext_(body); break;
       default: throw new Error('Unsupported action: ' + action);
     }
     return json_({ ok: true, data: result });
@@ -372,6 +373,24 @@ function schoolProfile_(b) {
   const auth = requireSession_(b);
   const school = findOne_('Schools', 'school_id', auth.schoolId);
   return { school: publicSchool_(school), users: readObjects_('Users').filter(function(u) { return u.school_id === auth.schoolId; }).map(function(u) { return { userId: u.user_id, name: u.name, email: u.email, role: u.role, active: u.active }; }), classes: scoped_('Classes', auth.schoolId), subjects: scoped_('Subjects', auth.schoolId), students: scoped_('Students', auth.schoolId), devices: scoped_('Devices', auth.schoolId).map(function(d) { return { deviceId: d.device_id, name: d.device_name, platform: d.platform, status: d.status, lastSeen: d.last_seen }; }) };
+}
+
+function authContext_(b) {
+  const auth = requireSession_(b);
+  const user = findOne_('Users', 'user_id', auth.userId);
+  if (!user || user.school_id !== auth.schoolId || String(user.active) !== 'true') {
+    throw new Error('User account is inactive or unavailable.');
+  }
+  const allowedRoles = ['school_admin','school_owner','teacher','exam_officer','viewer'];
+  if (allowedRoles.indexOf(String(user.role)) === -1) {
+    throw new Error('User role is not authorized for this service.');
+  }
+  return {
+    userId: auth.userId,
+    schoolId: auth.schoolId,
+    role: String(user.role),
+    name: String(user.name || '')
+  };
 }
 
 function requirePlatformAdmin_(b) {
