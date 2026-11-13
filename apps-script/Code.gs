@@ -18,7 +18,7 @@ const VICORA = Object.freeze({
   SCHOOL_CODE_PREFIX: 'VIC',
   SHEETS: {
     Applications: ['application_id','school_name','school_type','country','state','address','contact_name','contact_email','contact_phone','status','submitted_at','reviewed_at','reviewed_by','decision_note'],
-    Schools: ['school_id','school_code','school_name','school_type','country','state','address','contact_name','contact_email','contact_phone','status','created_at','approved_at'],
+    Schools: ['school_id','school_code','school_name','school_type','country','state','address','contact_name','contact_email','contact_phone','status','created_at','approved_at','plan_name','trial_days','trial_started_at','trial_expires_at','subscription_status'],
     Users: ['user_id','school_id','name','email','role','password_salt','password_hash','active','created_at','last_login'],
     Sessions: ['session_id','token_hash','user_id','school_id','expires_at','created_at','revoked'],
     Classes: ['record_id','school_id','name','level','active','updated_at'],
@@ -54,6 +54,7 @@ function doPost(e) {
       case 'admin.listApplications': requirePlatformAdmin_(body); result = listApplications_(); break;
       case 'admin.decideApplication': requirePlatformAdmin_(body); result = decideApplication_(body); break;
       case 'admin.listSchools': requirePlatformAdmin_(body); result = listSchools_(); break;
+      case 'admin.assignTrial': requirePlatformAdmin_(body); result = assignTrial_(body); break;
       case 'activateSchool': result = activateSchool_(body); break;
       case 'login': result = login_(body); break;
       case 'logout': result = logout_(body); break;
@@ -164,6 +165,7 @@ function decideApplication_(b) {
     return { applicationId: id, status: 'rejected' };
   }
   if (decision !== 'approve') throw new Error('Decision must be approve or reject.');
+  const trialDays = validTrialDays_(b.trialDays);
   const schoolId = Utilities.getUuid();
   const schoolCode = generateSchoolCode_();
   const activationToken = randomToken_();
@@ -172,7 +174,9 @@ function decideApplication_(b) {
     school_type: application.school_type, country: application.country, state: application.state,
     address: application.address, contact_name: application.contact_name,
     contact_email: application.contact_email, contact_phone: application.contact_phone,
-    status: 'approved', created_at: new Date().toISOString(), approved_at: new Date().toISOString()
+    status: 'approved', created_at: new Date().toISOString(), approved_at: new Date().toISOString(),
+    plan_name: 'Free Trial', trial_days: trialDays, trial_started_at: new Date().toISOString(),
+    trial_expires_at: new Date(Date.now() + trialDays * 86400000).toISOString(), subscription_status: 'trial'
   };
   appendObject_('Schools', school);
   const salt = randomToken_();
@@ -197,7 +201,7 @@ function decideApplication_(b) {
   } catch (mailError) {
     console.warn('Approval email could not be sent: ' + mailError);
   }
-  return { schoolId: schoolId, schoolCode: schoolCode, activationToken: activationToken, contactEmail: application.contact_email, emailSent: emailSent };
+  return { schoolId: schoolId, schoolCode: schoolCode, activationToken: activationToken, contactEmail: application.contact_email, emailSent: emailSent, trialDays: trialDays, trialExpiresAt: school.trial_expires_at };
 }
 
 function activateSchool_(b) {
@@ -225,6 +229,7 @@ function login_(b) {
   const password = String(b.password || '');
   const school = findOne_('Schools', 'school_code', code);
   if (!school || school.status !== 'approved') throw new Error('School Code is invalid or inactive.');
+  assertSchoolTrialActive_(school);
   const user = readObjects_('Users').find(function(u) {
     return u.school_id === school.school_id && String(u.email).toLowerCase() === email && String(u.active) === 'true';
   });
@@ -379,6 +384,9 @@ function requireSession_(b) {
   const hash = sha256_(token);
   const sessionRow = readObjects_('Sessions').find(function(s) { return s.token_hash === hash && s.revoked !== 'true' && new Date(s.expires_at).getTime() > Date.now(); });
   if (!sessionRow) throw new Error('Session expired or invalid. Please sign in again.');
+  const school = findOne_('Schools', 'school_id', sessionRow.school_id);
+  if (!school) throw new Error('School account was not found.');
+  assertSchoolTrialActive_(school);
   return { userId: sessionRow.user_id, schoolId: sessionRow.school_id, role: findOne_('Users','user_id',sessionRow.user_id).role };
 }
 
@@ -387,6 +395,9 @@ function requireHost_(b) {
   const token = required_(b.deviceToken, 'Device token', 300);
   const device = findOne_('Devices', 'device_id', id);
   if (!device || device.status !== 'active' || device.device_token_hash !== sha256_(token)) throw new Error('Host credentials are invalid or revoked.');
+  const school = findOne_('Schools', 'school_id', device.school_id);
+  if (!school) throw new Error('School account was not found.');
+  assertSchoolTrialActive_(school);
   return { deviceId: id, schoolId: device.school_id };
 }
 
@@ -399,7 +410,38 @@ function listSchools_() {
 }
 
 function publicSchool_(s) {
-  return { schoolId: s.school_id, schoolCode: s.school_code, name: s.school_name, schoolType: s.school_type, country: s.country, state: s.state, status: s.status };
+  return {
+    schoolId: s.school_id, schoolCode: s.school_code, name: s.school_name,
+    schoolType: s.school_type, country: s.country, state: s.state, status: s.status,
+    planName: s.plan_name || '', trialDays: Number(s.trial_days || 0),
+    trialStartedAt: s.trial_started_at || '', trialExpiresAt: s.trial_expires_at || '',
+    subscriptionStatus: s.subscription_status || 'unassigned'
+  };
+}
+
+function validTrialDays_(value) {
+  const days = Number(value);
+  if (!Number.isInteger(days) || days < 1 || days > 365) throw new Error('Choose a trial period between 1 and 365 days.');
+  return days;
+}
+
+function assertSchoolTrialActive_(school) {
+  if (!school.subscription_status || school.subscription_status === 'unassigned') throw new Error('Your school has been approved, but a trial period has not yet been assigned. Contact the VICORA platform administrator.');
+  if (school.subscription_status !== 'trial' || !school.trial_expires_at || new Date(school.trial_expires_at).getTime() <= Date.now()) {
+    throw new Error('Your VICORA free trial has expired. Contact the VICORA platform administrator to extend your access.');
+  }
+}
+
+function assignTrial_(b) {
+  const schoolId = required_(b.schoolId, 'School ID', 100);
+  const days = validTrialDays_(b.trialDays);
+  const school = findOne_('Schools', 'school_id', schoolId);
+  if (!school || school.status !== 'approved') throw new Error('Approved school not found.');
+  const now = new Date();
+  const expires = new Date(now.getTime() + days * 86400000);
+  updateObjectRow_(sheet_('Schools'), rowNumberByValue_(sheet_('Schools'), 'school_id', schoolId), { plan_name: 'Free Trial', trial_days: days, trial_started_at: now.toISOString(), trial_expires_at: expires.toISOString(), subscription_status: 'trial' });
+  audit_(schoolId, 'subscription.trial_assigned', { trialDays: days, expiresAt: expires.toISOString() });
+  return { schoolId: schoolId, trialDays: days, expiresAt: expires.toISOString(), subscriptionStatus: 'trial' };
 }
 
 function scoped_(table, schoolId) {

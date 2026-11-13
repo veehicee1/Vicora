@@ -90,19 +90,42 @@ module.exports = async function handler(req, res) {
       }
       const note = String(input.note || "").trim();
       if (note.length > 500) return sendJson(res, 400, { error: "Review note is too long." });
+      const trialDays = Number(input.trialDays);
+      if (String(input.decision).toLowerCase() === "approve" && (!Number.isInteger(trialDays) || trialDays < 1 || trialDays > 365)) {
+        return sendJson(res, 400, { error: "Choose a trial period between 1 and 365 days." });
+      }
       const data = await callCentral(endpoint, {
         action: "admin.decideApplication",
         adminKey,
         applicationId,
         decision: String(input.decision).toLowerCase(),
-        note
+        note,
+        trialDays
       });
       return sendJson(res, 200, {
         message: data.status === "rejected" ? "Application rejected." : "School approved. Activation details have also been emailed to the school contact.",
         school_code: data.schoolCode || "",
         activation_token: data.activationToken || "",
-        email_sent: Boolean(data.emailSent)
+        email_sent: Boolean(data.emailSent),
+        trial_days: Number(data.trialDays || 0),
+        trial_expires_at: data.trialExpiresAt || ""
       });
+    }
+
+    if (route.length === 1 && route[0] === "schools" && req.method === "GET") {
+      const data = await callCentral(endpoint, { action: "admin.listSchools", adminKey });
+      if (!Array.isArray(data)) return sendJson(res, 502, { error: "Central service returned an unexpected schools list." });
+      return sendJson(res, 200, { schools: data });
+    }
+
+    if (route.length === 3 && route[0] === "schools" && route[2] === "trial" && req.method === "POST") {
+      const schoolId = String(route[1] || "").trim();
+      const input = parseBody(req.body);
+      const trialDays = Number(input && input.trialDays);
+      if (!schoolId || schoolId.length > 100) return sendJson(res, 400, { error: "Invalid school ID." });
+      if (!Number.isInteger(trialDays) || trialDays < 1 || trialDays > 365) return sendJson(res, 400, { error: "Choose a trial period between 1 and 365 days." });
+      const data = await callCentral(endpoint, { action: "admin.assignTrial", adminKey, schoolId, trialDays });
+      return sendJson(res, 200, { schoolId: data.schoolId, trial_days: data.trialDays, trial_expires_at: data.expiresAt, subscription_status: data.subscriptionStatus });
     }
 
     res.setHeader("Allow", "GET, POST");
