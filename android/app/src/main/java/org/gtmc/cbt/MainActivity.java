@@ -10,6 +10,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.ViewGroup;
 import android.webkit.WebChromeClient;
+import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -39,6 +40,8 @@ public class MainActivity extends Activity {
     private ValueCallback<Uri[]> filePathCallback;
     private static final int FILE_CHOOSER_REQUEST_CODE = 4107;
     private static final int HOST_NOTIFICATION_PERMISSION_REQUEST = 6201;
+    private static final int CAMERA_PERMISSION_REQUEST = 6202;
+    private PermissionRequest pendingCameraRequest;
     private String currentMode = "standalone";
     private boolean isAdminApp() { return "admin".equals(BuildConfig.FLAVOR); }
     private String currentBaseUrl() {
@@ -79,6 +82,62 @@ public class MainActivity extends Activity {
         return "http".equalsIgnoreCase(scheme) && isLocalNetworkHost(uri.getHost());
     }
 
+    // Only allow camera capture from the exact origin currently hosting this VICORA client.
+    // The local loopback origin is trusted by Android WebView; remote origins must use HTTPS.
+    private boolean isTrustedCameraOrigin(Uri origin) {
+        if (origin == null || origin.getHost() == null) return false;
+        Uri expected = Uri.parse(currentBaseUrl());
+        String scheme = origin.getScheme();
+        if ("https".equalsIgnoreCase(scheme)) {
+            return "https".equalsIgnoreCase(expected.getScheme())
+                && origin.getHost().equalsIgnoreCase(expected.getHost())
+                && origin.getPort() == expected.getPort();
+        }
+        if (!"http".equalsIgnoreCase(scheme)) return false;
+        String host = origin.getHost();
+        boolean loopback = "localhost".equalsIgnoreCase(host) || "127.0.0.1".equals(host) || "::1".equals(host);
+        return loopback && "http".equalsIgnoreCase(expected.getScheme())
+            && host.equalsIgnoreCase(expected.getHost()) && origin.getPort() == expected.getPort();
+    }
+
+    private boolean isVideoOnlyRequest(PermissionRequest request) {
+        if (request == null || request.getResources() == null) return false;
+        boolean video = false;
+        for (String resource : request.getResources()) {
+            if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource)) video = true;
+            else return false;
+        }
+        return video;
+    }
+
+    private void handleWebCameraPermission(PermissionRequest request) {
+        if (!isTrustedCameraOrigin(request.getOrigin()) || !isVideoOnlyRequest(request)) {
+            request.deny();
+            return;
+        }
+        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.M
+                || checkSelfPermission(android.Manifest.permission.CAMERA)
+                    == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            request.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE});
+            return;
+        }
+        if (pendingCameraRequest != null && pendingCameraRequest != request) pendingCameraRequest.deny();
+        pendingCameraRequest = request;
+        requestPermissions(new String[]{android.Manifest.permission.CAMERA}, CAMERA_PERMISSION_REQUEST);
+    }
+
+    private void finishPendingCameraPermission(boolean granted) {
+        PermissionRequest request = pendingCameraRequest;
+        pendingCameraRequest = null;
+        if (request == null) return;
+        if (granted && isTrustedCameraOrigin(request.getOrigin()) && isVideoOnlyRequest(request)) {
+            request.grant(new String[]{PermissionRequest.RESOURCE_VIDEO_CAPTURE});
+        } else {
+            request.deny();
+            Toast.makeText(this, "Camera permission was not granted. Allow camera access in Android Settings and try again.", Toast.LENGTH_LONG).show();
+        }
+    }
+
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         if (getActionBar() != null) getActionBar().setTitle(isAdminApp() ? "VICORA CBT Admin" : "VICORA CBT Examination");
@@ -90,6 +149,16 @@ public class MainActivity extends Activity {
         webView.getSettings().setSupportZoom(false);
         webView.setWebViewClient(new WebViewClient());
         webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onPermissionRequest(PermissionRequest request) {
+                runOnUiThread(() -> handleWebCameraPermission(request));
+            }
+
+            @Override
+            public void onPermissionRequestCanceled(PermissionRequest request) {
+                if (pendingCameraRequest == request) pendingCameraRequest = null;
+            }
+
             @Override
             public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback,
                     FileChooserParams params) {
@@ -634,6 +703,12 @@ public class MainActivity extends Activity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == CAMERA_PERMISSION_REQUEST) {
+            boolean granted = grantResults.length > 0
+                && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            finishPendingCameraPermission(granted);
+            return;
+        }
         if (requestCode == HOST_NOTIFICATION_PERMISSION_REQUEST) {
             if (grantResults.length == 0 || grantResults[0] != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                 Toast.makeText(this,
@@ -707,6 +782,10 @@ public class MainActivity extends Activity {
         if (filePathCallback != null) {
             filePathCallback.onReceiveValue(null);
             filePathCallback = null;
+        }
+        if (pendingCameraRequest != null) {
+            pendingCameraRequest.deny();
+            pendingCameraRequest = null;
         }
         if(webView!=null) { webView.stopLoading(); webView.destroy(); }
         super.onDestroy();
