@@ -54,7 +54,7 @@ function doPost(e) {
       case 'admin.listApplications': requirePlatformAdmin_(body); result = listApplications_(); break;
       case 'admin.decideApplication': requirePlatformAdmin_(body); result = decideApplication_(body); break;
       case 'admin.listSchools': requirePlatformAdmin_(body); result = listSchools_(); break;
-      case 'admin.assignTrial': requirePlatformAdmin_(body); result = assignTrial_(body); break;\n      case 'admin.assignTrial': requirePlatformAdmin_(body); result = assignTrial_(body); break;
+      case 'admin.assignTrial': requirePlatformAdmin_(body); result = assignTrial_(body); break;
       case 'activateSchool': result = activateSchool_(body); break;
       case 'login': result = login_(body); break;
       case 'logout': result = logout_(body); break;
@@ -410,7 +410,13 @@ function listSchools_() {
 }
 
 function publicSchool_(s) {
-  return { schoolId: s.school_id, schoolCode: s.school_code, name: s.school_name, schoolType: s.school_type, country: s.country, state: s.state, status: s.status };
+  return {
+    schoolId: s.school_id, schoolCode: s.school_code, name: s.school_name,
+    schoolType: s.school_type, country: s.country, state: s.state, status: s.status,
+    planName: s.plan_name || '', trialDays: Number(s.trial_days || 0),
+    trialStartedAt: s.trial_started_at || '', trialExpiresAt: s.trial_expires_at || '',
+    subscriptionStatus: s.subscription_status || 'unassigned'
+  };
 }
 
 function validTrialDays_(value) {
