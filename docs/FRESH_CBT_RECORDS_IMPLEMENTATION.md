@@ -16,18 +16,20 @@ The non-destructive `initializeVicoraBackend()` setup now provisions these addit
 
 Existing VICORA Central tabs are retained. Existing rows are not cleared. Missing headers are appended by the existing initializer.
 
-## Important current limitation
+## Current implementation status
 
-This change creates the data structure only. It does not yet expose question/exam CRUD endpoints, publish candidate-safe exam snapshots, connect Firebase live attempts, or enable candidate login. Do not run a real examination yet.
+The authenticated school-scoped question/exam management actions and Cloudflare Pages bridge routes are implemented. The new `/admin/fresh-exams.html` workspace is linked from the Central School Admin overview and supports creating, editing, filtering and archiving MCQ/theory questions; creating and editing draft/scheduled exams; selecting ordered questions; and assigning classes. Existing question and class selections are restored when an exam is reopened. The interface requires an exam to be configured while it is a draft before it can be scheduled.
 
-## Implementation sequence
+The workspace is management-only. The new Apps Script source still needs to be deployed to the user's VICORA Central Web App and its new tabs provisioned before live API testing. Do not run a real examination yet.
 
-1. Provision and verify the new tabs in the dedicated VICORA Central database.
-2. Add authenticated, school-scoped question and exam management API actions.
-3. Connect the full examination admin interface to those APIs.
-4. Implement the server-side Firebase custom-token broker and restrictive database rules.
-5. Add candidate identity, exam assignment, autosave, reconnect, submission, monitoring and results.
-6. Run security, recovery and load tests before any production examination.
+## Remaining implementation sequence
+
+1. Deploy the reviewed Apps Script source and provision/verify the new tabs in the dedicated VICORA Central database.
+2. Sign in with a test school account and run live question/exam CRUD and school-isolation tests through the Cloudflare Pages preview.
+3. Implement the trusted Firebase custom-token broker and restrictive database rules.
+4. Add candidate identity, exam assignment, candidate-safe paper delivery, autosave, reconnect, submission, monitoring and results.
+5. Connect the existing Android/mobile clients and browser/PWA student client to the same authoritative question/exam/session services. Do not maintain separate question banks for each client.
+6. Run security, recovery, cross-device continuation and load tests before any production examination.
 
 ## Security rules
 
@@ -56,7 +58,7 @@ Only school admins, school owners and exam officers can use these management act
 
 ## Not yet enabled
 
-- The existing full CBT admin screen is not yet wired to these routes.
+- The new fresh-records management workspace is separate from the legacy CBT administration modules; the legacy question/exam modules are not silently redirected or migrated.
 - Live publication, candidate sign-in, Firebase custom-token exchange, candidate-safe question delivery, answer autosave, invigilation and results are not implemented by this change.
 - An exam cannot be marked published through these routes. Firebase remains deny-all.
-- Syntax checks passed for the Apps Script source and Cloudflare bridge. This is not a live integration test against the deployed Apps Script spreadsheet or Firebase.
+- Static syntax checks passed for the Apps Script source, Cloudflare bridge and fresh examination page script. This is not a live integration test against the deployed Apps Script spreadsheet or Firebase. The Cloudflare Pages preview for an earlier commit was reported successful; a new deployment must be checked for the latest commit.
