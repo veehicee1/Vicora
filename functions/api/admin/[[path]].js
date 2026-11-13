@@ -2,6 +2,16 @@
 // Uses the Central Apps Script tenancy/session API; CBT exam data remains on its existing host.
 const DEFAULT_CENTRAL_ENDPOINT = "https://script.google.com/macros/s/AKfycby6wIxnHhFRyCdGDrt6EDJUoxVBEk1LZILu9O3hNoAI4VV0vkCAlcFHJzwGtCOJA6Kp/exec";
 const SESSION_COOKIE = "vicora_school_session";
+const EXAM_ACTIONS = Object.freeze({
+  "questions/list": "question.list",
+  "questions/save": "question.save",
+  "questions/delete": "question.delete",
+  "exams/list": "exam.list",
+  "exams/save": "exam.save",
+  "exams/delete": "exam.delete",
+  "exams/questions": "exam.questions.set",
+  "exams/assign": "exam.assign"
+});
 
 function json(body, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(body), {
@@ -128,6 +138,18 @@ export async function onRequest(context) {
       return json({ loggedOut: true }, 200, {
         "Set-Cookie": sessionCookie("", 0)
       });
+    }
+
+    if (Object.prototype.hasOwnProperty.call(EXAM_ACTIONS, action) && request.method === "POST") {
+      if (!token) return json({ error: "Please sign in." }, 401);
+      const input = await readBody(request);
+      if (!input) return json({ error: "A valid JSON request body is required." }, 400);
+      const data = await callCentral(endpoint, {
+        ...input,
+        action: EXAM_ACTIONS[action],
+        sessionToken: token
+      });
+      return json({ ok: true, data });
     }
 
     if (request.method !== "GET" && request.method !== "POST") {
