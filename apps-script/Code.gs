@@ -53,7 +53,8 @@ function doPost(e) {
       case 'applySchool': result = applySchool_(body); break;
       case 'admin.listApplications': requirePlatformAdmin_(body); result = listApplications_(); break;
       case 'admin.decideApplication': requirePlatformAdmin_(body); result = decideApplication_(body); break;
-      case 'admin.listSchools': requirePlatformAdmin_(body); result = listSchools_(); break;\n      case 'admin.assignTrial': requirePlatformAdmin_(body); result = assignTrial_(body); break;\n      case 'admin.assignTrial': requirePlatformAdmin_(body); result = assignTrial_(body); break;
+      case 'admin.listSchools': requirePlatformAdmin_(body); result = listSchools_(); break;
+      case 'admin.assignTrial': requirePlatformAdmin_(body); result = assignTrial_(body); break;\n      case 'admin.assignTrial': requirePlatformAdmin_(body); result = assignTrial_(body); break;
       case 'activateSchool': result = activateSchool_(body); break;
       case 'login': result = login_(body); break;
       case 'logout': result = logout_(body); break;
