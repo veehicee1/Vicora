@@ -92,11 +92,24 @@ export async function onRequest(context) {
 
     if (action === "me" && request.method === "GET") {
       if (!token) return json({ user: null }, 401);
+      const identity = await callCentral(endpoint, { action: "auth.context", sessionToken: token });
       const profile = await callCentral(endpoint, { action: "school.profile", sessionToken: token });
+      const roleNames = {
+        school_admin: "School Admin",
+        school_owner: "School Owner",
+        teacher: "Teacher",
+        exam_officer: "Exam Officer",
+        viewer: "Viewer"
+      };
+      const role = String(identity.role || "");
       return json({
-        user: { userId: "", name: profile.school && profile.school.name || "School Administrator", role: "school_admin" },
-        role: "school_admin",
-        role_name: "School Admin",
+        user: {
+          userId: String(identity.userId || ""),
+          name: String(identity.name || "VICORA User"),
+          role: role
+        },
+        role: role,
+        role_name: roleNames[role] || "School User",
         school: profile.school && profile.school.name || "",
         central: true
       });
