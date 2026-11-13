@@ -36,3 +36,27 @@ This change creates the data structure only. It does not yet expose question/exa
 - Candidate identity and role must come from trusted VICORA Central records, not browser-supplied claims.
 - Firebase Realtime Database rules remain deny-all until the token broker and tested rules are complete.
 - Do not store service-account credentials or session tokens in source control.
+
+## Protected management API routes now implemented
+
+The Cloudflare Pages admin bridge now forwards these authenticated POST routes to VICORA Central. It supplies the HttpOnly school session token itself; callers cannot choose another session token or action.
+
+| Website route | Central action | Purpose |
+|---|---|---|
+| `/api/admin/questions/list` | `question.list` | List this school's questions; optional subject/status filters |
+| `/api/admin/questions/save` | `question.save` | Create or update an MCQ or theory question |
+| `/api/admin/questions/delete` | `question.delete` | Archive a question without erasing its history |
+| `/api/admin/exams/list` | `exam.list` | List exams with question counts and assigned classes |
+| `/api/admin/exams/save` | `exam.save` | Create or update a draft/scheduled exam |
+| `/api/admin/exams/delete` | `exam.delete` | Archive an unpublished exam |
+| `/api/admin/exams/questions` | `exam.questions.set` | Set the ordered question list for a draft exam |
+| `/api/admin/exams/assign` | `exam.assign` | Assign a draft/scheduled exam to existing school classes |
+
+Only school admins, school owners and exam officers can use these management actions. Each operation checks the authenticated school ID. MCQs require four options and an A/B/C/D answer; theory questions require a model answer/marking guide. Exam questions must be active questions from the exam's subject. Duplicate questions and duplicate class assignments are rejected.
+
+## Not yet enabled
+
+- The existing full CBT admin screen is not yet wired to these routes.
+- Live publication, candidate sign-in, Firebase custom-token exchange, candidate-safe question delivery, answer autosave, invigilation and results are not implemented by this change.
+- An exam cannot be marked published through these routes. Firebase remains deny-all.
+- Syntax checks passed for the Apps Script source and Cloudflare bridge. This is not a live integration test against the deployed Apps Script spreadsheet or Firebase.
