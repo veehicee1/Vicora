@@ -24,6 +24,11 @@ const VICORA = Object.freeze({
     Classes: ['record_id','school_id','name','level','active','updated_at'],
     Subjects: ['record_id','school_id','name','code','level','active','updated_at'],
     Students: ['record_id','school_id','admission_number','full_name','class_name','active','updated_at'],
+    Questions: ['question_id','school_id','subject_id','question_type','question_text','option_a','option_b','option_c','option_d','correct_answer','explanation','marks','difficulty','status','created_by','created_at','updated_at'],
+    Exams: ['exam_id','school_id','title','subject_id','duration_minutes','total_marks','instructions','status','start_at','end_at','shuffle_questions','shuffle_options','show_result','created_by','created_at','updated_at','published_at'],
+    ExamQuestions: ['record_id','school_id','exam_id','question_id','question_order','marks','created_at'],
+    ExamAssignments: ['assignment_id','school_id','exam_id','class_name','candidate_count','created_at'],
+    ExamAudit: ['event_id','school_id','exam_id','actor_id','action','details_json','created_at'],
     Devices: ['device_id','school_id','device_name','platform','device_token_hash','status','last_seen','created_at'],
     SyncEvents: ['event_id','school_id','device_id','entity_type','entity_id','operation','payload_json','created_at'],
     Audit: ['audit_id','school_id','actor_id','action','details_json','created_at']
@@ -62,6 +67,14 @@ function doPost(e) {
       case 'class.save': result = saveSchoolRecord_(body, 'Classes', ['name','level']); break;
       case 'subject.save': result = saveSchoolRecord_(body, 'Subjects', ['name','code','level']); break;
       case 'student.save': result = saveStudent_(body); break;
+      case 'question.list': result = listQuestions_(body); break;
+      case 'question.save': result = saveQuestion_(body); break;
+      case 'question.delete': result = deleteQuestion_(body); break;
+      case 'exam.list': result = listExams_(body); break;
+      case 'exam.save': result = saveExam_(body); break;
+      case 'exam.delete': result = deleteExam_(body); break;
+      case 'exam.questions.set': result = setExamQuestions_(body); break;
+      case 'exam.assign': result = assignExamClasses_(body); break;
       case 'host.enroll': result = enrollHost_(body); break;
       case 'host.heartbeat': result = hostHeartbeat_(body); break;
       case 'host.revoke': result = revokeHost_(body); break;
@@ -391,6 +404,230 @@ function authContext_(b) {
     role: String(user.role),
     name: String(user.name || '')
   };
+}
+
+
+function requireExamManager_(b) {
+  const auth = requireSession_(b);
+  requireRole_(auth, ['school_admin','school_owner','exam_officer']);
+  return auth;
+}
+
+function examAudit_(auth, examId, action, details) {
+  appendObject_('ExamAudit', {
+    event_id: Utilities.getUuid(), school_id: auth.schoolId, exam_id: examId || '',
+    actor_id: auth.userId, action: action, details_json: JSON.stringify(details || {}),
+    created_at: new Date().toISOString()
+  });
+}
+
+function positiveInteger_(value, label, max) {
+  const number = Number(value);
+  if (!Number.isInteger(number) || number < 1 || number > max) {
+    throw new Error(label + ' must be a whole number between 1 and ' + max + '.');
+  }
+  return number;
+}
+
+function listQuestions_(b) {
+  const auth = requireExamManager_(b);
+  const subjectId = clean_(b.subjectId || '', 100);
+  const status = clean_(b.status || '', 30);
+  const rows = scoped_('Questions', auth.schoolId).filter(function(q) {
+    return (!subjectId || q.subject_id === subjectId) && (!status || q.status === status);
+  }).sort(function(a, z) { return String(z.updated_at).localeCompare(String(a.updated_at)); });
+  return { questions: rows.map(function(q) {
+    return {
+      questionId: q.question_id, subjectId: q.subject_id, questionType: q.question_type,
+      questionText: q.question_text, options: { A:q.option_a, B:q.option_b, C:q.option_c, D:q.option_d },
+      correctAnswer: q.correct_answer, explanation: q.explanation, marks: Number(q.marks || 1),
+      difficulty: q.difficulty, status: q.status, createdAt: q.created_at, updatedAt: q.updated_at
+    };
+  }) };
+}
+
+function saveQuestion_(b) {
+  const auth = requireExamManager_(b);
+  const id = clean_(b.questionId || '', 100) || Utilities.getUuid();
+  const type = String(b.questionType || 'mcq').toLowerCase();
+  if (['mcq','theory'].indexOf(type) === -1) throw new Error('Question type must be MCQ or theory.');
+  const text = required_(b.questionText, 'Question text', 10000);
+  const subjectId = required_(b.subjectId, 'Subject', 100);
+  const subject = findOne_('Subjects', 'record_id', subjectId);
+  if (!subject || subject.school_id !== auth.schoolId || subject.active !== 'true') throw new Error('Select an active subject belonging to your school.');
+  const options = b.options && typeof b.options === 'object' ? b.options : {};
+  const optionA = type === 'mcq' ? required_(options.A, 'Option A', 2000) : '';
+  const optionB = type === 'mcq' ? required_(options.B, 'Option B', 2000) : '';
+  const optionC = type === 'mcq' ? required_(options.C, 'Option C', 2000) : '';
+  const optionD = type === 'mcq' ? required_(options.D, 'Option D', 2000) : '';
+  const answer = clean_(b.correctAnswer || '', 2000);
+  if (type === 'mcq' && ['A','B','C','D'].indexOf(answer.toUpperCase()) === -1) throw new Error('For an MCQ, choose A, B, C or D as the correct answer.');
+  if (type === 'theory' && !answer) throw new Error('Enter the model answer or marking guide for the theory question.');
+  const status = String(b.status || 'draft').toLowerCase();
+  if (['draft','active','archived'].indexOf(status) === -1) throw new Error('Question status must be draft, active or archived.');
+  const now = new Date().toISOString();
+  const sheet = sheet_('Questions');
+  const row = rowNumberByValue_(sheet, 'question_id', id, true);
+  const existing = row ? objectAtRow_(sheet, row) : null;
+  if (existing && existing.school_id !== auth.schoolId) throw new Error('Question not found in this school.');
+  const values = {
+    question_id:id, school_id:auth.schoolId, subject_id:subjectId, question_type:type,
+    question_text:text, option_a:optionA, option_b:optionB, option_c:optionC, option_d:optionD,
+    correct_answer:type === 'mcq' ? answer.toUpperCase() : answer,
+    explanation:clean_(b.explanation || '', 4000), marks:positiveInteger_(b.marks || 1, 'Marks', 1000),
+    difficulty:clean_(b.difficulty || 'medium', 30), status:status,
+    created_by:existing ? existing.created_by : auth.userId,
+    created_at:existing ? existing.created_at : now, updated_at:now
+  };
+  if (row) updateObjectRow_(sheet, row, values); else appendObject_('Questions', values);
+  audit_(auth.schoolId, 'question.saved', { questionId:id, subjectId:subjectId });
+  return { questionId:id, saved:true };
+}
+
+function deleteQuestion_(b) {
+  const auth = requireExamManager_(b);
+  const id = required_(b.questionId, 'Question ID', 100);
+  const question = findOne_('Questions', 'question_id', id);
+  if (!question || question.school_id !== auth.schoolId) throw new Error('Question not found in this school.');
+  const used = scoped_('ExamQuestions', auth.schoolId).some(function(r) { return r.question_id === id; });
+  if (used) {
+    updateObjectRow_(sheet_('Questions'), rowNumberByValue_(sheet_('Questions'), 'question_id', id), { status:'archived', updated_at:new Date().toISOString() });
+    audit_(auth.schoolId, 'question.archived', { questionId:id, reason:'Question is attached to an exam.' });
+    return { questionId:id, archived:true };
+  }
+  updateObjectRow_(sheet_('Questions'), rowNumberByValue_(sheet_('Questions'), 'question_id', id), { status:'archived', updated_at:new Date().toISOString() });
+  audit_(auth.schoolId, 'question.archived', { questionId:id });
+  return { questionId:id, archived:true };
+}
+
+function listExams_(b) {
+  const auth = requireExamManager_(b);
+  const rows = scoped_('Exams', auth.schoolId).sort(function(a,z) { return String(z.updated_at).localeCompare(String(a.updated_at)); });
+  return { exams:rows.map(function(e) {
+    const questionRows = scoped_('ExamQuestions', auth.schoolId).filter(function(q) { return q.exam_id === e.exam_id; });
+    const assignments = scoped_('ExamAssignments', auth.schoolId).filter(function(a) { return a.exam_id === e.exam_id; });
+    return {
+      examId:e.exam_id, title:e.title, subjectId:e.subject_id, durationMinutes:Number(e.duration_minutes || 0),
+      totalMarks:Number(e.total_marks || 0), instructions:e.instructions, status:e.status,
+      startAt:e.start_at, endAt:e.end_at, shuffleQuestions:e.shuffle_questions === 'true',
+      shuffleOptions:e.shuffle_options === 'true', showResult:e.show_result === 'true',
+      questionCount:questionRows.length, questionIds:questionRows.map(function(q) { return q.question_id; }), assignedClasses:assignments.map(function(a) { return a.class_name; }),
+      createdAt:e.created_at, updatedAt:e.updated_at
+    };
+  }) };
+}
+
+function saveExam_(b) {
+  const auth = requireExamManager_(b);
+  const id = clean_(b.examId || '', 100) || Utilities.getUuid();
+  const title = required_(b.title, 'Exam title', 180);
+  const subjectId = required_(b.subjectId, 'Subject', 100);
+  const subject = findOne_('Subjects', 'record_id', subjectId);
+  if (!subject || subject.school_id !== auth.schoolId || subject.active !== 'true') throw new Error('Select an active subject belonging to your school.');
+  const status = String(b.status || 'draft').toLowerCase();
+  if (['draft','scheduled','closed'].indexOf(status) === -1) throw new Error('Exam status must be draft, scheduled or closed. Live publishing is not enabled yet.');
+  const startAt = clean_(b.startAt || '', 40);
+  const endAt = clean_(b.endAt || '', 40);
+  if (startAt && endAt && new Date(endAt).getTime() <= new Date(startAt).getTime()) throw new Error('Exam end time must be after its start time.');
+  const sheet = sheet_('Exams');
+  const row = rowNumberByValue_(sheet, 'exam_id', id, true);
+  const existing = row ? objectAtRow_(sheet, row) : null;
+  if (existing && existing.school_id !== auth.schoolId) throw new Error('Exam not found in this school.');
+  if (existing && existing.status === 'published') throw new Error('A published exam cannot be edited through this setup API.');
+  const now = new Date().toISOString();
+  const questionRows = scoped_('ExamQuestions', auth.schoolId).filter(function(q) { return q.exam_id === id; });
+  const totalMarks = questionRows.reduce(function(sum, q) { return sum + Number(q.marks || 0); }, 0);
+  const values = {
+    exam_id:id, school_id:auth.schoolId, title:title, subject_id:subjectId,
+    duration_minutes:positiveInteger_(b.durationMinutes, 'Duration in minutes', 1440),
+    total_marks:totalMarks, instructions:clean_(b.instructions || '', 5000), status:status,
+    start_at:startAt, end_at:endAt, shuffle_questions:String(b.shuffleQuestions === true),
+    shuffle_options:String(b.shuffleOptions === true), show_result:String(b.showResult === true),
+    created_by:existing ? existing.created_by : auth.userId, created_at:existing ? existing.created_at : now,
+    updated_at:now, published_at:existing ? existing.published_at : ''
+  };
+  if (row) updateObjectRow_(sheet, row, values); else appendObject_('Exams', values);
+  examAudit_(auth, id, 'exam.saved', { title:title, status:status });
+  return { examId:id, saved:true, totalMarks:totalMarks };
+}
+
+function deleteExam_(b) {
+  const auth = requireExamManager_(b);
+  const id = required_(b.examId, 'Exam ID', 100);
+  const exam = findOne_('Exams', 'exam_id', id);
+  if (!exam || exam.school_id !== auth.schoolId) throw new Error('Exam not found in this school.');
+  if (['published','closed'].indexOf(exam.status) !== -1) throw new Error('A published or closed exam cannot be deleted.');
+  updateObjectRow_(sheet_('Exams'), rowNumberByValue_(sheet_('Exams'), 'exam_id', id), { status:'archived', updated_at:new Date().toISOString() });
+  examAudit_(auth, id, 'exam.archived', {});
+  return { examId:id, archived:true };
+}
+
+function setExamQuestions_(b) {
+  const auth = requireExamManager_(b);
+  const examId = required_(b.examId, 'Exam ID', 100);
+  const exam = findOne_('Exams', 'exam_id', examId);
+  if (!exam || exam.school_id !== auth.schoolId) throw new Error('Exam not found in this school.');
+  if (exam.status !== 'draft') throw new Error('Only draft exams can have their question list changed.');
+  if (!Array.isArray(b.questions) || b.questions.length < 1 || b.questions.length > 200) throw new Error('Add between 1 and 200 questions to the exam.');
+  const seen = {};
+  const prepared = b.questions.map(function(item, index) {
+    const questionId = required_(item.questionId, 'Question ID', 100);
+    if (seen[questionId]) throw new Error('A question cannot be added to the same exam twice.');
+    seen[questionId] = true;
+    const question = findOne_('Questions', 'question_id', questionId);
+    if (!question || question.school_id !== auth.schoolId || question.status !== 'active') throw new Error('Every selected question must be active and belong to your school.');
+    if (question.subject_id !== exam.subject_id) throw new Error('All exam questions must belong to the exam subject.');
+    return { question_id:questionId, question_order:index + 1, marks:positiveInteger_(item.marks || question.marks, 'Question marks', 1000) };
+  });
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const sheet = sheet_('ExamQuestions');
+    for (let r = sheet.getLastRow(); r >= 2; r--) {
+      const record = objectAtRow_(sheet, r);
+      if (record.school_id === auth.schoolId && record.exam_id === examId) sheet.deleteRow(r);
+    }
+    prepared.forEach(function(q) {
+      appendObject_('ExamQuestions', {
+        record_id:Utilities.getUuid(), school_id:auth.schoolId, exam_id:examId,
+        question_id:q.question_id, question_order:q.question_order, marks:q.marks, created_at:new Date().toISOString()
+      });
+    });
+  } finally { lock.releaseLock(); }
+  const total = prepared.reduce(function(sum, q) { return sum + q.marks; }, 0);
+  updateObjectRow_(sheet_('Exams'), rowNumberByValue_(sheet_('Exams'), 'exam_id', examId), { total_marks:total, updated_at:new Date().toISOString() });
+  examAudit_(auth, examId, 'exam.questions_updated', { count:prepared.length, totalMarks:total });
+  return { examId:examId, questionCount:prepared.length, totalMarks:total };
+}
+
+function assignExamClasses_(b) {
+  const auth = requireExamManager_(b);
+  const examId = required_(b.examId, 'Exam ID', 100);
+  const exam = findOne_('Exams', 'exam_id', examId);
+  if (!exam || exam.school_id !== auth.schoolId) throw new Error('Exam not found in this school.');
+  if (exam.status !== 'draft' && exam.status !== 'scheduled') throw new Error('Only draft or scheduled exams can be assigned to classes.');
+  if (!Array.isArray(b.classNames) || b.classNames.length < 1 || b.classNames.length > 100) throw new Error('Select at least one class.');
+  const classes = scoped_('Classes', auth.schoolId);
+  const names = [];
+  b.classNames.forEach(function(value) {
+    const name = required_(value, 'Class name', 100);
+    if (names.indexOf(name) !== -1) throw new Error('A class can only be assigned once.');
+    if (!classes.some(function(c) { return c.name === name && c.active === 'true'; })) throw new Error('Class ' + name + ' is not an active class in your school.');
+    names.push(name);
+  });
+  const sheet = sheet_('ExamAssignments');
+  for (let r = sheet.getLastRow(); r >= 2; r--) {
+    const record = objectAtRow_(sheet, r);
+    if (record.school_id === auth.schoolId && record.exam_id === examId) sheet.deleteRow(r);
+  }
+  names.forEach(function(name) {
+    appendObject_('ExamAssignments', {
+      assignment_id:Utilities.getUuid(), school_id:auth.schoolId, exam_id:examId,
+      class_name:name, candidate_count:0, created_at:new Date().toISOString()
+    });
+  });
+  examAudit_(auth, examId, 'exam.classes_assigned', { classes:names });
+  return { examId:examId, assignedClasses:names };
 }
 
 function requirePlatformAdmin_(b) {
